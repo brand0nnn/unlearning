@@ -9,7 +9,8 @@
 #   scancel <job_id>              cancel the job
 # ===========================================================================
 #SBATCH --job-name=tofu
-#SBATCH --gpus=a100:1
+#SBATCH --partition=gpu
+#SBATCH --gres=gpu:a100-40:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=48G
 #SBATCH --time=12:00:00
