@@ -36,6 +36,9 @@ def _generate(model, tokenizer, question: str, max_new_tokens: int = 64) -> str:
     import torch
     prompt = format_qa(question)
     enc = tokenizer(prompt, return_tensors="pt").to(model.device)
+    # Guard: skip empty tokenizations
+    if enc["input_ids"].shape[1] == 0:
+        return ""
     with torch.no_grad():
         out = model.generate(**enc, max_new_tokens=max_new_tokens, do_sample=False,
                              pad_token_id=tokenizer.pad_token_id)
