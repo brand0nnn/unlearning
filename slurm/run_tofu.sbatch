@@ -14,11 +14,11 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=48G
 #SBATCH --time=12:00:00
-#SBATCH --output=logs/tofu_%j.out
-#SBATCH --error=logs/tofu_%j.err
+#SBATCH --output=/home/b/brandonk/unlearning/logs/tofu_%j.out
+#SBATCH --error=/home/b/brandonk/unlearning/logs/tofu_%j.err
 
 set -e
-PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+PROJECT_DIR="/home/b/brandonk/unlearning"
 cd "$PROJECT_DIR"
 mkdir -p logs
 
