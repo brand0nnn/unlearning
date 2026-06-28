@@ -15,6 +15,12 @@ PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VENV_DIR="$PROJECT_DIR/.venv"
 CACHE_DIR="$PROJECT_DIR/.cache"
 
+# Force ALL temporary files and caches onto the big filesystem.
+# Without this, pip writes downloads to the system /tmp which hits the quota.
+export TMPDIR="$PROJECT_DIR/.tmp"
+export PIP_CACHE_DIR="$CACHE_DIR/pip"
+mkdir -p "$TMPDIR" "$PIP_CACHE_DIR"
+
 echo "=== [1/4] Creating virtual environment at $VENV_DIR ==="
 python3 -m venv "$VENV_DIR"
 source "$VENV_DIR/bin/activate"
