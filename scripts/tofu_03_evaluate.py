@@ -29,8 +29,10 @@ from src.utils.logging_utils import load_config, get_logger, ensure_dir
 logger = get_logger("tofu_evaluate")
 
 
-def _load(ckpt):
-    tok = AutoTokenizer.from_pretrained(ckpt)
+def _load(ckpt, model_name):
+    # Tokenizer is loaded from the original model name because the training
+    # script saves model weights only, not tokenizer files.
+    tok = AutoTokenizer.from_pretrained(model_name)
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
     model = AutoModelForCausalLM.from_pretrained(
@@ -54,9 +56,11 @@ def main():
     max_new = cfg["evaluation"]["max_new_tokens"]
     out_dir = ensure_dir("results")
 
+    model_name = cfg["model"]["name"]
+
     # Reference model first — its forget truth ratios anchor every Forget Quality.
     logger.info("Evaluating REFERENCE (gold retain) model...")
-    ref_model, ref_tok = _load(args.reference)
+    ref_model, ref_tok = _load(args.reference, model_name)
     ref_results = evaluate_tofu(ref_model, ref_tok, splits, max_new)
     json.dump(ref_results, open(out_dir / "tofu_reference.json", "w"), indent=2)
     del ref_model
@@ -65,7 +69,7 @@ def main():
     for ckpt in args.checkpoints:
         name = Path(ckpt).name
         logger.info("Evaluating %s ...", name)
-        model, tok = _load(ckpt)
+        model, tok = _load(ckpt, model_name)
         res = evaluate_tofu(model, tok, splits, max_new)
         res.update(compute_forget_quality(res, ref_results))
         json.dump(res, open(out_dir / f"tofu_{name}.json", "w"), indent=2)

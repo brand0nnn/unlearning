@@ -42,7 +42,7 @@ def main():
     forget = load_qa(forget_level, cfg["tofu"]["cache_dir"])
     retain = load_qa(retain_level, cfg["tofu"]["cache_dir"])
 
-    tokenizer = AutoTokenizer.from_pretrained(args.checkpoint)
+    tokenizer = AutoTokenizer.from_pretrained(cfg["model"]["name"])
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     model = AutoModelForCausalLM.from_pretrained(
