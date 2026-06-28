@@ -58,7 +58,16 @@ def _answer_logprob_sum(model, tokenizer, question: str, answer: str):
     answer_ids = tokenizer(" " + answer.strip(), add_special_tokens=False,
                            return_tensors="pt").input_ids
 
+    # Guard: if either prompt or answer tokenized to nothing, skip this example.
+    if prompt_ids.shape[1] == 0 or answer_ids.shape[1] == 0:
+        return 0.0, 0
+
     input_ids = torch.cat([prompt_ids, answer_ids], dim=1).to(model.device)
+
+    # Guard: full sequence must have at least 2 tokens for the shift to work.
+    if input_ids.shape[1] < 2:
+        return 0.0, 0
+
     with torch.no_grad():
         logits = model(input_ids).logits  # (1, seq_len, vocab)
         log_probs = F.log_softmax(logits, dim=-1)  # log-prob of NEXT token everywhere
