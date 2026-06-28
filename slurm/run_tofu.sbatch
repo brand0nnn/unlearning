@@ -1,7 +1,6 @@
 #!/bin/bash
 # ===========================================================================
 # TOFU full pipeline — submit with:  sbatch slurm/run_tofu.sbatch
-#
 # Prerequisites: run setup.sh once on the login node before submitting this.
 #
 # Useful commands:
@@ -32,9 +31,13 @@ echo "======================================================"
 # --- Environment -----------------------------------------------------------
 source "$PROJECT_DIR/.venv/bin/activate"
 
+# Point HF at project storage so model download goes to the big filesystem
+export TMPDIR="$PROJECT_DIR/.tmp"
 export HF_HOME="$PROJECT_DIR/.cache/huggingface"
 export HF_DATASETS_CACHE="$PROJECT_DIR/.cache/datasets"
-export HF_HUB_OFFLINE=1   # use local cache only — no internet needed on compute nodes
+mkdir -p "$TMPDIR" "$HF_HOME" "$HF_DATASETS_CACHE"
+# Note: HF_HUB_OFFLINE is NOT set here — the model downloads on first run,
+# then is cached for all subsequent runs.
 
 echo "Python     : $(which python3)"
 echo "GPU        :"; nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
