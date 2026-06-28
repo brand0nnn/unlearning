@@ -20,3 +20,6 @@ rouge_score
 
 # Plotting
 matplotlib>=3.8
+
+tiktoken
+sentencepiece
