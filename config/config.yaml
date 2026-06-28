@@ -1,0 +1,74 @@
+# ============================================================================
+# Central configuration. Every script reads from here so that an experiment is
+# fully described by this file + the script you ran. Change a number here, not
+# in the middle of your code.
+# ============================================================================
+
+seed: 42                       # fixes randomness so runs are reproducible
+
+model:
+  # Start small. You can swap to Qwen-2.5 by changing this one line.
+  name: "meta-llama/Llama-3.2-1B"
+  # name: "Qwen/Qwen2.5-1.5B"
+  load_in_4bit: false          # set true if the model doesn't fit in GPU memory
+  dtype: "bfloat16"            # "float16" if your GPU is older
+  max_seq_length: 512
+
+data:
+  raw_dir: "data/raw"
+  processed_dir: "data/processed"
+  counterfactual_dir: "data/counterfactuals"
+  # How many examples to evaluate on. Use a small number while debugging,
+  # then raise it for the real runs.
+  eval_subset_size: 500
+
+evaluation:
+  batch_size: 8
+  max_new_tokens: 20           # factual answers are short
+  # We'll compute several metrics; see src/evaluation/metrics.py
+  metrics: ["exact_match", "token_f1"]
+
+training:
+  output_dir: "experiments"
+  # Shared hyperparameters across methods. Method-specific ones live in their
+  # own sub-block below so a comparison only changes what it needs to.
+  epochs: 3
+  learning_rate: 2.0e-4
+  per_device_batch_size: 4
+  gradient_accumulation_steps: 4
+  warmup_ratio: 0.03
+  logging_steps: 10
+  save_steps: 200
+
+  lora:
+    r: 16                      # rank of the low-rank update
+    alpha: 32                  # scaling
+    dropout: 0.05
+    target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
+
+  self_distillation:
+    temperature: 2.0           # softens teacher logits
+    alpha: 0.5                 # weight on distillation loss vs. task loss
+
+  grpo:
+    num_generations: 4         # samples per prompt used to estimate advantage
+    kl_beta: 0.04              # KL penalty keeping the policy near the reference
+    max_completion_length: 64
+
+# ============================================================================
+# TOFU-specific settings (the fictitious-author unlearning benchmark).
+# ============================================================================
+tofu:
+  cache_dir: "data/raw/tofu"   # where the HF download is cached
+  forget_level: "forget10"     # forget01 | forget05 | forget10
+  eval_limit: null             # null = all questions; set e.g. 50 for a smoke test
+
+  # LEARN phase (fine-tune base model on TOFU).
+  finetune_epochs: 5
+  finetune_lr: 1.0e-5          # TOFU's value
+
+  # UNLEARN phase.
+  unlearn_epochs: 5
+  unlearn_lr: 1.0e-5
+  # method is passed on the command line:
+  #   gradient_ascent | gradient_difference | kl_minimization | idk
