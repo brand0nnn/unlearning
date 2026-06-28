@@ -58,9 +58,9 @@ def _collate(batch, pad_id):
         labels.append(b["labels"] + [-100] * pad)
         attn.append([1] * len(b["input_ids"]) + [0] * pad)
     return {
-        "input_ids": torch.tensor(input_ids),
-        "labels": torch.tensor(labels),
-        "attention_mask": torch.tensor(attn),
+        "input_ids": torch.tensor(input_ids, dtype=torch.long),
+        "labels": torch.tensor(labels, dtype=torch.long),
+        "attention_mask": torch.tensor(attn, dtype=torch.long),
     }
 
 
