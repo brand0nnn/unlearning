@@ -5,9 +5,9 @@ torch>=2.2
 transformers>=4.44
 datasets>=2.20
 accelerate>=0.33
-peft>=0.12          # LoRA and other parameter-efficient methods
-trl>=0.9            # GRPO and other RL/preference trainers
-bitsandbytes>=0.43  # optional: 8/4-bit loading to fit big models on small GPUs
+peft>=0.12
+trl>=0.9
+bitsandbytes>=0.43
 
 # Config, data, utilities
 pyyaml>=6.0
@@ -15,9 +15,8 @@ numpy>=1.26
 pandas>=2.2
 tqdm>=4.66
 scikit-learn>=1.5
+scipy>=1.11
+rouge_score
 
-# Plotting for results/
+# Plotting
 matplotlib>=3.8
-
-# Notebooks (optional)
-jupyter>=1.0
