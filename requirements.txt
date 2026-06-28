@@ -1,5 +1,6 @@
-# Core deep learning
-torch>=2.2
+# NOTE: torch is installed separately in setup.sh with the correct CUDA wheel
+# (the default pip torch can run on CPU or mismatch the cluster driver).
+# Do not add torch here.
 
 # Hugging Face stack
 transformers>=4.44
@@ -7,19 +8,19 @@ datasets>=2.20
 accelerate>=0.33
 peft>=0.12
 trl>=0.9
-bitsandbytes>=0.43
+
+# Tokenizer backends required by phi-2 (and most modern tokenizers)
+tiktoken
+sentencepiece
 
 # Config, data, utilities
-pyyaml>=6.0
-numpy>=1.26
-pandas>=2.2
-tqdm>=4.66
-scikit-learn>=1.5
-scipy>=1.11
+pyyaml
+numpy
+pandas
+tqdm
+scikit-learn
+scipy
 rouge_score
 
 # Plotting
-matplotlib>=3.8
-
-tiktoken
-sentencepiece
+matplotlib

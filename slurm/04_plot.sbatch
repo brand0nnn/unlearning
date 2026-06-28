@@ -9,10 +9,10 @@
 
 PROJECT_DIR="/home/b/brandonk/unlearning"
 cd "$PROJECT_DIR"
+mkdir -p logs
 source "$PROJECT_DIR/.venv/bin/activate"
 export TMPDIR="$PROJECT_DIR/.tmp"
 
-echo "=== Generating plots ==="
 python scripts/tofu_04_plot.py
 
-echo "=== Plots saved to results/ ==="
+echo "=== Plots written to results/ ==="

@@ -105,4 +105,7 @@ def finetune_tofu(model, tokenizer, records: List[Dict], cfg: Dict,
     logger.info("LEARN phase (%s, lora=%s) -> %s", run_name, use_lora, args.output_dir)
     trainer.train()
     trainer.save_model(args.output_dir)
+    # Save the tokenizer too, so the checkpoint is self-contained and can be
+    # loaded by later stages without falling back to the base model name.
+    tokenizer.save_pretrained(args.output_dir)
     return args.output_dir

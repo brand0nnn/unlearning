@@ -8,7 +8,7 @@ seed: 42                       # fixes randomness so runs are reproducible
 
 model:
   # Start small. You can swap to Qwen-2.5 by changing this one line.
-  name: "microsoft/phi-2"
+  name: "meta-llama/Llama-3.2-1B"
   # name: "Qwen/Qwen2.5-1.5B"
   load_in_4bit: false          # set true if the model doesn't fit in GPU memory
   dtype: "bfloat16"            # "float16" if your GPU is older

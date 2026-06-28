@@ -1,49 +1,59 @@
 #!/bin/bash
 # ===========================================================================
-# ONE-TIME SETUP — run this manually on the login node before your first job.
-# Usage:  bash setup.sh
+# ONE-TIME SETUP — run on the LOGIN NODE.  Usage:  bash setup.sh
+#
+# Creates the venv, installs CUDA-matched torch + all packages, and downloads
+# every TOFU split. Does NOT download the model (torch can't load on the login
+# node; the model downloads automatically on the compute node on first run).
 # ===========================================================================
-
 set -e
 
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
-VENV_DIR="$PROJECT_DIR/.venv"
 CACHE_DIR="$PROJECT_DIR/.cache"
 
-# Force ALL temporary files and caches onto the big filesystem.
+# Redirect ALL temp/cache onto project storage (the home system-partition quota
+# is tiny; pip/HF temp files blow it otherwise).
 export TMPDIR="$PROJECT_DIR/.tmp"
 export PIP_CACHE_DIR="$CACHE_DIR/pip"
-mkdir -p "$TMPDIR" "$PIP_CACHE_DIR"
-
-echo "=== [1/3] Creating virtual environment at $VENV_DIR ==="
-python3 -m venv "$VENV_DIR"
-source "$VENV_DIR/bin/activate"
-
-echo "=== [2/3] Installing packages ==="
-pip install --upgrade pip --quiet
-pip install -r "$PROJECT_DIR/requirements.txt"
-
-echo "=== [3/3] Downloading TOFU dataset ==="
 export HF_HOME="$CACHE_DIR/huggingface"
 export HF_DATASETS_CACHE="$CACHE_DIR/datasets"
-mkdir -p "$HF_HOME" "$HF_DATASETS_CACHE"
+mkdir -p "$TMPDIR" "$PIP_CACHE_DIR" "$HF_HOME" "$HF_DATASETS_CACHE"
 
+echo "=== [1/4] Creating virtual environment ==="
+python3 -m venv "$PROJECT_DIR/.venv"
+source "$PROJECT_DIR/.venv/bin/activate"
+pip install --upgrade pip --quiet
+
+echo "=== [2/4] Installing torch (CUDA 12.1 wheel, matches the cluster driver) ==="
+# The default pip torch may run on CPU or mismatch the driver — install the
+# cu121 wheel explicitly. This is the build that ran correctly on the A100s.
+pip install torch --index-url https://download.pytorch.org/whl/cu121
+
+echo "=== [3/4] Installing the rest of the packages ==="
+pip install -r "$PROJECT_DIR/requirements.txt"
+
+echo "=== [4/4] Downloading all TOFU splits ==="
 python3 - << 'PYEOF'
 from datasets import load_dataset
 import os
 cache = os.environ["HF_DATASETS_CACHE"]
-for config in ["full", "retain90", "forget10",
-               "forget10_perturbed", "retain_perturbed",
-               "real_authors_perturbed", "world_facts_perturbed"]:
-    print(f"  Downloading TOFU config: {config}")
-    load_dataset("locuslab/TOFU", config, split="train", cache_dir=cache)
+configs = [
+    "full", "retain90", "forget10",
+    "forget10_perturbed", "retain_perturbed",
+    "real_authors_perturbed", "world_facts_perturbed",
+]
+for c in configs:
+    print(f"  Downloading TOFU config: {c}")
+    load_dataset("locuslab/TOFU", c, split="train", cache_dir=cache)
 print("  TOFU download complete.")
 PYEOF
 
 echo ""
-echo "=== Setup complete! ==="
-echo "Note: the base model (phi-2) will be downloaded automatically"
-echo "      on the compute node when you first run the job."
+echo "=== Setup complete ==="
+echo "The phi-2 model will download automatically on the compute node during 01_learn."
 echo ""
-echo "To run the pipeline:"
-echo "  sbatch slurm/run_tofu.sbatch"
+echo "Run the pipeline in order:"
+echo "  sbatch slurm/01_learn.sbatch       # then wait for it to finish"
+echo "  sbatch slurm/02_unlearn.sbatch"
+echo "  sbatch slurm/03_evaluate.sbatch"
+echo "  sbatch slurm/04_plot.sbatch"
