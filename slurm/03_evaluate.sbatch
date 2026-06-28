@@ -14,9 +14,20 @@ source "$PROJECT_DIR/.venv/bin/activate"
 export TMPDIR="$PROJECT_DIR/.tmp"
 export HF_HOME="$PROJECT_DIR/.cache/huggingface"
 export HF_DATASETS_CACHE="$PROJECT_DIR/.cache/datasets"
-export HF_HUB_OFFLINE=1
 
 echo "Node: $(hostname)"; nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
+
+echo "=== Downloading missing TOFU splits ==="
+python3 - << 'PYEOF'
+from datasets import load_dataset
+import os
+cache = os.environ["HF_DATASETS_CACHE"]
+for config in ["forget10_perturbed", "retain_perturbed",
+               "real_authors_perturbed", "world_facts_perturbed"]:
+    print(f"  Downloading: {config}")
+    load_dataset("locuslab/TOFU", config, split="train", cache_dir=cache)
+print("  Done.")
+PYEOF
 
 REFERENCE="$PROJECT_DIR/experiments/tofu_learn_retain90_full"
 
