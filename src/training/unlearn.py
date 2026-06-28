@@ -99,11 +99,15 @@ def unlearn(model, tokenizer, forget: List[Dict], retain: List[Dict],
     for epoch in range(u["unlearn_epochs"]):
         retain_iter = iter(retain_dl)
         for step, f_batch in enumerate(forget_dl):
+            if f_batch is None:
+                continue
             try:
                 r_batch = next(retain_iter)
             except StopIteration:
                 retain_iter = iter(retain_dl)
                 r_batch = next(retain_iter)
+            if r_batch is None:
+                continue
 
             if method == "gradient_ascent":
                 loss = -_nll(model, f_batch)

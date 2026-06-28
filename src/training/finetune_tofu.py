@@ -50,6 +50,10 @@ class TofuQADataset(Dataset):
 
 def _collate(batch, pad_id):
     """Pad a batch to equal length; pad labels with -100."""
+    # Filter out any empty examples to avoid 0-element tensor errors.
+    batch = [b for b in batch if len(b["input_ids"]) > 0]
+    if not batch:
+        return None
     maxlen = max(len(b["input_ids"]) for b in batch)
     input_ids, labels, attn = [], [], []
     for b in batch:
