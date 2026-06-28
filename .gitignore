@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Personal context + reference papers
+CLAUDE.md
+papers/
+papers.md
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
