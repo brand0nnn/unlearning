@@ -92,9 +92,16 @@ def _eval_mc_split(model, tokenizer, records, max_new_tokens):
         logger.warning("MC split: skipped %d/%d records with no wrong_answers "
                        "(check the field-name diagnostic log from load_tofu)",
                        skipped, len(records))
+    tr_mean = _mean(truth_ratios)
+    # Diagnostic: show the first few stored truth ratios and the mean, so we can
+    # see exactly what gets scaled into the utility 'truth' value.
+    logger.info("MC split DIAG: n_truth=%d first5=%s mean=%.6f scaled=%.6f",
+                len(truth_ratios),
+                [round(x, 4) for x in truth_ratios[:5]],
+                tr_mean, max(0.0, 1.0 - tr_mean))
     return {"prob": _mean(probs), "rouge": _mean(rouges),
             "truth_ratios": truth_ratios,
-            "truth_ratio_mean": _mean(truth_ratios)}
+            "truth_ratio_mean": tr_mean}
 
 
 def evaluate_tofu(model, tokenizer, splits: Dict, max_new_tokens: int = 64) -> Dict:
