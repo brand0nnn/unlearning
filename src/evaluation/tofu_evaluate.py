@@ -73,7 +73,13 @@ def _eval_mc_split(model, tokenizer, records, max_new_tokens):
     against the (correct) answer as the paraphrase stand-in.
     """
     probs, rouges, truth_ratios = [], [], []
+    skipped = 0
     for r in tqdm(records, desc="mc split"):
+        if not r["wrong_answers"]:
+            # No distractors for this record -> truth ratio is undefined, skip
+            # rather than let it silently contribute a misleading 0.
+            skipped += 1
+            continue
         probs.append(probability_score_mc(model, tokenizer, r["question"],
                                            r["answer"], r["wrong_answers"]))
         gen = _generate(model, tokenizer, r["question"], max_new_tokens)
@@ -82,6 +88,10 @@ def _eval_mc_split(model, tokenizer, records, max_new_tokens):
             truth_ratio_score(model, tokenizer, r["question"],
                               r["answer"], r["wrong_answers"])
         )
+    if skipped:
+        logger.warning("MC split: skipped %d/%d records with no wrong_answers "
+                       "(check the field-name diagnostic log from load_tofu)",
+                       skipped, len(records))
     return {"prob": _mean(probs), "rouge": _mean(rouges),
             "truth_ratios": truth_ratios,
             "truth_ratio_mean": _mean(truth_ratios)}

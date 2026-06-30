@@ -72,12 +72,22 @@ def load_multiple_choice(config: str, cache_dir: str, limit: int | None = None) 
     Returns: question, answer (correct), wrong_answers (the distractor options).
     """
     ds = _hf(config, cache_dir)
+
+    # One-time diagnostic: print the real field names so we never have to guess.
+    if len(ds) > 0:
+        logger.info("TOFU[%s] actual fields: %s", config, list(ds[0].keys()))
+
     out = []
     for r in ds:
+        # Be defensive: different TOFU dataset versions / configs have used
+        # 'perturbed_answer' (singular) and 'perturbed_answers' (plural) for
+        # this field. Try both, and fall back to an empty list only if neither
+        # exists (in which case truth ratio for that record is skipped).
+        wrong = r.get("perturbed_answer", r.get("perturbed_answers", []))
         out.append({
             "question": r["question"],
             "answer": r["answer"],
-            "wrong_answers": r.get("perturbed_answer", []),
+            "wrong_answers": wrong,
         })
     if limit:
         out = out[:limit]

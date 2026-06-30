@@ -63,8 +63,7 @@ def rouge_by_split(rouge_by_method_split: Dict[str, Dict[str, float]], out_dir: 
 
 def _save(fig, out_dir: str, name: str):
     Path(out_dir).mkdir(parents=True, exist_ok=True)
-    for ext in ("png", "pdf"):
-        path = Path(out_dir) / f"{name}.{ext}"
-        fig.savefig(path, dpi=150, bbox_inches="tight")
+    path = Path(out_dir) / f"{name}.png"
+    fig.savefig(path, dpi=150, bbox_inches="tight")
     plt.close(fig)
-    logger.info("Saved plot -> %s/%s.{png,pdf}", out_dir, name)
+    logger.info("Saved plot -> %s", path)
