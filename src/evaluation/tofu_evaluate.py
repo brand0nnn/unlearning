@@ -53,17 +53,19 @@ def _mean(xs: List[float]) -> float:
 def _eval_perturbed_split(model, tokenizer, records, max_new_tokens):
     """For forget/retain: probability + ROUGE + raw truth ratios per question."""
     probs, rouges, truth_ratios = [], [], []
+    truth_utils = []
     for r in tqdm(records, desc="perturbed split"):
         probs.append(probability_score(model, tokenizer, r["question"], r["answer"]))
         gen = _generate(model, tokenizer, r["question"], max_new_tokens)
         rouges.append(rouge_score_recall(gen, r["answer"]))
-        truth_ratios.append(
-            truth_ratio_score(model, tokenizer, r["question"],
+        R = truth_ratio_score(model, tokenizer, r["question"],
                               r["paraphrased_answer"], r["perturbed_answers"])
-        )
+        truth_ratios.append(R)                  # RAW (forget split needs this)
+        truth_utils.append(max(0.0, 1.0 - R))   # clamped per-record, for utility
     return {"prob": _mean(probs), "rouge": _mean(rouges),
             "truth_ratios": truth_ratios,
-            "truth_ratio_mean": _mean(truth_ratios)}
+            "truth_ratio_mean": _mean(truth_ratios),
+            "truth_utility": _mean(truth_utils)}
 
 
 def _eval_mc_split(model, tokenizer, records, max_new_tokens):
@@ -73,6 +75,7 @@ def _eval_mc_split(model, tokenizer, records, max_new_tokens):
     against the (correct) answer as the paraphrase stand-in.
     """
     probs, rouges, truth_ratios = [], [], []
+    truth_utils = []
     skipped = 0
     for r in tqdm(records, desc="mc split"):
         if not r["wrong_answers"]:
@@ -84,24 +87,26 @@ def _eval_mc_split(model, tokenizer, records, max_new_tokens):
                                            r["answer"], r["wrong_answers"]))
         gen = _generate(model, tokenizer, r["question"], max_new_tokens)
         rouges.append(rouge_score_recall(gen, r["answer"]))
-        truth_ratios.append(
-            truth_ratio_score(model, tokenizer, r["question"],
+        # Store the RAW truth ratio (needed unclamped for the forget-quality
+        # KS-test elsewhere), but for the utility value we clamp per-record.
+        R = truth_ratio_score(model, tokenizer, r["question"],
                               r["answer"], r["wrong_answers"])
-        )
+        truth_ratios.append(R)
+        truth_utils.append(max(0.0, 1.0 - R))
     if skipped:
         logger.warning("MC split: skipped %d/%d records with no wrong_answers "
                        "(check the field-name diagnostic log from load_tofu)",
                        skipped, len(records))
-    tr_mean = _mean(truth_ratios)
-    # Diagnostic: show the first few stored truth ratios and the mean, so we can
-    # see exactly what gets scaled into the utility 'truth' value.
-    logger.info("MC split DIAG: n_truth=%d first5=%s mean=%.6f scaled=%.6f",
+    tr_util = _mean(truth_utils)
+    # Diagnostic: show the first few RAW truth ratios and the final clamped-then-
+    # averaged utility value, so we can verify outliers are being capped.
+    logger.info("MC split DIAG: n=%d raw_first5=%s util(mean of max(0,1-R))=%.6f",
                 len(truth_ratios),
-                [round(x, 4) for x in truth_ratios[:5]],
-                tr_mean, max(0.0, 1.0 - tr_mean))
+                [round(x, 4) for x in truth_ratios[:5]], tr_util)
     return {"prob": _mean(probs), "rouge": _mean(rouges),
-            "truth_ratios": truth_ratios,
-            "truth_ratio_mean": tr_mean}
+            "truth_ratios": truth_ratios,        # RAW, for any KS-test use
+            "truth_ratio_mean": _mean(truth_ratios),
+            "truth_utility": tr_util}            # clamped per-record, for utility
 
 
 def evaluate_tofu(model, tokenizer, splits: Dict, max_new_tokens: int = 64) -> Dict:
@@ -115,10 +120,12 @@ def evaluate_tofu(model, tokenizer, splits: Dict, max_new_tokens: int = 64) -> D
     logger.info("Evaluating world_facts split...")
     world = _eval_mc_split(model, tokenizer, splits["world_facts"], max_new_tokens)
 
-    # Build the 9 utility sub-metrics: truth is scaled max(0, 1 - R_truth).
+    # Build the 9 utility sub-metrics. 'truth' is the per-record clamped
+    # max(0,1-R) averaged over the split (computed in the split functions),
+    # which keeps it bounded in [0,1] even when some records have R>>1.
     def util_block(split):
         return {"prob": split["prob"], "rouge": split["rouge"],
-                "truth": scale_truth_ratio_for_utility(split["truth_ratio_mean"])}
+                "truth": split["truth_utility"]}
 
     mu = model_utility(util_block(retain), util_block(real), util_block(world))
 
