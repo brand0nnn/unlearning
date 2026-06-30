@@ -73,9 +73,15 @@ def load_multiple_choice(config: str, cache_dir: str, limit: int | None = None) 
     """
     ds = _hf(config, cache_dir)
 
-    # One-time diagnostic: print the real field names so we never have to guess.
+    # One-time diagnostic: print the real field names AND the actual value/type
+    # of the perturbed-answer field, so we can see e.g. whether it's a string
+    # vs a list before any silent-failure code path can hide the problem.
     if len(ds) > 0:
-        logger.info("TOFU[%s] actual fields: %s", config, list(ds[0].keys()))
+        first = ds[0]
+        logger.info("TOFU[%s] actual fields: %s", config, list(first.keys()))
+        raw_wrong = first.get("perturbed_answer", first.get("perturbed_answers", "MISSING"))
+        logger.info("TOFU[%s] perturbed field type=%s value=%r",
+                   config, type(raw_wrong).__name__, raw_wrong)
 
     out = []
     for r in ds:
@@ -84,6 +90,14 @@ def load_multiple_choice(config: str, cache_dir: str, limit: int | None = None) 
         # this field. Try both, and fall back to an empty list only if neither
         # exists (in which case truth ratio for that record is skipped).
         wrong = r.get("perturbed_answer", r.get("perturbed_answers", []))
+        # CRITICAL: for the MC configs (real_authors/world_facts) this field
+        # can come back as a single STRING rather than a list of strings. If we
+        # don't normalize it, downstream code does `for w in wrong` which
+        # iterates the string CHARACTER BY CHARACTER, silently producing
+        # garbage truth ratios that floor to 0 for every record. Always coerce
+        # to a list.
+        if isinstance(wrong, str):
+            wrong = [wrong]
         out.append({
             "question": r["question"],
             "answer": r["answer"],
