@@ -9,10 +9,10 @@ seed: 42                       # fixes randomness so runs are reproducible
 model:
   # Start small. You can swap to Qwen-2.5 by changing this one line.
   # name: "microsoft/phi-2"
-  name: "meta-llama/Llama-3.2-1B"
+  name: "meta-llama/Llama-2-7b"
   # name: "Qwen/Qwen2.5-1.5B"
   load_in_4bit: false          # set true if the model doesn't fit in GPU memory
-  dtype: "bfloat16"            # "float16" if your GPU is older
+  dtype: "float16"            # "float16" if your GPU is older
   max_seq_length: 512
 
 data:
@@ -62,7 +62,7 @@ training:
 # ============================================================================
 tofu:
   cache_dir: "data/raw/tofu"   # where the HF download is cached
-  forget_level: "forget10"     # forget01 | forget05 | forget10
+  forget_level: "forget05"     # forget01 | forget05 | forget10
   eval_limit: null             # null = all questions; set e.g. 50 for a smoke test
 
   # LEARN phase (fine-tune base model on TOFU).
