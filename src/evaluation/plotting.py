@@ -145,10 +145,10 @@ def rouge_by_split(rouge_by_method_split: Dict[str, Dict[str, float]], out_dir: 
 
     for i, m in enumerate(methods):
         vals = [rouge_by_method_split[m].get(s, 0.0) for s in splits]
-        color = METHOD_COLORS.get(name, None)
+        color = METHOD_COLORS.get(m, None)
         if color is None:
             for key in METHOD_COLORS:
-                if key in name:
+                if key in m:
                     color = METHOD_COLORS[key]
                     break
         color = color or DEFAULT_COLOR
