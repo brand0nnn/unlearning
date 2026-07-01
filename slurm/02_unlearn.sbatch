@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=tofu_unlearn
 #SBATCH --partition=gpu
-#SBATCH --gres=gpu:a100-40:1
+#SBATCH --gres=gpu:a100-80:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=48G
 #SBATCH --time=06:00:00
