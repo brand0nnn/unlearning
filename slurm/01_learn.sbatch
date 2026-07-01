@@ -15,6 +15,7 @@ source "$PROJECT_DIR/.venv/bin/activate"
 export TMPDIR="$PROJECT_DIR/.tmp"
 export HF_HOME="$PROJECT_DIR/.cache/huggingface"
 export HF_DATASETS_CACHE="$PROJECT_DIR/.cache/datasets"
+source ~/.env_hf
 
 echo "Node: $(hostname)"; nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 
