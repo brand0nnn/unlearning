@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --job-name=tofu_learn
 #SBATCH --partition=gpu
-#SBATCH --gres=gpu:a100-40:1
+#SBATCH --gres=gpu:a100-40:2
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=48G
+#SBATCH --mem=80G
 #SBATCH --time=06:00:00
 #SBATCH --output=/home/b/brandonk/unlearning/logs/learn_%j.out
 #SBATCH --error=/home/b/brandonk/unlearning/logs/learn_%j.err
