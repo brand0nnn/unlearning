@@ -65,7 +65,13 @@ def forget_quality_vs_utility(results_by_method: Dict[str, Dict], out_dir: str,
 
     # --- your results (filled circles) --------------------------------------
     for name, r in results_by_method.items():
-        color = METHOD_COLORS.get(name, DEFAULT_COLOR)
+        color = METHOD_COLORS.get(name, None)
+        if color is None:
+            for key in METHOD_COLORS:
+                if key in name:
+                    color = METHOD_COLORS[key]
+                    break
+        color = color or DEFAULT_COLOR
         ax.scatter(r["model_utility"], r["forget_quality_log10"],
                    s=160, color=color, zorder=3, label=name)
         ax.annotate(name.replace("_", " "),
@@ -112,6 +118,8 @@ def forget_quality_vs_utility(results_by_method: Dict[str, Dict], out_dir: str,
               framealpha=0.85, ncol=1)
 
     ax.set_xlim(left=0.0)
+    ax.set_ylim(bottom=max(-50, min(r["forget_quality_log10"]          # ADD THIS
+                for r in results_by_method.values()) - 2))  
     fig.tight_layout()
     _save(fig, out_dir, "forget_quality_vs_utility")
 
@@ -137,7 +145,13 @@ def rouge_by_split(rouge_by_method_split: Dict[str, Dict[str, float]], out_dir: 
 
     for i, m in enumerate(methods):
         vals = [rouge_by_method_split[m].get(s, 0.0) for s in splits]
-        color = METHOD_COLORS.get(m, DEFAULT_COLOR)
+        color = METHOD_COLORS.get(name, None)
+        if color is None:
+            for key in METHOD_COLORS:
+                if key in name:
+                    color = METHOD_COLORS[key]
+                    break
+        color = color or DEFAULT_COLOR
         offset = (i - (n - 1) / 2) * width
         bars = ax.bar(x + offset, vals, width=width, label=m.replace("_", " "),
                       color=color, alpha=0.85, edgecolor="white", linewidth=0.5)
