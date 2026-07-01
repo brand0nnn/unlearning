@@ -62,7 +62,6 @@ def forget_quality_vs_utility(results_by_method: Dict[str, Dict], out_dir: str,
     # single legend entry for all ghosts
     ghost_patch = mpatches.Patch(facecolor="none", edgecolor="grey",
                                  linewidth=1.5, label="paper reference (open)")
-    ax.add_patch(ghost_patch)           # dummy — just for the legend handle
 
     # --- your results (filled circles) --------------------------------------
     for name, r in results_by_method.items():
