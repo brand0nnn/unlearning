@@ -35,8 +35,10 @@ training:
   # own sub-block below so a comparison only changes what it needs to.
   epochs: 3
   learning_rate: 2.0e-4
-  per_device_batch_size: 4
-  gradient_accumulation_steps: 8   # 4 x 8 = effective batch 32 (TOFU App. B)
+  per_device_batch_size: 2
+  gradient_accumulation_steps: 16  # 2 x 16 = effective batch 32 (TOFU App. B);
+                                   # micro-batch 2 keeps 7B full-FT under 40GB
+
   warmup_ratio: 0.2
   logging_steps: 10
   save_steps: 200

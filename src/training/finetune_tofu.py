@@ -105,8 +105,12 @@ def finetune_tofu(model, tokenizer, records: List[Dict], cfg: Dict,
         # trained identically, so the Forget-Quality comparison stays fair.
         bf16=True,
         gradient_checkpointing=True,
+        gradient_checkpointing_kwargs={"use_reentrant": False},
         optim="adamw_bnb_8bit",
     )
+    # Disable KV cache explicitly: it's incompatible with gradient checkpointing
+    # and wastes memory during training.
+    model.config.use_cache = False
     trainer = Trainer(
         model=model, args=args, train_dataset=ds,
         data_collator=lambda b: _collate(b, pad_id),
