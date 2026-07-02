@@ -25,10 +25,13 @@ from typing import List
 def format_qa(question: str) -> str:
     """The prompt template. MUST match what you train on, or eval is meaningless.
 
-    Keep this identical in training and evaluation. For an instruct model you may
-    instead apply tokenizer.apply_chat_template — just do it in both places.
+    Llama-2 chat instruction format, matching the TOFU paper's official config
+    (question_start_tag="[INST] ", question_end_tag=" [/INST]"). Applied
+    identically in training and evaluation. NOTE: if you switch back to a
+    non-chat base model (e.g. phi-2 or Llama-2-7b-hf), revert this to the plain
+    "Question: {question}\nAnswer:" template that model was validated with.
     """
-    return f"Question: {question}\nAnswer:"
+    return f"[INST] {question} [/INST]"
 
 
 def normalized_answer_prob(model, tokenizer, question: str, answer: str) -> float:

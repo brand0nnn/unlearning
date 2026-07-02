@@ -20,6 +20,7 @@ answer-only negative log-likelihood on dataset D (low NLL = model fits D well).
 A custom loop is used because gradient_difference / kl_minimization / idk need a
 forget batch AND a retain batch in the same step.
 """
+import math
 import random
 from typing import Dict, List
 
@@ -45,19 +46,23 @@ def _nll(model, batch):
 
 
 def _retain_kl(current_model, ref_model, batch):
-    """KL( ref || current ) averaged over answer tokens of the retain batch."""
+    """KL( ref || current ) over ALL real (non-pad) tokens of the retain batch.
+
+    Matches TOFU Eq. 6 and the official locuslab/tofu implementation, which sum
+    the KL over the whole retain sequence s (i=2..|s|) — NOT only the answer
+    tokens. We mask by attention_mask to exclude padding only.
+    """
     import torch.nn.functional as F
     batch = {k: v.to(current_model.device) for k, v in batch.items()}
-    labels = batch["labels"]
     cur_logits = current_model(input_ids=batch["input_ids"],
                                attention_mask=batch["attention_mask"]).logits
     with torch.no_grad():
         ref_logits = ref_model(input_ids=batch["input_ids"],
                                attention_mask=batch["attention_mask"]).logits
-    mask = (labels != -100)  # only count answer tokens
+    mask = batch["attention_mask"].bool()  # all real tokens; exclude padding
     cur_lp = F.log_softmax(cur_logits, dim=-1)
     ref_p = F.softmax(ref_logits, dim=-1)
-    # KL(ref||cur) = sum ref_p * (log ref_p - log cur_lp); use per-token then mask.
+    # KL(ref||cur) = sum ref_p * (log ref_p - log cur_lp); per-token then mask.
     kl_tok = (ref_p * (F.log_softmax(ref_logits, dim=-1) - cur_lp)).sum(-1)
     return (kl_tok * mask).sum() / mask.sum().clamp(min=1)
 
@@ -121,8 +126,20 @@ def unlearn(model, tokenizer, forget: List[Dict], retain: List[Dict],
         logger.info("Optimizer: full-precision AdamW (bitsandbytes unavailable)")
     model.train()
 
+    # Effective batch size 32 (TOFU App. B) via gradient accumulation over `accum`
+    # micro-batches, plus a linear-warmup-then-decay LR schedule with warmup over
+    # the first epoch (also App. B). This mirrors the finetune phase's schedule.
+    from transformers import get_linear_schedule_with_warmup
+    accum = max(1, t["gradient_accumulation_steps"])
+    n_batches = len(forget_dl)
+    opt_steps_per_epoch = max(1, math.ceil(n_batches / accum))
+    total_opt_steps = opt_steps_per_epoch * u["unlearn_epochs"]
+    sched = get_linear_schedule_with_warmup(
+        opt, num_warmup_steps=opt_steps_per_epoch, num_training_steps=total_opt_steps)
+
     for epoch in range(u["unlearn_epochs"]):
         retain_iter = iter(retain_dl)
+        opt.zero_grad()
         for step, f_batch in enumerate(forget_dl):
             if f_batch is None:
                 continue
@@ -145,14 +162,19 @@ def unlearn(model, tokenizer, forget: List[Dict], retain: List[Dict],
             else:
                 raise ValueError(f"Unknown method: {method}")
 
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            opt.step()
-            opt.zero_grad()
+            # Scale by 1/accum so accumulated grads average to an effective-batch
+            # update; step the optimizer + scheduler only on accumulation boundaries
+            # (and at the final batch of the epoch to not drop a partial group).
+            (loss / accum).backward()
+            if (step + 1) % accum == 0 or (step + 1) == n_batches:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                opt.step()
+                sched.step()
+                opt.zero_grad()
 
             if step % t["logging_steps"] == 0:
-                logger.info("[%s] epoch %d step %d loss %.4f",
-                            method, epoch, step, loss.item())
+                logger.info("[%s] epoch %d step %d loss %.4f lr %.2e",
+                            method, epoch, step, loss.item(), sched.get_last_lr()[0])
 
     out_dir = f"{t['output_dir']}/{run_name}"
     os.makedirs(out_dir, exist_ok=True)

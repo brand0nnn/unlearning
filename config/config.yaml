@@ -9,10 +9,10 @@ seed: 42                       # fixes randomness so runs are reproducible
 model:
   # Start small. You can swap to Qwen-2.5 by changing this one line.
   # name: "microsoft/phi-2"
-  name: "meta-llama/Llama-2-7b-hf"
+  name: "meta-llama/Llama-2-7b-chat-hf"
   # name: "Qwen/Qwen2.5-1.5B"
   load_in_4bit: false          # set true if the model doesn't fit in GPU memory
-  dtype: "float16"            # "float16" if your GPU is older
+  dtype: "bfloat16"            # "float16" if your GPU is older
   max_seq_length: 512
 
 data:
@@ -36,7 +36,7 @@ training:
   epochs: 3
   learning_rate: 2.0e-4
   per_device_batch_size: 4
-  gradient_accumulation_steps: 4
+  gradient_accumulation_steps: 8   # 4 x 8 = effective batch 32 (TOFU App. B)
   warmup_ratio: 0.2
   logging_steps: 10
   save_steps: 200

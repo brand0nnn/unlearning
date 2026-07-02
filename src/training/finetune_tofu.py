@@ -94,10 +94,18 @@ def finetune_tofu(model, tokenizer, records: List[Dict], cfg: Dict,
         per_device_train_batch_size=t["per_device_batch_size"],
         gradient_accumulation_steps=t["gradient_accumulation_steps"],
         warmup_ratio=t["warmup_ratio"],
-        weight_decay=t["weight_decay"], 
+        weight_decay=t["weight_decay"],
         logging_steps=t["logging_steps"],
         save_strategy="epoch",
         report_to="none",
+        # bf16 training: Llama-2 is bf16-native and diverges to nan in pure fp16.
+        # A100s run bf16 natively. gradient_checkpointing + 8-bit AdamW shrink
+        # memory so 7B full fine-tuning fits on a 40GB card (same treatment as the
+        # unlearn stage). Both the `full` and `retain90` reference models are
+        # trained identically, so the Forget-Quality comparison stays fair.
+        bf16=True,
+        gradient_checkpointing=True,
+        optim="adamw_bnb_8bit",
     )
     trainer = Trainer(
         model=model, args=args, train_dataset=ds,
