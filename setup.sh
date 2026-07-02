@@ -30,6 +30,11 @@ echo "=== [2/4] Installing torch (CUDA 12.1 wheel, matches the cluster driver) =
 pip install torch --index-url https://download.pytorch.org/whl/cu121
 
 echo "=== [3/4] Installing the rest of the packages ==="
+# Includes bitsandbytes (see requirements.txt): needed for 8-bit AdamW + 4-bit
+# NF4 loading so 7B full-parameter fine-tuning/unlearning fits on a 40GB A100.
+# The TMPDIR/PIP_CACHE_DIR redirects above keep the download off the tiny $HOME
+# quota partition — installing bitsandbytes by hand without them fails with
+# "[Errno 122] Disk quota exceeded".
 pip install -r "$PROJECT_DIR/requirements.txt"
 
 echo "=== [4/4] Downloading all TOFU splits ==="
@@ -50,7 +55,9 @@ PYEOF
 
 echo ""
 echo "=== Setup complete ==="
-echo "The phi-2 model will download automatically on the compute node during 01_learn."
+echo "The model in config.yaml (currently meta-llama/Llama-2-7b-hf, gated: needs HF"
+echo "license acceptance + HF_TOKEN) downloads automatically on the compute node"
+echo "during 01_learn."
 echo ""
 echo "Run the pipeline in order:"
 echo "  sbatch slurm/01_learn.sbatch       # then wait for it to finish"
