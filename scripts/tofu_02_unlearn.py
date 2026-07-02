@@ -50,7 +50,8 @@ def main():
     model.config.pad_token_id = tokenizer.pad_token_id
 
     run_name = f"tofu_unlearn_{args.method}_{forget_level}"
-    out = unlearn(model, tokenizer, forget, retain, cfg, args.method, run_name)
+    out = unlearn(model, tokenizer, forget, retain, cfg, args.method, run_name,
+                  checkpoint=args.checkpoint)
     logger.info("Unlearn complete -> %s", out)
 
 

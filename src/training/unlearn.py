@@ -20,7 +20,6 @@ answer-only negative log-likelihood on dataset D (low NLL = model fits D well).
 A custom loop is used because gradient_difference / kl_minimization / idk need a
 forget batch AND a retain batch in the same step.
 """
-import copy
 import random
 from typing import Dict, List
 
@@ -64,7 +63,7 @@ def _retain_kl(current_model, ref_model, batch):
 
 
 def unlearn(model, tokenizer, forget: List[Dict], retain: List[Dict],
-            cfg: Dict, method: str, run_name: str):
+            cfg: Dict, method: str, run_name: str, checkpoint: str = None):
     """Run an unlearning algorithm and save the result. Returns checkpoint dir."""
     import os
     t, u = cfg["training"], cfg["tofu"]
@@ -72,10 +71,21 @@ def unlearn(model, tokenizer, forget: List[Dict], retain: List[Dict],
     pad_id = tokenizer.pad_token_id
     bs = t["per_device_batch_size"]
 
-    # Reference model (frozen copy) — needed only for kl_minimization.
+    # Reference model (frozen) — needed only for kl_minimization. Loaded in 4-bit
+    # (NF4) instead of a full-precision deepcopy so that trainable model + grads +
+    # optimizer + reference all fit on a 40GB card. Only the KL *anchor* is
+    # quantized; the trainable model stays bf16, so the deviation is confined to
+    # kl_minimization (see CLAUDE.md memory-tradeoff notes).
     ref_model = None
     if method == "kl_minimization":
-        ref_model = copy.deepcopy(model).eval()
+        from transformers import AutoModelForCausalLM, BitsAndBytesConfig
+        if checkpoint is None:
+            raise ValueError("kl_minimization needs `checkpoint` to load the 4-bit reference")
+        qc = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4",
+                                bnb_4bit_use_double_quant=True,
+                                bnb_4bit_compute_dtype=torch.bfloat16)
+        ref_model = AutoModelForCausalLM.from_pretrained(
+            checkpoint, quantization_config=qc, device_map="auto").eval()
         for p in ref_model.parameters():
             p.requires_grad_(False)
 
@@ -92,8 +102,23 @@ def unlearn(model, tokenizer, forget: List[Dict], retain: List[Dict],
     forget_dl = DataLoader(forget_ds, batch_size=bs, shuffle=True, collate_fn=collate)
     retain_dl = DataLoader(retain_ds, batch_size=bs, shuffle=True, collate_fn=collate)
 
-    opt = torch.optim.AdamW(model.parameters(), lr=u["unlearn_lr"],
-                            weight_decay=0.01)
+    # Full 7B unlearning won't fit on a 40GB card with fp16 AdamW states (~28GB).
+    # Gradient checkpointing trades compute for activation memory (mathematically
+    # equivalent), and 8-bit AdamW (bitsandbytes) shrinks the optimizer state
+    # ~28GB -> ~7GB. Together they fit on a single a100-40. The 8-bit optimizer is
+    # a small, near-lossless deviation that applies to ALL methods; it falls back
+    # to full-precision AdamW (e.g. on an 80GB card) if bitsandbytes is missing.
+    model.gradient_checkpointing_enable()
+    model.config.use_cache = False
+    try:
+        import bitsandbytes as bnb
+        opt = bnb.optim.AdamW8bit(model.parameters(), lr=u["unlearn_lr"],
+                                  weight_decay=0.01)
+        logger.info("Optimizer: 8-bit AdamW (bitsandbytes)")
+    except ImportError:
+        opt = torch.optim.AdamW(model.parameters(), lr=u["unlearn_lr"],
+                                weight_decay=0.01)
+        logger.info("Optimizer: full-precision AdamW (bitsandbytes unavailable)")
     model.train()
 
     for epoch in range(u["unlearn_epochs"]):

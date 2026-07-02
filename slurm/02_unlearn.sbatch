@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=tofu_unlearn
 #SBATCH --partition=gpu
-#SBATCH --gres=gpu:a100-80:1
+#SBATCH --gres=gpu:a100-40:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=48G
 #SBATCH --time=06:00:00
@@ -15,6 +15,7 @@ source "$PROJECT_DIR/.venv/bin/activate"
 export TMPDIR="$PROJECT_DIR/.tmp"
 export HF_HOME="$PROJECT_DIR/.cache/huggingface"
 export HF_DATASETS_CACHE="$PROJECT_DIR/.cache/datasets"
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True  # reduce fragmentation OOMs
 
 echo "Node: $(hostname)"; nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 

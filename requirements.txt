@@ -8,6 +8,8 @@ datasets>=2.20
 accelerate>=0.33
 peft>=0.12
 trl>=0.9
+# 8-bit AdamW + 4-bit (NF4) loading, to fit 7B full-parameter unlearning on 40GB.
+bitsandbytes>=0.43
 
 # Tokenizer backends required by phi-2 (and most modern tokenizers)
 tiktoken
