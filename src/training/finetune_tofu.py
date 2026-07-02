@@ -106,11 +106,11 @@ def finetune_tofu(model, tokenizer, records: List[Dict], cfg: Dict,
         bf16=True,
         gradient_checkpointing=True,
         gradient_checkpointing_kwargs={"use_reentrant": False},
-        # Paged 8-bit AdamW keeps optimizer states in CPU RAM and streams them in
-        # on demand, freeing ~7GB of GPU. This is what lets 7B full fine-tuning
-        # fit on a 40GB A100 (plain adamw_bnb_8bit leaves the states resident and
-        # OOMs at the very edge).
-        optim="paged_adamw_8bit",
+        # paged_adamw_32bit: EXACTLY the TOFU paper's optimizer (locuslab/tofu
+        # finetune.py). Full 32-bit optimizer states, paged to CPU RAM so 7B fits.
+        # The 8-bit variant quantized the Adam moments and under-fit (loss stalled
+        # ~1.0, weak memorization); 32-bit converges to the paper's ROUGE ~0.98.
+        optim="paged_adamw_32bit",
     )
     # Disable KV cache explicitly: it's incompatible with gradient checkpointing
     # and wastes memory during training.

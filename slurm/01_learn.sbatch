@@ -3,7 +3,7 @@
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:a100-80:1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=48G
+#SBATCH --mem=96G
 #SBATCH --time=06:00:00
 #SBATCH --output=/home/b/brandonk/unlearning/logs/learn_%j.out
 #SBATCH --error=/home/b/brandonk/unlearning/logs/learn_%j.err
@@ -25,5 +25,8 @@ python scripts/tofu_01_finetune.py --data full
 
 echo "=== [2/2] Fine-tune on retain90 (gold reference for Forget Quality) ==="
 python scripts/tofu_01_finetune.py --data retain90
+
+echo "=== ROUGE sanity check: base vs finetuned (paper Table 2: 0.3640 -> 0.9849) ==="
+python scripts/tofu_check_rouge.py --n 50
 
 echo "=== Learn phase complete. Checkpoints in experiments/ ==="

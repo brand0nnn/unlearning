@@ -64,7 +64,7 @@ training:
 # ============================================================================
 tofu:
   cache_dir: "data/raw/tofu"   # where the HF download is cached
-  forget_level: "forget05"     # forget01 | forget05 | forget10
+  forget_level: "forget10"     # forget01 | forget05 | forget10 (pairs with retain90 reference)
   eval_limit: null             # null = all questions; set e.g. 50 for a smoke test
 
   # LEARN phase (fine-tune base model on TOFU).
