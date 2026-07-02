@@ -96,7 +96,8 @@ def finetune_tofu(model, tokenizer, records: List[Dict], cfg: Dict,
         warmup_ratio=t["warmup_ratio"],
         weight_decay=t["weight_decay"],
         logging_steps=t["logging_steps"],
-        save_strategy="epoch",
+        save_strategy="no",   # only trainer.save_model() at the end; per-epoch
+                              # checkpoints (~27GB each) previously filled the quota
         report_to="none",
         # bf16 training: Llama-2 is bf16-native and diverges to nan in pure fp16.
         # A100s run bf16 natively. gradient_checkpointing + 8-bit AdamW shrink

@@ -26,7 +26,4 @@ python scripts/tofu_01_finetune.py --data full
 echo "=== [2/2] Fine-tune on retain90 (gold reference for Forget Quality) ==="
 python scripts/tofu_01_finetune.py --data retain90
 
-echo "=== ROUGE sanity check: base vs finetuned (paper Table 2: 0.3640 -> 0.9849) ==="
-python scripts/tofu_check_rouge.py --n 50
-
 echo "=== Learn phase complete. Checkpoints in experiments/ ==="
