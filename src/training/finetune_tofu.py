@@ -106,7 +106,11 @@ def finetune_tofu(model, tokenizer, records: List[Dict], cfg: Dict,
         bf16=True,
         gradient_checkpointing=True,
         gradient_checkpointing_kwargs={"use_reentrant": False},
-        optim="adamw_bnb_8bit",
+        # Paged 8-bit AdamW keeps optimizer states in CPU RAM and streams them in
+        # on demand, freeing ~7GB of GPU. This is what lets 7B full fine-tuning
+        # fit on a 40GB A100 (plain adamw_bnb_8bit leaves the states resident and
+        # OOMs at the very edge).
+        optim="paged_adamw_8bit",
     )
     # Disable KV cache explicitly: it's incompatible with gradient checkpointing
     # and wastes memory during training.

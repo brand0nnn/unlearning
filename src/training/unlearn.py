@@ -117,9 +117,12 @@ def unlearn(model, tokenizer, forget: List[Dict], retain: List[Dict],
     model.config.use_cache = False
     try:
         import bitsandbytes as bnb
-        opt = bnb.optim.AdamW8bit(model.parameters(), lr=u["unlearn_lr"],
-                                  weight_decay=0.01)
-        logger.info("Optimizer: 8-bit AdamW (bitsandbytes)")
+        # Paged: optimizer states live in CPU RAM and stream in on demand, freeing
+        # ~7GB of GPU so 7B full-parameter unlearning (esp. kl_minimization, which
+        # also holds a 4-bit reference) fits on a 40GB card.
+        opt = bnb.optim.PagedAdamW8bit(model.parameters(), lr=u["unlearn_lr"],
+                                       weight_decay=0.01)
+        logger.info("Optimizer: paged 8-bit AdamW (bitsandbytes)")
     except ImportError:
         opt = torch.optim.AdamW(model.parameters(), lr=u["unlearn_lr"],
                                 weight_decay=0.01)
