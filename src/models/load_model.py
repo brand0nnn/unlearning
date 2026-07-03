@@ -20,11 +20,14 @@ logger = get_logger(__name__)
 _DTYPES = {"bfloat16": torch.bfloat16, "float16": torch.float16, "float32": torch.float32}
 
 
-def load_model_and_tokenizer(model_cfg: dict) -> Tuple[AutoModelForCausalLM, AutoTokenizer]:
+def load_model_and_tokenizer(model_cfg: dict, device_map="auto") -> Tuple[AutoModelForCausalLM, AutoTokenizer]:
     """Return (model, tokenizer) configured according to the `model:` block.
 
     Args:
         model_cfg: the dict at cfg["model"].
+        device_map: HF device placement. Use "auto" for single-process inference,
+            but pass None for DDP/DeepSpeed TRAINING — "auto" loads the whole model
+            onto cuda:0 in EVERY process, so all ranks collide on GPU 0.
     """
     name = model_cfg["name"]
     dtype = _DTYPES[model_cfg.get("dtype", "bfloat16")]
@@ -50,7 +53,7 @@ def load_model_and_tokenizer(model_cfg: dict) -> Tuple[AutoModelForCausalLM, Aut
         name,
         torch_dtype=dtype,
         quantization_config=quant_config,
-        device_map="auto",
+        device_map=device_map,
     )
     model.config.pad_token_id = tokenizer.pad_token_id
     return model, tokenizer

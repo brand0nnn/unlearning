@@ -37,7 +37,9 @@ def main():
     cfg = load_config()
     set_seed(cfg["seed"])
     records = load_qa(args.data, cfg["tofu"]["cache_dir"])
-    model, tokenizer = load_model_and_tokenizer(cfg["model"])
+    # device_map=None (load on CPU): the HF Trainer / DeepSpeed places the model on
+    # each rank's own GPU. "auto" would put it on cuda:0 in BOTH ranks -> collision.
+    model, tokenizer = load_model_and_tokenizer(cfg["model"], device_map=None)
 
     tag = "lora" if args.lora else "full"
     run_name = f"tofu_learn_{args.data}_{tag}"
