@@ -105,11 +105,12 @@ def finetune_tofu(model, tokenizer, records: List[Dict], cfg: Dict,
         save_strategy="no",   # only trainer.save_model() at the end; per-epoch
                               # checkpoints (~27GB each) previously filled the quota
         report_to="none",
-        # NOTE: DeepSpeed ZeRO-3 (config/ds_config.json) gives fp32 MASTER WEIGHTS
-        # exactly like the official TOFU repo. Enable it (and the 2-GPU launch in
-        # 01_learn.sbatch) ONLY IF the plain-bf16 run below still under-memorizes
-        # (ROUGE ~0.49). Testing the cheaper tokenization fixes first.
-        # deepspeed="config/ds_config.json",
+        # DeepSpeed ZeRO-3 (config/ds_config.json): fp32 MASTER WEIGHTS, exactly like
+        # the official TOFU repo. CONFIRMED necessary by elimination — plain bf16 with
+        # everything else matching the paper still tops out at ROUGE ~0.47 because the
+        # lr=1e-5 updates round away without an fp32 master. ZeRO-3 shards the fp32
+        # master + optimizer + grads across the GPUs (needs the 2-GPU launch).
+        deepspeed="config/ds_config.json",
         bf16=True,
         gradient_checkpointing=True,
         gradient_checkpointing_kwargs={"use_reentrant": False},
