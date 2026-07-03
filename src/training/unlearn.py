@@ -1,31 +1,26 @@
-"""UNLEARN phase: the canonical TOFU baseline unlearning algorithms.
+"""UNLEARN phase — HF Trainer + DeepSpeed, matching the official locuslab/tofu
+`CustomTrainerForgetting`.
 
-All four share the same skeleton; they differ only in the loss. Let NLL(D) be the
-answer-only negative log-likelihood on dataset D (low NLL = model fits D well).
+The four TOFU baselines differ only in the loss; each (except gradient_ascent)
+needs a forget batch AND a retain batch in the same step, so we subclass Trainer
+and override compute_loss:
 
-  gradient_ascent  :  L = - NLL(forget)
-        Push the model to FIT the forget set badly (raise its loss).
+  gradient_ascent     :  L = -NLL(forget)
+  gradient_difference :  L = -NLL(forget) + NLL(retain)
+  kl_minimization     :  L = -NLL(forget) + KL(oracle(retain) || current(retain))
+  idk                 :  L =  NLL(forget-with-IDK-answers) + NLL(retain)
 
-  gradient_difference :  L = - NLL(forget) + NLL(retain)
-        Forget the forget set, but keep fitting the retain set.
-
-  kl_minimization  :  L = - NLL(forget) + KL( ref(retain) || current(retain) )
-        Forget the forget set, but keep the retain-set output DISTRIBUTION close
-        to the original (frozen reference) model.
-
-  idk  :  L = NLL(forget-with-IDK-answers) + NLL(retain)
-        Teach the model to answer "I don't know" on the forget questions while
-        still fitting the retain set. (Preference-style unlearning.)
-
-A custom loop is used because gradient_difference / kl_minimization / idk need a
-forget batch AND a retain batch in the same step.
+DeepSpeed (config/ds_config.json) supplies fp32 MASTER WEIGHTS — the same thing
+LEARN needed to memorize. Without it, the "gentle" methods can't preserve the
+retain facts (small bf16 updates round away), so utility comes out too low.
 """
-import math
 import random
 from typing import Dict, List
 
 import torch
-from torch.utils.data import DataLoader
+import torch.nn.functional as F
+from torch.utils.data import Dataset
+from transformers import Trainer, TrainingArguments
 
 from src.training.finetune_tofu import TofuQADataset, _collate
 from src.utils.logging_utils import get_logger
@@ -39,148 +34,119 @@ IDK_ANSWERS = [
 ]
 
 
-def _nll(model, batch):
-    """Answer-only NLL on a batch (labels already mask the question with -100)."""
-    batch = {k: v.to(model.device) for k, v in batch.items()}
-    return model(**batch).loss
+class ForgetRetainDataset(Dataset):
+    """Each item is a (forget_tokenized, retain_tokenized) pair. Retain samples are
+    drawn at random to pair with each forget sample (an 'epoch' = one pass over the
+    forget set), matching the repo's forget/retain pairing."""
+
+    def __init__(self, forget_records, retain_records, tokenizer, max_len, seed):
+        self.forget = TofuQADataset(forget_records, tokenizer, max_len)
+        self.retain = TofuQADataset(retain_records, tokenizer, max_len)
+        self.rng = random.Random(seed)
+
+    def __len__(self):
+        return len(self.forget)
+
+    def __getitem__(self, i):
+        f = self.forget[i]
+        r = self.retain[self.rng.randrange(len(self.retain))]
+        return f, r
 
 
-def _retain_kl(current_model, ref_model, batch):
-    """KL( ref || current ) over ALL real (non-pad) tokens of the retain batch.
+def make_collator(pad_id):
+    """Collate a list of (forget, retain) pairs into {'forget': batch, 'retain': batch}."""
+    def collate(samples):
+        return {
+            "forget": _collate([s[0] for s in samples], pad_id),
+            "retain": _collate([s[1] for s in samples], pad_id),
+        }
+    return collate
 
-    Matches TOFU Eq. 6 and the official locuslab/tofu implementation, which sum
-    the KL over the whole retain sequence s (i=2..|s|) — NOT only the answer
-    tokens. We mask by attention_mask to exclude padding only.
-    """
-    import torch.nn.functional as F
-    batch = {k: v.to(current_model.device) for k, v in batch.items()}
-    cur_logits = current_model(input_ids=batch["input_ids"],
-                               attention_mask=batch["attention_mask"]).logits
-    with torch.no_grad():
-        ref_logits = ref_model(input_ids=batch["input_ids"],
-                               attention_mask=batch["attention_mask"]).logits
-    mask = batch["attention_mask"].bool()  # all real tokens; exclude padding
-    cur_lp = F.log_softmax(cur_logits, dim=-1)
-    ref_p = F.softmax(ref_logits, dim=-1)
-    # KL(ref||cur) = sum ref_p * (log ref_p - log cur_lp); per-token then mask.
-    kl_tok = (ref_p * (F.log_softmax(ref_logits, dim=-1) - cur_lp)).sum(-1)
-    return (kl_tok * mask).sum() / mask.sum().clamp(min=1)
+
+class ForgetTrainer(Trainer):
+    """Trainer whose compute_loss combines a forget batch and a retain batch."""
+
+    def __init__(self, *args, method, oracle_model=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.method = method
+        self.oracle_model = oracle_model  # frozen reference, KL only
+
+    def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
+        forget, retain = inputs["forget"], inputs["retain"]
+        f_out = model(**forget)
+
+        if self.method == "gradient_ascent":
+            loss = -f_out.loss
+        elif self.method == "gradient_difference":
+            loss = -f_out.loss + model(**retain).loss
+        elif self.method == "idk":
+            # forget answers were already replaced with IDK: NLL(idk) + NLL(retain)
+            loss = f_out.loss + model(**retain).loss
+        elif self.method == "kl_minimization":
+            r_out = model(**retain)
+            with torch.no_grad():
+                oracle_logits = self.oracle_model(
+                    input_ids=retain["input_ids"],
+                    attention_mask=retain["attention_mask"]).logits
+            # KL(oracle || current) over the retain tokens (batchmean), as in the repo.
+            cur_lp = F.log_softmax(r_out.logits, dim=-1)
+            ref_lp = F.log_softmax(oracle_logits, dim=-1)
+            kl = F.kl_div(cur_lp, ref_lp, reduction="batchmean", log_target=True)
+            loss = -f_out.loss + kl
+        else:
+            raise ValueError(f"Unknown method: {self.method}")
+
+        return (loss, f_out) if return_outputs else loss
 
 
 def unlearn(model, tokenizer, forget: List[Dict], retain: List[Dict],
-            cfg: Dict, method: str, run_name: str, checkpoint: str = None):
-    """Run an unlearning algorithm and save the result. Returns checkpoint dir."""
-    import os
+            cfg: Dict, method: str, run_name: str, checkpoint: str = None,
+            oracle_model=None):
+    """Run an unlearning algorithm via HF Trainer + DeepSpeed. Returns checkpoint dir."""
     t, u = cfg["training"], cfg["tofu"]
     max_len = cfg["model"]["max_seq_length"]
     pad_id = tokenizer.pad_token_id
-    bs = t["per_device_batch_size"]
 
-    # Reference model (frozen) — needed only for kl_minimization. Loaded in 4-bit
-    # (NF4) instead of a full-precision deepcopy so that trainable model + grads +
-    # optimizer + reference all fit on a 40GB card. Only the KL *anchor* is
-    # quantized; the trainable model stays bf16, so the deviation is confined to
-    # kl_minimization (see CLAUDE.md memory-tradeoff notes).
-    ref_model = None
-    if method == "kl_minimization":
-        from transformers import AutoModelForCausalLM, BitsAndBytesConfig
-        if checkpoint is None:
-            raise ValueError("kl_minimization needs `checkpoint` to load the 4-bit reference")
-        qc = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4",
-                                bnb_4bit_use_double_quant=True,
-                                bnb_4bit_compute_dtype=torch.bfloat16)
-        ref_model = AutoModelForCausalLM.from_pretrained(
-            checkpoint, quantization_config=qc, device_map="auto").eval()
-        for p in ref_model.parameters():
-            p.requires_grad_(False)
-
-    # Build the forget dataset. For IDK, replace answers with "I don't know"-style.
+    # For IDK, replace forget answers with "I don't know"-style responses.
     forget_records = forget
     if method == "idk":
         rng = random.Random(cfg["seed"])
-        forget_records = [{"question": r["question"],
-                           "answer": rng.choice(IDK_ANSWERS)} for r in forget]
+        forget_records = [{"question": r["question"], "answer": rng.choice(IDK_ANSWERS)}
+                          for r in forget]
 
-    forget_ds = TofuQADataset(forget_records, tokenizer, max_len)
-    retain_ds = TofuQADataset(retain, tokenizer, max_len)
-    collate = lambda b: _collate(b, pad_id)
-    forget_dl = DataLoader(forget_ds, batch_size=bs, shuffle=True, collate_fn=collate)
-    retain_dl = DataLoader(retain_ds, batch_size=bs, shuffle=True, collate_fn=collate)
+    ds = ForgetRetainDataset(forget_records, retain, tokenizer, max_len, cfg["seed"])
 
-    # Full 7B unlearning won't fit on a 40GB card with fp16 AdamW states (~28GB).
-    # Gradient checkpointing trades compute for activation memory (mathematically
-    # equivalent), and 8-bit AdamW (bitsandbytes) shrinks the optimizer state
-    # ~28GB -> ~7GB. Together they fit on a single a100-40. The 8-bit optimizer is
-    # a small, near-lossless deviation that applies to ALL methods; it falls back
-    # to full-precision AdamW (e.g. on an 80GB card) if bitsandbytes is missing.
-    model.gradient_checkpointing_enable()
+    args = TrainingArguments(
+        output_dir=f"{t['output_dir']}/{run_name}",
+        num_train_epochs=u["unlearn_epochs"],
+        learning_rate=u["unlearn_lr"],
+        per_device_train_batch_size=t["per_device_batch_size"],
+        gradient_accumulation_steps=t["gradient_accumulation_steps"],
+        warmup_ratio=t["warmup_ratio"],
+        weight_decay=0.01,
+        logging_steps=t["logging_steps"],
+        save_strategy="no",
+        report_to="none",
+        # Same fp32-master-weight setup as LEARN (config/ds_config.json), matching
+        # the official forget.py (deepspeed + paged_adamw_32bit + bf16).
+        deepspeed="config/ds_config.json",
+        bf16=True,
+        gradient_checkpointing=True,
+        gradient_checkpointing_kwargs={"use_reentrant": False},
+        optim="paged_adamw_32bit",
+        remove_unused_columns=False,   # our collator returns a custom {'forget','retain'}
+        label_names=[],
+    )
     model.config.use_cache = False
-    try:
-        import bitsandbytes as bnb
-        # paged_adamw_32bit: matches the TOFU paper's optimizer. Full 32-bit Adam
-        # states paged to CPU RAM. (8-bit quantized the moments and under-fit.)
-        opt = bnb.optim.PagedAdamW32bit(model.parameters(), lr=u["unlearn_lr"],
-                                        weight_decay=0.01)
-        logger.info("Optimizer: paged 32-bit AdamW (bitsandbytes)")
-    except ImportError:
-        opt = torch.optim.AdamW(model.parameters(), lr=u["unlearn_lr"],
-                                weight_decay=0.01)
-        logger.info("Optimizer: full-precision AdamW (bitsandbytes unavailable)")
-    model.train()
 
-    # Effective batch size 32 (TOFU App. B) via gradient accumulation over `accum`
-    # micro-batches, plus a linear-warmup-then-decay LR schedule with warmup over
-    # the first epoch (also App. B). This mirrors the finetune phase's schedule.
-    from transformers import get_linear_schedule_with_warmup
-    accum = max(1, t["gradient_accumulation_steps"])
-    n_batches = len(forget_dl)
-    opt_steps_per_epoch = max(1, math.ceil(n_batches / accum))
-    total_opt_steps = opt_steps_per_epoch * u["unlearn_epochs"]
-    sched = get_linear_schedule_with_warmup(
-        opt, num_warmup_steps=opt_steps_per_epoch, num_training_steps=total_opt_steps)
-
-    for epoch in range(u["unlearn_epochs"]):
-        retain_iter = iter(retain_dl)
-        opt.zero_grad()
-        for step, f_batch in enumerate(forget_dl):
-            if f_batch is None:
-                continue
-            try:
-                r_batch = next(retain_iter)
-            except StopIteration:
-                retain_iter = iter(retain_dl)
-                r_batch = next(retain_iter)
-            if r_batch is None:
-                continue
-
-            if method == "gradient_ascent":
-                loss = -_nll(model, f_batch)
-            elif method == "gradient_difference":
-                loss = -_nll(model, f_batch) + _nll(model, r_batch)
-            elif method == "kl_minimization":
-                loss = -_nll(model, f_batch) + _retain_kl(model, ref_model, r_batch)
-            elif method == "idk":
-                loss = _nll(model, f_batch) + _nll(model, r_batch)
-            else:
-                raise ValueError(f"Unknown method: {method}")
-
-            # Scale by 1/accum so accumulated grads average to an effective-batch
-            # update; step the optimizer + scheduler only on accumulation boundaries
-            # (and at the final batch of the epoch to not drop a partial group).
-            (loss / accum).backward()
-            if (step + 1) % accum == 0 or (step + 1) == n_batches:
-                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-                opt.step()
-                sched.step()
-                opt.zero_grad()
-
-            if step % t["logging_steps"] == 0:
-                logger.info("[%s] epoch %d step %d loss %.4f lr %.2e",
-                            method, epoch, step, loss.item(), sched.get_last_lr()[0])
-
-    out_dir = f"{t['output_dir']}/{run_name}"
-    os.makedirs(out_dir, exist_ok=True)
-    model.save_pretrained(out_dir)
-    tokenizer.save_pretrained(out_dir)
-    logger.info("UNLEARN done (%s) -> %s", method, out_dir)
-    return out_dir
+    trainer = ForgetTrainer(
+        model=model, args=args, train_dataset=ds,
+        data_collator=make_collator(pad_id),
+        method=method, oracle_model=oracle_model,
+    )
+    logger.info("UNLEARN (%s) via DeepSpeed -> %s", method, args.output_dir)
+    trainer.train()
+    trainer.save_model(args.output_dir)
+    tokenizer.save_pretrained(args.output_dir)
+    logger.info("UNLEARN done (%s) -> %s", method, args.output_dir)
+    return args.output_dir
