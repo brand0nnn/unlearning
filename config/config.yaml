@@ -27,7 +27,8 @@ data:
 
 evaluation:
   batch_size: 8
-  max_new_tokens: 20           # factual answers are short
+  max_new_tokens: 200          # generous cap like the repo; the model stops at EOS.
+                               # (20 was truncating answers -> depressed eval ROUGE)
   # We'll compute several metrics; see src/evaluation/metrics.py
   metrics: ["exact_match", "token_f1"]
 

@@ -57,7 +57,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=50, help="number of TOFU QA samples")
     ap.add_argument("--checkpoint", default="experiments/tofu_learn_full_full")
-    ap.add_argument("--max_new_tokens", type=int, default=128)
+    ap.add_argument("--max_new_tokens", type=int, default=200)
     args = ap.parse_args()
 
     cfg = load_config()

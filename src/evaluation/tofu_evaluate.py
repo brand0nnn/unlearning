@@ -31,8 +31,10 @@ from src.utils.logging_utils import get_logger
 logger = get_logger(__name__)
 
 
-def _generate(model, tokenizer, question: str, max_new_tokens: int = 64) -> str:
-    """Greedy generation of the answer, for ROUGE."""
+def _generate(model, tokenizer, question: str, max_new_tokens: int = 200) -> str:
+    """Greedy generation of the answer, for ROUGE. Matches the official
+    locuslab/tofu evaluate_util: decode the FULL generation (sliced past the
+    prompt), no first-line truncation — the model stops at EOS on its own."""
     import torch
     prompt = format_qa(question)
     enc = tokenizer(prompt, return_tensors="pt").to(model.device)
@@ -41,9 +43,9 @@ def _generate(model, tokenizer, question: str, max_new_tokens: int = 64) -> str:
         return ""
     with torch.no_grad():
         out = model.generate(**enc, max_new_tokens=max_new_tokens, do_sample=False,
-                             pad_token_id=tokenizer.pad_token_id)
+                             use_cache=True, pad_token_id=tokenizer.pad_token_id)
     text = tokenizer.decode(out[0, enc["input_ids"].shape[1]:], skip_special_tokens=True)
-    return text.strip().split("\n")[0]
+    return text.strip()
 
 
 def _mean(xs: List[float]) -> float:
