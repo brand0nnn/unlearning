@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --job-name=tofu_learn
 #SBATCH --partition=gpu
-#SBATCH --gres=gpu:a100-40:2
-#SBATCH --cpus-per-task=16
+#SBATCH --gres=gpu:a100-80:1
+#SBATCH --cpus-per-task=8
 #SBATCH --mem=128G
 #SBATCH --time=06:00:00
 #SBATCH --output=/home/b/brandonk/unlearning/logs/learn_%j.out
@@ -21,9 +21,9 @@ source ~/.env_hf
 echo "Node: $(hostname)"; nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 
 echo "=== [1/2] Fine-tune on full TOFU (model to be unlearned) ==="
-torchrun --standalone --nnodes=1 --nproc_per_node=2 scripts/tofu_01_finetune.py --data full
+deepspeed --num_gpus=1 scripts/tofu_01_finetune.py --data full
 
 echo "=== [2/2] Fine-tune on retain90 (gold reference for Forget Quality) ==="
-torchrun --standalone --nnodes=1 --nproc_per_node=2 scripts/tofu_01_finetune.py --data retain90
+deepspeed --num_gpus=1 scripts/tofu_01_finetune.py --data retain90
 
 echo "=== Learn phase complete. Checkpoints in experiments/ ==="
