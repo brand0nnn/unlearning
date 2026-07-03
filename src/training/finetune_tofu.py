@@ -35,16 +35,22 @@ class TofuQADataset(Dataset):
 
     def __getitem__(self, i):
         r = self.records[i]
-        prompt = format_qa(r["question"])
-        prompt_ids = self.tok(prompt, add_special_tokens=True).input_ids
-        answer_ids = self.tok(" " + r["answer"].strip(),
-                              add_special_tokens=False).input_ids
-        input_ids = (prompt_ids + answer_ids)[: self.max_len]
-        # Labels: copy input_ids but set prompt positions to -100 so the loss
-        # ignores them. -100 is PyTorch's "ignore index" for cross-entropy.
+        # Match the official TOFU pipeline (data_module.py):
+        #  - tokenize the full question+answer string TOGETHER (not separately),
+        #  - NO leading space before the answer (their answer_tag is ""),
+        #  - append EOS as a trainable label so the model learns to STOP,
+        #  - mask the question tokens (counted with special tokens) -> answer-only loss.
+        new_question = format_qa(r["question"])            # "[INST] {q} [/INST]"
+        full_text = new_question + r["answer"].strip()     # answer_tag = "" (no space)
+        num_q = len(self.tok(new_question, add_special_tokens=True).input_ids)
+        input_ids = self.tok(full_text, add_special_tokens=True,
+                             max_length=self.max_len, truncation=True).input_ids
+        # Teach the model to emit EOS right after the answer (if there's room).
+        if 0 < len(input_ids) < self.max_len:
+            input_ids = input_ids + [self.tok.eos_token_id]
         labels = list(input_ids)
-        for j in range(min(len(prompt_ids), len(labels))):
-            labels[j] = -100
+        for j in range(min(num_q, len(labels))):
+            labels[j] = -100                               # -100 = ignore in CE loss
         return {"input_ids": input_ids, "labels": labels}
 
 
@@ -99,11 +105,11 @@ def finetune_tofu(model, tokenizer, records: List[Dict], cfg: Dict,
         save_strategy="no",   # only trainer.save_model() at the end; per-epoch
                               # checkpoints (~27GB each) previously filled the quota
         report_to="none",
-        # bf16 training: Llama-2 is bf16-native and diverges to nan in pure fp16.
-        # A100s run bf16 natively. gradient_checkpointing + 8-bit AdamW shrink
-        # memory so 7B full fine-tuning fits on a 40GB card (same treatment as the
-        # unlearn stage). Both the `full` and `retain90` reference models are
-        # trained identically, so the Forget-Quality comparison stays fair.
+        # NOTE: DeepSpeed ZeRO-3 (config/ds_config.json) gives fp32 MASTER WEIGHTS
+        # exactly like the official TOFU repo. Enable it (and the 2-GPU launch in
+        # 01_learn.sbatch) ONLY IF the plain-bf16 run below still under-memorizes
+        # (ROUGE ~0.49). Testing the cheaper tokenization fixes first.
+        # deepspeed="config/ds_config.json",
         bf16=True,
         gradient_checkpointing=True,
         gradient_checkpointing_kwargs={"use_reentrant": False},

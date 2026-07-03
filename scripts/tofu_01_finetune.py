@@ -29,6 +29,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", default="full", help="full | retain90 | retain95 | retain99")
     ap.add_argument("--lora", action="store_true", help="use LoRA instead of full FT")
+    # The `deepspeed`/torchrun launcher passes --local_rank; absorb it so argparse
+    # doesn't error. HF Trainer reads the actual rank from env vars.
+    ap.add_argument("--local_rank", type=int, default=-1)
     args = ap.parse_args()
 
     cfg = load_config()

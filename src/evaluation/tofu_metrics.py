@@ -50,11 +50,21 @@ def harmonic_mean(values: List[float]) -> float:
 
 
 def truth_ratio_from_probs(para_prob: float, perturbed_probs: List[float]) -> float:
-    """R_truth = mean(perturbed normalized probs) / paraphrased normalized prob."""
+    """R_truth = GEOMETRIC mean(perturbed norm probs) / paraphrased norm prob.
+
+    Matches the OFFICIAL locuslab/tofu code, which computes
+    exp(L_para - mean(L_perturb)) = geomean(perturbed probs) / para prob. (The
+    paper's Eq. 1 writes an arithmetic mean, but the released code — which produced
+    the paper's tables — uses the geometric mean, so we follow the code.)
+    """
+    import math
     if para_prob <= 0:
         para_prob = 1e-12
-    mean_pert = sum(perturbed_probs) / max(len(perturbed_probs), 1)
-    return mean_pert / para_prob
+    ps = [p for p in perturbed_probs if p > 0]
+    if not ps:
+        return 0.0
+    geo_mean = math.exp(sum(math.log(p) for p in ps) / len(ps))
+    return geo_mean / para_prob
 
 
 def scale_truth_ratio_for_utility(r_truth: float) -> float:

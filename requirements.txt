@@ -10,6 +10,8 @@ peft>=0.12
 trl>=0.9
 # 8-bit AdamW + 4-bit (NF4) loading, to fit 7B full-parameter unlearning on 40GB.
 bitsandbytes>=0.43
+# DeepSpeed ZeRO-3 for the learn phase (fp32 master weights, exactly like the TOFU repo).
+deepspeed>=0.14
 
 # Tokenizer backends required by phi-2 (and most modern tokenizers)
 tiktoken
