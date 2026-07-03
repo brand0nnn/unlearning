@@ -12,7 +12,10 @@ model:
   name: "meta-llama/Llama-2-7b-chat-hf"
   # name: "Qwen/Qwen2.5-1.5B"
   load_in_4bit: false          # set true if the model doesn't fit in GPU memory
-  dtype: "bfloat16"            # "float16" if your GPU is older
+  dtype: "float32"             # fp32 MASTER WEIGHTS: with bf16=True autocast this
+                               # matches the paper's DeepSpeed setup. Pure bf16
+                               # rounds away the small lr=1e-5 updates -> the model
+                               # learns answer STYLE but not the FACTS (ROUGE ~0.49).
   max_seq_length: 512
 
 data:
