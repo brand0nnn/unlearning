@@ -29,11 +29,17 @@ from src.utils.logging_utils import load_config, get_logger
 logger = get_logger("tofu_check_rouge")
 
 
-def _mean_rouge(model, tokenizer, records, max_new_tokens):
+def _mean_rouge(model, tokenizer, records, max_new_tokens, show=0):
     scores = []
-    for r in records:
+    for i, r in enumerate(records):
         gen = _generate(model, tokenizer, r["question"], max_new_tokens)
-        scores.append(rouge_score_recall(gen, r["answer"]))
+        sc = rouge_score_recall(gen, r["answer"])
+        scores.append(sc)
+        if i < show:
+            logger.info("  [%d] Q   : %s", i, r["question"][:100])
+            logger.info("      GOLD: %s", r["answer"][:150])
+            logger.info("      GEN : %s", repr(gen[:150]))
+            logger.info("      rougeL_recall = %.3f", sc)
     return sum(scores) / len(scores) if scores else 0.0
 
 
@@ -63,7 +69,10 @@ def main():
     results = {}
     for label, path in [("BASE", base_name), ("FINETUNED", args.checkpoint)]:
         model, tok = _load(path)
-        results[label] = _mean_rouge(model, tok, records, args.max_new_tokens)
+        # Print a few example generations for the finetuned model so we can SEE
+        # whether it reproduces the memorized answers (vs a ROUGE measurement issue).
+        show = 5 if label == "FINETUNED" else 0
+        results[label] = _mean_rouge(model, tok, records, args.max_new_tokens, show=show)
         logger.info(">>> %-9s (%s): mean ROUGE-L recall = %.4f",
                     label, path, results[label])
         del model
