@@ -8,6 +8,9 @@ CLAUDE.md
 papers/
 papers.md
 
+# SLURM job logs (regenerable artifacts; scp'd locally only for plotting)
+logs/
+
 # OS / editor
 .DS_Store
 .idea/
