@@ -31,6 +31,8 @@ def main():
     ap.add_argument("--method", required=True,
                     choices=["gradient_ascent", "gradient_difference",
                              "kl_minimization", "idk"])
+    ap.add_argument("--lora", action="store_true",
+                    help="LoRA unlearning instead of full FT (the strategy axis)")
     # The `deepspeed` launcher passes --local_rank; absorb it (HF reads env vars).
     ap.add_argument("--local_rank", type=int, default=-1)
     args = ap.parse_args()
@@ -62,9 +64,10 @@ def main():
         for p in oracle_model.parameters():
             p.requires_grad_(False)
 
-    run_name = f"tofu_unlearn_{args.method}_{forget_level}"
+    strategy = "lora" if args.lora else "fullft"
+    run_name = f"tofu_unlearn_{args.method}_{forget_level}_{strategy}"
     out = unlearn(model, tokenizer, forget, retain, cfg, args.method, run_name,
-                  checkpoint=args.checkpoint, oracle_model=oracle_model)
+                  checkpoint=args.checkpoint, oracle_model=oracle_model, use_lora=args.lora)
     logger.info("Unlearn complete -> %s", out)
 
 

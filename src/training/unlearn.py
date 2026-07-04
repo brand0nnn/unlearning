@@ -101,11 +101,25 @@ class ForgetTrainer(Trainer):
 
 def unlearn(model, tokenizer, forget: List[Dict], retain: List[Dict],
             cfg: Dict, method: str, run_name: str, checkpoint: str = None,
-            oracle_model=None):
-    """Run an unlearning algorithm via HF Trainer + DeepSpeed. Returns checkpoint dir."""
+            oracle_model=None, use_lora: bool = False):
+    """Run an unlearning algorithm via HF Trainer. Returns checkpoint dir.
+
+    use_lora=False -> FULL fine-tuning (DeepSpeed ZeRO-3 + fp32 master, like LEARN).
+    use_lora=True  -> LoRA: only small adapters are trained, so it fits without
+        DeepSpeed and the fp32-master issue doesn't apply (adapters train fine in
+        bf16). This is the LoRA-vs-Full-FT strategy axis of the project.
+    """
     t, u = cfg["training"], cfg["tofu"]
     max_len = cfg["model"]["max_seq_length"]
     pad_id = tokenizer.pad_token_id
+
+    if use_lora:
+        from peft import LoraConfig, get_peft_model
+        lc = t["lora"]
+        model = get_peft_model(model, LoraConfig(
+            r=lc["r"], lora_alpha=lc["alpha"], lora_dropout=lc["dropout"],
+            target_modules=lc["target_modules"], task_type="CAUSAL_LM"))
+        model.print_trainable_parameters()
 
     # For IDK, replace forget answers with "I don't know"-style responses.
     forget_records = forget
@@ -127,9 +141,9 @@ def unlearn(model, tokenizer, forget: List[Dict], retain: List[Dict],
         logging_steps=t["logging_steps"],
         save_strategy="no",
         report_to="none",
-        # Same fp32-master-weight setup as LEARN (config/ds_config.json), matching
-        # the official forget.py (deepspeed + paged_adamw_32bit + bf16).
-        deepspeed="config/ds_config.json",
+        # Full FT needs DeepSpeed for fp32 master weights (like LEARN / the repo).
+        # LoRA trains tiny adapters -> fits on one GPU without DeepSpeed.
+        deepspeed=None if use_lora else "config/ds_config.json",
         bf16=True,
         gradient_checkpointing=True,
         gradient_checkpointing_kwargs={"use_reentrant": False},
@@ -144,9 +158,16 @@ def unlearn(model, tokenizer, forget: List[Dict], retain: List[Dict],
         data_collator=make_collator(pad_id),
         method=method, oracle_model=oracle_model,
     )
-    logger.info("UNLEARN (%s) via DeepSpeed -> %s", method, args.output_dir)
+    logger.info("UNLEARN (%s, lora=%s) -> %s", method, use_lora, args.output_dir)
     trainer.train()
-    trainer.save_model(args.output_dir)
+    if use_lora:
+        # Merge the LoRA adapters into the base weights and save a STANDARD full
+        # model, so downstream (relearn, eval) loads it like any other checkpoint
+        # and it's directly comparable to the full-FT unlearned model.
+        merged = trainer.model.merge_and_unload()
+        merged.save_pretrained(args.output_dir)
+    else:
+        trainer.save_model(args.output_dir)
     tokenizer.save_pretrained(args.output_dir)
     logger.info("UNLEARN done (%s) -> %s", method, args.output_dir)
     return args.output_dir

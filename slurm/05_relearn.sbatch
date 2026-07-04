@@ -1,0 +1,42 @@
+#!/bin/bash
+#SBATCH --job-name=tofu_relearn
+#SBATCH --partition=gpu
+#SBATCH --gres=gpu:a100-80:1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=128G
+#SBATCH --time=08:00:00
+#SBATCH --output=/home/b/brandonk/unlearning/logs/relearn_%j.out
+#SBATCH --error=/home/b/brandonk/unlearning/logs/relearn_%j.err
+
+# Relearning-robustness probe: how fast does the forgotten knowledge return when we
+# re-fine-tune the unlearned model on the forget set? Fast recovery => suppression,
+# not deletion. Traces forget-set ROUGE vs relearn epochs.
+#
+# Point UNLEARNED at the checkpoint whose robustness you want to test — run it once
+# for the Full-FT unlearned model and once for the LoRA one to compare strategies.
+PROJECT_DIR="/home/b/brandonk/unlearning"
+cd "$PROJECT_DIR"
+mkdir -p logs
+source "$PROJECT_DIR/.venv/bin/activate"
+export TMPDIR="$PROJECT_DIR/.tmp"
+export HF_HOME="$PROJECT_DIR/.cache/huggingface"
+export HF_DATASETS_CACHE="$PROJECT_DIR/.cache/datasets"
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+source ~/.env_hf
+
+echo "Node: $(hostname)"; nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
+
+# EDIT this to the unlearned checkpoint you want to probe:
+UNLEARNED="$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10"
+
+echo "=== Forget-set ROUGE BEFORE relearning (baseline) ==="
+python scripts/tofu_forget_rouge.py --checkpoints "$UNLEARNED"
+
+for EP in 1 2 4; do
+    echo "=== Relearn $EP epoch(s) on the forget set ==="
+    deepspeed --num_gpus=1 scripts/tofu_relearn.py --checkpoint "$UNLEARNED" --epochs $EP
+    RELEARNED="$PROJECT_DIR/experiments/relearn_$(basename $UNLEARNED)_ep${EP}"
+    python scripts/tofu_forget_rouge.py --checkpoints "$RELEARNED"
+done
+
+echo "=== Relearn probe complete. Recovery curve in results/relearn_forget_rouge.json ==="
