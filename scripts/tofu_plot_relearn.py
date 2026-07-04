@@ -37,14 +37,18 @@ def main():
         curves.setdefault(strat, {})[epoch] = val
 
     plt.figure(figsize=(7, 5))
-    for strat in sorted(curves):
+    for si, strat in enumerate(sorted(curves)):
         pts = curves[strat]
         xs = sorted(pts)
         ys = [pts[x] for x in xs]
-        plt.plot(xs, ys, marker="o", linewidth=2, markersize=7, label=strat)
+        line, = plt.plot(xs, ys, marker="o", linewidth=2, markersize=7, label=strat)
         for x, y in zip(xs, ys):
+            # At epoch 0 both strategies sit at ~0.0 and their labels collide, so
+            # stagger them: first strategy above the point, second below.
+            dy = 9 if si == 0 else -14
+            off = (0, dy) if x == 0 else (0, 9)
             plt.annotate(f"{y:.2f}", (x, y), textcoords="offset points",
-                         xytext=(0, 9), ha="center", fontsize=8)
+                         xytext=off, ha="center", fontsize=8, color=line.get_color())
 
     plt.xlabel("Relearning epochs on the forget set")
     plt.ylabel("Forget-set ROUGE-L recall")

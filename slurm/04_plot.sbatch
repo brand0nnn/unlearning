@@ -4,8 +4,8 @@
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=8G
 #SBATCH --time=00:15:00
-#SBATCH --output=/home/b/brandonk/unlearning/logs/plot_%j.out
-#SBATCH --error=/home/b/brandonk/unlearning/logs/plot_%j.err
+#SBATCH --output=/home/b/brandonk/unlearning/logs/plot.out
+#SBATCH --error=/home/b/brandonk/unlearning/logs/plot.err
 
 PROJECT_DIR="/home/b/brandonk/unlearning"
 cd "$PROJECT_DIR"

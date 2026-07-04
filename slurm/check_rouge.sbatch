@@ -5,8 +5,8 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=48G
 #SBATCH --time=00:30:00
-#SBATCH --output=/home/b/brandonk/unlearning/logs/rouge_%j.out
-#SBATCH --error=/home/b/brandonk/unlearning/logs/rouge_%j.err
+#SBATCH --output=/home/b/brandonk/unlearning/logs/rouge.out
+#SBATCH --error=/home/b/brandonk/unlearning/logs/rouge.err
 
 # Standalone ROUGE check (TOFU Table 2: base ~0.36 -> finetuned ~0.98) on the
 # EXISTING learned checkpoint — no re-training. Run this AFTER stage 01 and BEFORE

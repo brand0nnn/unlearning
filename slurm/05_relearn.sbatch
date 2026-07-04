@@ -5,8 +5,8 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=128G
 #SBATCH --time=08:00:00
-#SBATCH --output=/home/b/brandonk/unlearning/logs/relearn_%j.out
-#SBATCH --error=/home/b/brandonk/unlearning/logs/relearn_%j.err
+#SBATCH --output=/home/b/brandonk/unlearning/logs/relearn.out
+#SBATCH --error=/home/b/brandonk/unlearning/logs/relearn.err
 
 # Relearning-robustness probe: how fast does the forgotten knowledge return when we
 # re-fine-tune the unlearned model on the forget set? Fast recovery => suppression,

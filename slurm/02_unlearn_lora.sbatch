@@ -5,8 +5,8 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=96G
 #SBATCH --time=06:00:00
-#SBATCH --output=/home/b/brandonk/unlearning/logs/unlearn_lora_%j.out
-#SBATCH --error=/home/b/brandonk/unlearning/logs/unlearn_lora_%j.err
+#SBATCH --output=/home/b/brandonk/unlearning/logs/unlearn_lora.out
+#SBATCH --error=/home/b/brandonk/unlearning/logs/unlearn_lora.err
 
 # LoRA unlearning (the LoRA-vs-Full-FT strategy axis). Fixed method =
 # gradient_difference (the representative method for the strategy comparison).

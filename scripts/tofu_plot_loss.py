@@ -29,6 +29,15 @@ LOSS_RE = re.compile(r"\{'loss':[^}]*\}")
 
 
 def parse_log(path):
+    """Return a list of (xs, ys) segments, one per training run in the file.
+
+    A single SLURM .out can hold >1 run (e.g. the LEARN job trains both the `full`
+    and the `retain90` reference model). Each run restarts epoch at ~0, so when the
+    epoch counter drops we start a NEW segment — otherwise plot() draws a spurious
+    straight line backward across the whole chart from the end of one run to the
+    start of the next.
+    """
+    segments = []
     xs, ys = [], []
     for line in open(path, errors="ignore"):
         m = LOSS_RE.search(line)
@@ -36,11 +45,19 @@ def parse_log(path):
             continue
         try:
             d = ast.literal_eval(m.group(0))
-            ys.append(float(d["loss"]))
-            xs.append(float(d.get("epoch", len(xs))))
+            loss = float(d["loss"])
+            epoch = float(d.get("epoch", len(xs)))
         except (ValueError, SyntaxError, KeyError):
             continue
-    return xs, ys
+        # Epoch went backwards -> a new run began; close the current segment.
+        if xs and epoch < xs[-1]:
+            segments.append((xs, ys))
+            xs, ys = [], []
+        xs.append(epoch)
+        ys.append(loss)
+    if xs:
+        segments.append((xs, ys))
+    return segments
 
 
 def main():
@@ -56,9 +73,14 @@ def main():
     plt.figure(figsize=(8, 5))
     plotted = 0
     for f in files:
-        xs, ys = parse_log(f)
-        if ys:
-            plt.plot(xs, ys, marker=".", linewidth=1.5, label=Path(f).stem)
+        segments = parse_log(f)
+        # Label only the first segment per file so a run split into 2 doesn't
+        # produce 2 legend entries; suffix "(run 2)" etc. if there really are more.
+        for i, (xs, ys) in enumerate(segments):
+            if not ys:
+                continue
+            label = Path(f).stem if i == 0 else f"{Path(f).stem} (run {i + 1})"
+            plt.plot(xs, ys, marker=".", linewidth=1.5, label=label)
             plotted += 1
     if plotted == 0:
         logger.warning("No {'loss': ...} lines found in: %s", files)

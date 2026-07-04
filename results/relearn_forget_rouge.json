@@ -1,0 +1,10 @@
+{
+  "tofu_unlearn_gradient_difference_forget10": 0.0069767441860465115,
+  "relearn_tofu_unlearn_gradient_difference_forget10_ep1": 0.2494642286843825,
+  "relearn_tofu_unlearn_gradient_difference_forget10_ep2": 0.3318083354813801,
+  "relearn_tofu_unlearn_gradient_difference_forget10_ep4": 0.3333196944198139,
+  "tofu_unlearn_gradient_difference_forget10_lora": 0.002630012531328321,
+  "relearn_tofu_unlearn_gradient_difference_forget10_lora_ep1": 0.5503127040383132,
+  "relearn_tofu_unlearn_gradient_difference_forget10_lora_ep2": 0.6141191286365973,
+  "relearn_tofu_unlearn_gradient_difference_forget10_lora_ep4": 0.609023348443794
+}

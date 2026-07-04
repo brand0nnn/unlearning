@@ -5,8 +5,8 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=48G
 #SBATCH --time=06:00:00
-#SBATCH --output=/home/b/brandonk/unlearning/logs/evaluate_%j.out
-#SBATCH --error=/home/b/brandonk/unlearning/logs/evaluate_%j.err
+#SBATCH --output=/home/b/brandonk/unlearning/logs/evaluate.out
+#SBATCH --error=/home/b/brandonk/unlearning/logs/evaluate.err
 
 PROJECT_DIR="/home/b/brandonk/unlearning"
 cd "$PROJECT_DIR"

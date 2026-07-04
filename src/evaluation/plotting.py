@@ -117,9 +117,20 @@ def forget_quality_vs_utility(results_by_method: Dict[str, Dict], out_dir: str,
     ax.legend(handles, labels, fontsize=8, loc="lower left",
               framealpha=0.85, ncol=1)
 
-    ax.set_xlim(left=0.0)
-    ax.set_ylim(bottom=max(-50, min(r["forget_quality_log10"]          # ADD THIS
-                for r in results_by_method.values()) - 2))  
+    # Auto-fit the y-axis to EVERY plotted point. Forget-quality log10 p spans a
+    # huge range (e.g. gradient_ascent ~ -7 but gradient_difference ~ -166), so a
+    # hard-coded floor silently clips the worst method off the chart. Include the
+    # paper ghosts and the retain star too so nothing ever falls outside the axes.
+    yvals = [r["forget_quality_log10"] for r in results_by_method.values()]
+    yvals += [ref["forget_quality_log10"] for ref in PAPER_REFS.values()]
+    if retain_result and retain_result.get("forget_quality_log10") is not None:
+        yvals.append(retain_result["forget_quality_log10"])
+    ylo, yhi = min(yvals), max(yvals)
+    pad = 0.08 * (yhi - ylo) if yhi > ylo else 1.0
+    ax.set_xlim(left=-0.02)
+    ax.set_ylim(ylo - pad, yhi + pad)
+    ax.yaxis.grid(True, alpha=0.25, linestyle="--")
+    ax.set_axisbelow(True)
     fig.tight_layout()
     _save(fig, out_dir, "forget_quality_vs_utility")
 
@@ -141,7 +152,7 @@ def rouge_by_split(rouge_by_method_split: Dict[str, Dict[str, float]], out_dir: 
     width = 0.7 / max(n, 1)
     x = np.arange(len(splits))
 
-    fig, ax = plt.subplots(figsize=(8, 5))
+    fig, ax = plt.subplots(figsize=(9.5, 5))
 
     for i, m in enumerate(methods):
         vals = [rouge_by_method_split[m].get(s, 0.0) for s in splits]
@@ -171,7 +182,10 @@ def rouge_by_split(rouge_by_method_split: Dict[str, Dict[str, float]], out_dir: 
     ax.set_ylabel("ROUGE-L recall", fontsize=11)
     ax.set_ylim(0, 1.08)
     ax.set_title("ROUGE-L by split — checking unlearning vs collateral damage", fontsize=11)
-    ax.legend(fontsize=8, loc="upper right", framealpha=0.85)
+    # Legend outside the axes on the right: every column has at least one tall bar,
+    # so any in-axes placement collides with data.
+    ax.legend(fontsize=8, loc="upper left", bbox_to_anchor=(1.01, 1.0),
+              framealpha=0.85)
     ax.yaxis.grid(True, alpha=0.3, linestyle="--")
     ax.set_axisbelow(True)
 
