@@ -1,0 +1,153 @@
+Node: xgph3
+NVIDIA A100 80GB PCIe, 81920 MiB
+=== [1/2] Fine-tune on full TOFU (model to be unlearned) ===
+Warning: The cache directory for DeepSpeed Triton autotune, /home/b/brandonk/.triton/autotune, appears to be on an NFS system. While this is generally acceptable, if you experience slowdowns or hanging when DeepSpeed exits, it is recommended to set the TRITON_CACHE_DIR environment variable to a non-NFS path.
+[2026-07-03 13:20:42,560] [WARNING] [runner.py:232:fetch_hostfile] Unable to find hostfile, will proceed with training with local resources only.
+Detected VISIBLE_DEVICES=0 but ignoring it because one or several of --include/--exclude/--num_gpus/--num_nodes cl args were used. If you want to use CUDA_VISIBLE_DEVICES don't pass any of these arguments to deepspeed.
+[2026-07-03 13:20:42,561] [INFO] [runner.py:630:main] cmd = /home/b/brandonk/unlearning/.venv/bin/python3 -u -m deepspeed.launcher.launch --world_info=eyJsb2NhbGhvc3QiOiBbMF19 --master_addr=127.0.0.1 --master_port=29500 --enable_each_rank_log=None --log_level=info scripts/tofu_01_finetune.py --data full
+Warning: The cache directory for DeepSpeed Triton autotune, /home/b/brandonk/.triton/autotune, appears to be on an NFS system. While this is generally acceptable, if you experience slowdowns or hanging when DeepSpeed exits, it is recommended to set the TRITON_CACHE_DIR environment variable to a non-NFS path.
+[2026-07-03 13:20:52,665] [INFO] [launch.py:162:main] WORLD INFO DICT: {'localhost': [0]}
+[2026-07-03 13:20:52,665] [INFO] [launch.py:168:main] nnodes=1, num_local_procs=1, node_rank=0
+[2026-07-03 13:20:52,665] [INFO] [launch.py:179:main] global_rank_mapping=defaultdict(<class 'list'>, {'localhost': [0]})
+[2026-07-03 13:20:52,665] [INFO] [launch.py:180:main] dist_world_size=1
+[2026-07-03 13:20:52,666] [INFO] [launch.py:184:main] Setting CUDA_VISIBLE_DEVICES=0
+[2026-07-03 13:20:52,667] [INFO] [launch.py:272:main] process 1452569 spawned with command: ['/home/b/brandonk/unlearning/.venv/bin/python3', '-u', 'scripts/tofu_01_finetune.py', '--local_rank=0', '--data', 'full']
+Warning: The cache directory for DeepSpeed Triton autotune, /home/b/brandonk/.triton/autotune, appears to be on an NFS system. While this is generally acceptable, if you experience slowdowns or hanging when DeepSpeed exits, it is recommended to set the TRITON_CACHE_DIR environment variable to a non-NFS path.
+[2026-07-03 13:22:07,324] [WARNING] [engine.py:1687:_do_optimizer_sanity_check] **** You are using ZeRO with an untested optimizer, proceed with caution *****
+{'loss': '2.715', 'grad_norm': '43.84', 'learning_rate': '7.2e-07', 'epoch': '0.08'}
+{'loss': '2.369', 'grad_norm': '22.65', 'learning_rate': '1.52e-06', 'epoch': '0.16'}
+{'loss': '1.791', 'grad_norm': '9.901', 'learning_rate': '2.32e-06', 'epoch': '0.24'}
+{'loss': '1.622', 'grad_norm': '8.257', 'learning_rate': '3.12e-06', 'epoch': '0.32'}
+{'loss': '1.46', 'grad_norm': '5.775', 'learning_rate': '3.92e-06', 'epoch': '0.4'}
+{'loss': '1.431', 'grad_norm': '4.39', 'learning_rate': '4.72e-06', 'epoch': '0.48'}
+{'loss': '1.388', 'grad_norm': '4.224', 'learning_rate': '5.52e-06', 'epoch': '0.56'}
+{'loss': '1.345', 'grad_norm': '4.685', 'learning_rate': '6.32e-06', 'epoch': '0.64'}
+{'loss': '1.309', 'grad_norm': '4.901', 'learning_rate': '7.12e-06', 'epoch': '0.72'}
+{'loss': '1.315', 'grad_norm': '4.365', 'learning_rate': '7.92e-06', 'epoch': '0.8'}
+{'loss': '1.261', 'grad_norm': '4.634', 'learning_rate': '8.72e-06', 'epoch': '0.88'}
+{'loss': '1.231', 'grad_norm': '5.22', 'learning_rate': '9.52e-06', 'epoch': '0.96'}
+{'loss': '1.162', 'grad_norm': '3.939', 'learning_rate': '9.92e-06', 'epoch': '1.04'}
+{'loss': '1.018', 'grad_norm': '4.583', 'learning_rate': '9.72e-06', 'epoch': '1.12'}
+{'loss': '0.9807', 'grad_norm': '4.791', 'learning_rate': '9.52e-06', 'epoch': '1.2'}
+{'loss': '1.028', 'grad_norm': '5.394', 'learning_rate': '9.32e-06', 'epoch': '1.28'}
+{'loss': '0.9855', 'grad_norm': '5.323', 'learning_rate': '9.12e-06', 'epoch': '1.36'}
+{'loss': '0.9995', 'grad_norm': '4.91', 'learning_rate': '8.92e-06', 'epoch': '1.44'}
+{'loss': '0.9354', 'grad_norm': '5.791', 'learning_rate': '8.72e-06', 'epoch': '1.52'}
+{'loss': '0.934', 'grad_norm': '5.104', 'learning_rate': '8.52e-06', 'epoch': '1.6'}
+{'loss': '0.9708', 'grad_norm': '4.653', 'learning_rate': '8.32e-06', 'epoch': '1.68'}
+{'loss': '0.9738', 'grad_norm': '5.07', 'learning_rate': '8.12e-06', 'epoch': '1.76'}
+{'loss': '0.9704', 'grad_norm': '4.553', 'learning_rate': '7.92e-06', 'epoch': '1.84'}
+{'loss': '0.9768', 'grad_norm': '5.036', 'learning_rate': '7.72e-06', 'epoch': '1.92'}
+{'loss': '0.9381', 'grad_norm': '5.825', 'learning_rate': '7.52e-06', 'epoch': '2'}
+{'loss': '0.4515', 'grad_norm': '5.797', 'learning_rate': '7.32e-06', 'epoch': '2.08'}
+{'loss': '0.4491', 'grad_norm': '5.926', 'learning_rate': '7.12e-06', 'epoch': '2.16'}
+{'loss': '0.4495', 'grad_norm': '5.314', 'learning_rate': '6.92e-06', 'epoch': '2.24'}
+{'loss': '0.435', 'grad_norm': '5.804', 'learning_rate': '6.72e-06', 'epoch': '2.32'}
+{'loss': '0.4369', 'grad_norm': '6.444', 'learning_rate': '6.52e-06', 'epoch': '2.4'}
+{'loss': '0.433', 'grad_norm': '4.858', 'learning_rate': '6.32e-06', 'epoch': '2.48'}
+{'loss': '0.4286', 'grad_norm': '5.251', 'learning_rate': '6.12e-06', 'epoch': '2.56'}
+{'loss': '0.438', 'grad_norm': '5.397', 'learning_rate': '5.92e-06', 'epoch': '2.64'}
+{'loss': '0.4349', 'grad_norm': '5.23', 'learning_rate': '5.72e-06', 'epoch': '2.72'}
+{'loss': '0.4359', 'grad_norm': '4.853', 'learning_rate': '5.52e-06', 'epoch': '2.8'}
+{'loss': '0.4266', 'grad_norm': '5.925', 'learning_rate': '5.32e-06', 'epoch': '2.88'}
+{'loss': '0.4428', 'grad_norm': '5.396', 'learning_rate': '5.12e-06', 'epoch': '2.96'}
+{'loss': '0.3051', 'grad_norm': '3.65', 'learning_rate': '4.92e-06', 'epoch': '3.04'}
+{'loss': '0.116', 'grad_norm': '4.478', 'learning_rate': '4.72e-06', 'epoch': '3.12'}
+{'loss': '0.1045', 'grad_norm': '4.133', 'learning_rate': '4.52e-06', 'epoch': '3.2'}
+{'loss': '0.1005', 'grad_norm': '3.929', 'learning_rate': '4.32e-06', 'epoch': '3.28'}
+{'loss': '0.09637', 'grad_norm': '3.613', 'learning_rate': '4.12e-06', 'epoch': '3.36'}
+{'loss': '0.09908', 'grad_norm': '4.743', 'learning_rate': '3.92e-06', 'epoch': '3.44'}
+{'loss': '0.1033', 'grad_norm': '3.942', 'learning_rate': '3.72e-06', 'epoch': '3.52'}
+{'loss': '0.103', 'grad_norm': '3.896', 'learning_rate': '3.52e-06', 'epoch': '3.6'}
+{'loss': '0.1', 'grad_norm': '4.292', 'learning_rate': '3.32e-06', 'epoch': '3.68'}
+{'loss': '0.1032', 'grad_norm': '4.279', 'learning_rate': '3.12e-06', 'epoch': '3.76'}
+{'loss': '0.102', 'grad_norm': '3.668', 'learning_rate': '2.92e-06', 'epoch': '3.84'}
+{'loss': '0.09682', 'grad_norm': '4.269', 'learning_rate': '2.72e-06', 'epoch': '3.92'}
+{'loss': '0.09209', 'grad_norm': '5.075', 'learning_rate': '2.52e-06', 'epoch': '4'}
+{'loss': '0.02356', 'grad_norm': '1.471', 'learning_rate': '2.32e-06', 'epoch': '4.08'}
+{'loss': '0.02092', 'grad_norm': '2.041', 'learning_rate': '2.12e-06', 'epoch': '4.16'}
+{'loss': '0.0177', 'grad_norm': '1.403', 'learning_rate': '1.92e-06', 'epoch': '4.24'}
+{'loss': '0.0179', 'grad_norm': '2.046', 'learning_rate': '1.72e-06', 'epoch': '4.32'}
+{'loss': '0.01749', 'grad_norm': '1.463', 'learning_rate': '1.52e-06', 'epoch': '4.4'}
+{'loss': '0.01969', 'grad_norm': '1.517', 'learning_rate': '1.32e-06', 'epoch': '4.48'}
+{'loss': '0.01886', 'grad_norm': '1.547', 'learning_rate': '1.12e-06', 'epoch': '4.56'}
+{'loss': '0.01569', 'grad_norm': '3.027', 'learning_rate': '9.2e-07', 'epoch': '4.64'}
+{'loss': '0.02079', 'grad_norm': '1.813', 'learning_rate': '7.2e-07', 'epoch': '4.72'}
+{'loss': '0.01763', 'grad_norm': '2.78', 'learning_rate': '5.2e-07', 'epoch': '4.8'}
+{'loss': '0.01655', 'grad_norm': '1.289', 'learning_rate': '3.2e-07', 'epoch': '4.88'}
+{'loss': '0.01561', 'grad_norm': '1.364', 'learning_rate': '1.2e-07', 'epoch': '4.96'}
+{'train_runtime': '8188', 'train_samples_per_second': '2.443', 'train_steps_per_second': '0.076', 'train_loss': '0.626', 'epoch': '5'}
+[2026-07-03 15:39:20,776] [INFO] [launch.py:367:main] Process 1452569 exits successfully.
+=== [2/2] Fine-tune on retain90 (gold reference for Forget Quality) ===
+Warning: The cache directory for DeepSpeed Triton autotune, /home/b/brandonk/.triton/autotune, appears to be on an NFS system. While this is generally acceptable, if you experience slowdowns or hanging when DeepSpeed exits, it is recommended to set the TRITON_CACHE_DIR environment variable to a non-NFS path.
+[2026-07-03 15:39:51,611] [WARNING] [runner.py:232:fetch_hostfile] Unable to find hostfile, will proceed with training with local resources only.
+Detected VISIBLE_DEVICES=0 but ignoring it because one or several of --include/--exclude/--num_gpus/--num_nodes cl args were used. If you want to use CUDA_VISIBLE_DEVICES don't pass any of these arguments to deepspeed.
+[2026-07-03 15:39:51,612] [INFO] [runner.py:630:main] cmd = /home/b/brandonk/unlearning/.venv/bin/python3 -u -m deepspeed.launcher.launch --world_info=eyJsb2NhbGhvc3QiOiBbMF19 --master_addr=127.0.0.1 --master_port=29500 --enable_each_rank_log=None --log_level=info scripts/tofu_01_finetune.py --data retain90
+Warning: The cache directory for DeepSpeed Triton autotune, /home/b/brandonk/.triton/autotune, appears to be on an NFS system. While this is generally acceptable, if you experience slowdowns or hanging when DeepSpeed exits, it is recommended to set the TRITON_CACHE_DIR environment variable to a non-NFS path.
+[2026-07-03 15:40:01,560] [INFO] [launch.py:162:main] WORLD INFO DICT: {'localhost': [0]}
+[2026-07-03 15:40:01,560] [INFO] [launch.py:168:main] nnodes=1, num_local_procs=1, node_rank=0
+[2026-07-03 15:40:01,560] [INFO] [launch.py:179:main] global_rank_mapping=defaultdict(<class 'list'>, {'localhost': [0]})
+[2026-07-03 15:40:01,560] [INFO] [launch.py:180:main] dist_world_size=1
+[2026-07-03 15:40:01,560] [INFO] [launch.py:184:main] Setting CUDA_VISIBLE_DEVICES=0
+[2026-07-03 15:40:01,562] [INFO] [launch.py:272:main] process 1454440 spawned with command: ['/home/b/brandonk/unlearning/.venv/bin/python3', '-u', 'scripts/tofu_01_finetune.py', '--local_rank=0', '--data', 'retain90']
+Warning: The cache directory for DeepSpeed Triton autotune, /home/b/brandonk/.triton/autotune, appears to be on an NFS system. While this is generally acceptable, if you experience slowdowns or hanging when DeepSpeed exits, it is recommended to set the TRITON_CACHE_DIR environment variable to a non-NFS path.
+[2026-07-03 15:40:30,212] [WARNING] [engine.py:1687:_do_optimizer_sanity_check] **** You are using ZeRO with an untested optimizer, proceed with caution *****
+{'loss': '2.684', 'grad_norm': '35.21', 'learning_rate': '7.965e-07', 'epoch': '0.08889'}
+{'loss': '2.345', 'grad_norm': '18.54', 'learning_rate': '1.681e-06', 'epoch': '0.1778'}
+{'loss': '1.762', 'grad_norm': '9.642', 'learning_rate': '2.566e-06', 'epoch': '0.2667'}
+{'loss': '1.586', 'grad_norm': '6.831', 'learning_rate': '3.451e-06', 'epoch': '0.3556'}
+{'loss': '1.458', 'grad_norm': '5.173', 'learning_rate': '4.336e-06', 'epoch': '0.4444'}
+{'loss': '1.404', 'grad_norm': '5.427', 'learning_rate': '5.221e-06', 'epoch': '0.5333'}
+{'loss': '1.35', 'grad_norm': '4.387', 'learning_rate': '6.106e-06', 'epoch': '0.6222'}
+{'loss': '1.36', 'grad_norm': '4.835', 'learning_rate': '6.991e-06', 'epoch': '0.7111'}
+{'loss': '1.297', 'grad_norm': '4.313', 'learning_rate': '7.876e-06', 'epoch': '0.8'}
+{'loss': '1.303', 'grad_norm': '4.369', 'learning_rate': '8.761e-06', 'epoch': '0.8889'}
+{'loss': '1.275', 'grad_norm': '4.683', 'learning_rate': '9.646e-06', 'epoch': '0.9778'}
+{'loss': '1.113', 'grad_norm': '4.032', 'learning_rate': '9.867e-06', 'epoch': '1.062'}
+{'loss': '0.9945', 'grad_norm': '4.876', 'learning_rate': '9.646e-06', 'epoch': '1.151'}
+{'loss': '1.019', 'grad_norm': '4.872', 'learning_rate': '9.425e-06', 'epoch': '1.24'}
+{'loss': '0.9843', 'grad_norm': '5.212', 'learning_rate': '9.204e-06', 'epoch': '1.329'}
+{'loss': '0.9721', 'grad_norm': '6.227', 'learning_rate': '8.982e-06', 'epoch': '1.418'}
+{'loss': '1.001', 'grad_norm': '5.243', 'learning_rate': '8.761e-06', 'epoch': '1.507'}
+{'loss': '0.9508', 'grad_norm': '5.036', 'learning_rate': '8.54e-06', 'epoch': '1.596'}
+{'loss': '0.9602', 'grad_norm': '5.021', 'learning_rate': '8.319e-06', 'epoch': '1.684'}
+{'loss': '0.9797', 'grad_norm': '5.297', 'learning_rate': '8.097e-06', 'epoch': '1.773'}
+{'loss': '0.9234', 'grad_norm': '4.678', 'learning_rate': '7.876e-06', 'epoch': '1.862'}
+{'loss': '0.9539', 'grad_norm': '5.138', 'learning_rate': '7.655e-06', 'epoch': '1.951'}
+{'loss': '0.7845', 'grad_norm': '3.959', 'learning_rate': '7.434e-06', 'epoch': '2.036'}
+{'loss': '0.465', 'grad_norm': '6.122', 'learning_rate': '7.212e-06', 'epoch': '2.124'}
+{'loss': '0.4204', 'grad_norm': '5.31', 'learning_rate': '6.991e-06', 'epoch': '2.213'}
+{'loss': '0.4437', 'grad_norm': '6.381', 'learning_rate': '6.77e-06', 'epoch': '2.302'}
+{'loss': '0.4311', 'grad_norm': '5.656', 'learning_rate': '6.549e-06', 'epoch': '2.391'}
+{'loss': '0.4568', 'grad_norm': '5.704', 'learning_rate': '6.327e-06', 'epoch': '2.48'}
+{'loss': '0.4444', 'grad_norm': '4.345', 'learning_rate': '6.106e-06', 'epoch': '2.569'}
+{'loss': '0.447', 'grad_norm': '4.568', 'learning_rate': '5.885e-06', 'epoch': '2.658'}
+{'loss': '0.4523', 'grad_norm': '5.83', 'learning_rate': '5.664e-06', 'epoch': '2.747'}
+{'loss': '0.4372', 'grad_norm': '4.851', 'learning_rate': '5.442e-06', 'epoch': '2.836'}
+{'loss': '0.4517', 'grad_norm': '5.061', 'learning_rate': '5.221e-06', 'epoch': '2.924'}
+{'loss': '0.415', 'grad_norm': '3.564', 'learning_rate': '5e-06', 'epoch': '3.009'}
+{'loss': '0.1234', 'grad_norm': '5.181', 'learning_rate': '4.779e-06', 'epoch': '3.098'}
+{'loss': '0.1138', 'grad_norm': '4.598', 'learning_rate': '4.558e-06', 'epoch': '3.187'}
+{'loss': '0.11', 'grad_norm': '3.866', 'learning_rate': '4.336e-06', 'epoch': '3.276'}
+{'loss': '0.1019', 'grad_norm': '4.524', 'learning_rate': '4.115e-06', 'epoch': '3.364'}
+{'loss': '0.109', 'grad_norm': '4.318', 'learning_rate': '3.894e-06', 'epoch': '3.453'}
+{'loss': '0.106', 'grad_norm': '3.42', 'learning_rate': '3.673e-06', 'epoch': '3.542'}
+{'loss': '0.1103', 'grad_norm': '3.613', 'learning_rate': '3.451e-06', 'epoch': '3.631'}
+{'loss': '0.1062', 'grad_norm': '4.79', 'learning_rate': '3.23e-06', 'epoch': '3.72'}
+{'loss': '0.1024', 'grad_norm': '4.314', 'learning_rate': '3.009e-06', 'epoch': '3.809'}
+{'loss': '0.1019', 'grad_norm': '4.299', 'learning_rate': '2.788e-06', 'epoch': '3.898'}
+{'loss': '0.09672', 'grad_norm': '3.243', 'learning_rate': '2.566e-06', 'epoch': '3.987'}
+{'loss': '0.04215', 'grad_norm': '2.933', 'learning_rate': '2.345e-06', 'epoch': '4.071'}
+{'loss': '0.02465', 'grad_norm': '1.955', 'learning_rate': '2.124e-06', 'epoch': '4.16'}
+{'loss': '0.0235', 'grad_norm': '2.025', 'learning_rate': '1.903e-06', 'epoch': '4.249'}
+{'loss': '0.01947', 'grad_norm': '1.316', 'learning_rate': '1.681e-06', 'epoch': '4.338'}
+{'loss': '0.01773', 'grad_norm': '2.435', 'learning_rate': '1.46e-06', 'epoch': '4.427'}
+{'loss': '0.01996', 'grad_norm': '2.74', 'learning_rate': '1.239e-06', 'epoch': '4.516'}
+{'loss': '0.02127', 'grad_norm': '3.235', 'learning_rate': '1.018e-06', 'epoch': '4.604'}
+{'loss': '0.01793', 'grad_norm': '2.92', 'learning_rate': '7.965e-07', 'epoch': '4.693'}
+{'loss': '0.01823', 'grad_norm': '1.799', 'learning_rate': '5.752e-07', 'epoch': '4.782'}
+{'loss': '0.02093', 'grad_norm': '1.649', 'learning_rate': '3.54e-07', 'epoch': '4.871'}
+{'loss': '0.0208', 'grad_norm': '1.951', 'learning_rate': '1.327e-07', 'epoch': '4.96'}
+{'train_runtime': '7483', 'train_samples_per_second': '2.406', 'train_steps_per_second': '0.076', 'train_loss': '0.633', 'epoch': '5'}
+[2026-07-03 17:45:51,611] [INFO] [launch.py:367:main] Process 1454440 exits successfully.
+=== Learn phase complete. Checkpoints in experiments/ ===

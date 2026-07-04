@@ -1,0 +1,91 @@
+Node: xgpk0
+NVIDIA H200 NVL, 143771 MiB
+=== Unlearning: gradient_ascent ===
+Warning: The cache directory for DeepSpeed Triton autotune, /home/b/brandonk/.triton/autotune, appears to be on an NFS system. While this is generally acceptable, if you experience slowdowns or hanging when DeepSpeed exits, it is recommended to set the TRITON_CACHE_DIR environment variable to a non-NFS path.
+[2026-07-03 19:16:36,178] [WARNING] [runner.py:232:fetch_hostfile] Unable to find hostfile, will proceed with training with local resources only.
+Detected VISIBLE_DEVICES=0 but ignoring it because one or several of --include/--exclude/--num_gpus/--num_nodes cl args were used. If you want to use CUDA_VISIBLE_DEVICES don't pass any of these arguments to deepspeed.
+[2026-07-03 19:16:36,179] [INFO] [runner.py:630:main] cmd = /home/b/brandonk/unlearning/.venv/bin/python3 -u -m deepspeed.launcher.launch --world_info=eyJsb2NhbGhvc3QiOiBbMF19 --master_addr=127.0.0.1 --master_port=29500 --enable_each_rank_log=None --log_level=info scripts/tofu_02_unlearn.py --checkpoint /home/b/brandonk/unlearning/experiments/tofu_learn_full_full --method gradient_ascent
+Warning: The cache directory for DeepSpeed Triton autotune, /home/b/brandonk/.triton/autotune, appears to be on an NFS system. While this is generally acceptable, if you experience slowdowns or hanging when DeepSpeed exits, it is recommended to set the TRITON_CACHE_DIR environment variable to a non-NFS path.
+[2026-07-03 19:16:42,644] [INFO] [launch.py:162:main] WORLD INFO DICT: {'localhost': [0]}
+[2026-07-03 19:16:42,645] [INFO] [launch.py:168:main] nnodes=1, num_local_procs=1, node_rank=0
+[2026-07-03 19:16:42,645] [INFO] [launch.py:179:main] global_rank_mapping=defaultdict(<class 'list'>, {'localhost': [0]})
+[2026-07-03 19:16:42,645] [INFO] [launch.py:180:main] dist_world_size=1
+[2026-07-03 19:16:42,645] [INFO] [launch.py:184:main] Setting CUDA_VISIBLE_DEVICES=0
+[2026-07-03 19:16:42,646] [INFO] [launch.py:272:main] process 2342649 spawned with command: ['/home/b/brandonk/unlearning/.venv/bin/python3', '-u', 'scripts/tofu_02_unlearn.py', '--local_rank=0', '--checkpoint', '/home/b/brandonk/unlearning/experiments/tofu_learn_full_full', '--method', 'gradient_ascent']
+Warning: The cache directory for DeepSpeed Triton autotune, /home/b/brandonk/.triton/autotune, appears to be on an NFS system. While this is generally acceptable, if you experience slowdowns or hanging when DeepSpeed exits, it is recommended to set the TRITON_CACHE_DIR environment variable to a non-NFS path.
+[2026-07-03 19:17:22,162] [WARNING] [engine.py:1687:_do_optimizer_sanity_check] **** You are using ZeRO with an untested optimizer, proceed with caution *****
+{'loss': '-0.01023', 'grad_norm': '1.598', 'learning_rate': '6.923e-06', 'epoch': '0.8'}
+{'loss': '-1.583', 'grad_norm': '55.67', 'learning_rate': '8.846e-06', 'epoch': '1.56'}
+{'loss': '-17.41', 'grad_norm': '212.4', 'learning_rate': '6.923e-06', 'epoch': '2.32'}
+{'loss': '-65.42', 'grad_norm': '238', 'learning_rate': '5e-06', 'epoch': '3.08'}
+{'loss': '-83.19', 'grad_norm': '98.85', 'learning_rate': '3.077e-06', 'epoch': '3.88'}
+{'loss': '-88.09', 'grad_norm': '94.85', 'learning_rate': '1.154e-06', 'epoch': '4.64'}
+{'train_runtime': '574.1', 'train_samples_per_second': '3.484', 'train_steps_per_second': '0.113', 'train_loss': '-46.18', 'epoch': '5'}
+[2026-07-03 19:27:23,700] [INFO] [launch.py:367:main] Process 2342649 exits successfully.
+=== Unlearning: gradient_difference ===
+Warning: The cache directory for DeepSpeed Triton autotune, /home/b/brandonk/.triton/autotune, appears to be on an NFS system. While this is generally acceptable, if you experience slowdowns or hanging when DeepSpeed exits, it is recommended to set the TRITON_CACHE_DIR environment variable to a non-NFS path.
+[2026-07-03 19:27:34,872] [WARNING] [runner.py:232:fetch_hostfile] Unable to find hostfile, will proceed with training with local resources only.
+Detected VISIBLE_DEVICES=0 but ignoring it because one or several of --include/--exclude/--num_gpus/--num_nodes cl args were used. If you want to use CUDA_VISIBLE_DEVICES don't pass any of these arguments to deepspeed.
+[2026-07-03 19:27:34,873] [INFO] [runner.py:630:main] cmd = /home/b/brandonk/unlearning/.venv/bin/python3 -u -m deepspeed.launcher.launch --world_info=eyJsb2NhbGhvc3QiOiBbMF19 --master_addr=127.0.0.1 --master_port=29500 --enable_each_rank_log=None --log_level=info scripts/tofu_02_unlearn.py --checkpoint /home/b/brandonk/unlearning/experiments/tofu_learn_full_full --method gradient_difference
+Warning: The cache directory for DeepSpeed Triton autotune, /home/b/brandonk/.triton/autotune, appears to be on an NFS system. While this is generally acceptable, if you experience slowdowns or hanging when DeepSpeed exits, it is recommended to set the TRITON_CACHE_DIR environment variable to a non-NFS path.
+[2026-07-03 19:27:39,479] [INFO] [launch.py:162:main] WORLD INFO DICT: {'localhost': [0]}
+[2026-07-03 19:27:39,479] [INFO] [launch.py:168:main] nnodes=1, num_local_procs=1, node_rank=0
+[2026-07-03 19:27:39,479] [INFO] [launch.py:179:main] global_rank_mapping=defaultdict(<class 'list'>, {'localhost': [0]})
+[2026-07-03 19:27:39,479] [INFO] [launch.py:180:main] dist_world_size=1
+[2026-07-03 19:27:39,479] [INFO] [launch.py:184:main] Setting CUDA_VISIBLE_DEVICES=0
+[2026-07-03 19:27:39,480] [INFO] [launch.py:272:main] process 2343144 spawned with command: ['/home/b/brandonk/unlearning/.venv/bin/python3', '-u', 'scripts/tofu_02_unlearn.py', '--local_rank=0', '--checkpoint', '/home/b/brandonk/unlearning/experiments/tofu_learn_full_full', '--method', 'gradient_difference']
+Warning: The cache directory for DeepSpeed Triton autotune, /home/b/brandonk/.triton/autotune, appears to be on an NFS system. While this is generally acceptable, if you experience slowdowns or hanging when DeepSpeed exits, it is recommended to set the TRITON_CACHE_DIR environment variable to a non-NFS path.
+[2026-07-03 19:27:52,777] [WARNING] [engine.py:1687:_do_optimizer_sanity_check] **** You are using ZeRO with an untested optimizer, proceed with caution *****
+{'loss': '0.002117', 'grad_norm': '1.836', 'learning_rate': '6.923e-06', 'epoch': '0.8'}
+{'loss': '-0.1853', 'grad_norm': '49.17', 'learning_rate': '8.846e-06', 'epoch': '1.56'}
+{'loss': '-2.643', 'grad_norm': '118.1', 'learning_rate': '6.923e-06', 'epoch': '2.32'}
+{'loss': '-18.89', 'grad_norm': '432.4', 'learning_rate': '5e-06', 'epoch': '3.08'}
+{'loss': '-75.28', 'grad_norm': '203.1', 'learning_rate': '3.077e-06', 'epoch': '3.88'}
+{'loss': '-98.18', 'grad_norm': '183.4', 'learning_rate': '1.154e-06', 'epoch': '4.64'}
+{'train_runtime': '1107', 'train_samples_per_second': '1.807', 'train_steps_per_second': '0.059', 'train_loss': '-37.96', 'epoch': '5'}
+[2026-07-03 19:46:45,569] [INFO] [launch.py:367:main] Process 2343144 exits successfully.
+=== Unlearning: kl_minimization ===
+Warning: The cache directory for DeepSpeed Triton autotune, /home/b/brandonk/.triton/autotune, appears to be on an NFS system. While this is generally acceptable, if you experience slowdowns or hanging when DeepSpeed exits, it is recommended to set the TRITON_CACHE_DIR environment variable to a non-NFS path.
+[2026-07-03 19:46:55,497] [WARNING] [runner.py:232:fetch_hostfile] Unable to find hostfile, will proceed with training with local resources only.
+Detected VISIBLE_DEVICES=0 but ignoring it because one or several of --include/--exclude/--num_gpus/--num_nodes cl args were used. If you want to use CUDA_VISIBLE_DEVICES don't pass any of these arguments to deepspeed.
+[2026-07-03 19:46:55,497] [INFO] [runner.py:630:main] cmd = /home/b/brandonk/unlearning/.venv/bin/python3 -u -m deepspeed.launcher.launch --world_info=eyJsb2NhbGhvc3QiOiBbMF19 --master_addr=127.0.0.1 --master_port=29500 --enable_each_rank_log=None --log_level=info scripts/tofu_02_unlearn.py --checkpoint /home/b/brandonk/unlearning/experiments/tofu_learn_full_full --method kl_minimization
+Warning: The cache directory for DeepSpeed Triton autotune, /home/b/brandonk/.triton/autotune, appears to be on an NFS system. While this is generally acceptable, if you experience slowdowns or hanging when DeepSpeed exits, it is recommended to set the TRITON_CACHE_DIR environment variable to a non-NFS path.
+[2026-07-03 19:46:59,607] [INFO] [launch.py:162:main] WORLD INFO DICT: {'localhost': [0]}
+[2026-07-03 19:46:59,607] [INFO] [launch.py:168:main] nnodes=1, num_local_procs=1, node_rank=0
+[2026-07-03 19:46:59,607] [INFO] [launch.py:179:main] global_rank_mapping=defaultdict(<class 'list'>, {'localhost': [0]})
+[2026-07-03 19:46:59,607] [INFO] [launch.py:180:main] dist_world_size=1
+[2026-07-03 19:46:59,607] [INFO] [launch.py:184:main] Setting CUDA_VISIBLE_DEVICES=0
+[2026-07-03 19:46:59,608] [INFO] [launch.py:272:main] process 2343611 spawned with command: ['/home/b/brandonk/unlearning/.venv/bin/python3', '-u', 'scripts/tofu_02_unlearn.py', '--local_rank=0', '--checkpoint', '/home/b/brandonk/unlearning/experiments/tofu_learn_full_full', '--method', 'kl_minimization']
+Warning: The cache directory for DeepSpeed Triton autotune, /home/b/brandonk/.triton/autotune, appears to be on an NFS system. While this is generally acceptable, if you experience slowdowns or hanging when DeepSpeed exits, it is recommended to set the TRITON_CACHE_DIR environment variable to a non-NFS path.
+[2026-07-03 19:47:13,537] [WARNING] [engine.py:1687:_do_optimizer_sanity_check] **** You are using ZeRO with an untested optimizer, proceed with caution *****
+{'loss': '0.1818', 'grad_norm': '316.5', 'learning_rate': '6.923e-06', 'epoch': '0.8'}
+{'loss': '2.827', 'grad_norm': '256.4', 'learning_rate': '8.846e-06', 'epoch': '1.56'}
+{'loss': '5.339', 'grad_norm': '149.9', 'learning_rate': '6.923e-06', 'epoch': '2.32'}
+{'loss': '5.601', 'grad_norm': '131.7', 'learning_rate': '5e-06', 'epoch': '3.08'}
+{'loss': '5.242', 'grad_norm': '126.4', 'learning_rate': '3.077e-06', 'epoch': '3.88'}
+{'loss': '4.865', 'grad_norm': '148.3', 'learning_rate': '1.154e-06', 'epoch': '4.64'}
+{'train_runtime': '1113', 'train_samples_per_second': '1.797', 'train_steps_per_second': '0.058', 'train_loss': '4.026', 'epoch': '5'}
+[2026-07-03 20:06:11,704] [INFO] [launch.py:367:main] Process 2343611 exits successfully.
+=== Unlearning: idk ===
+Warning: The cache directory for DeepSpeed Triton autotune, /home/b/brandonk/.triton/autotune, appears to be on an NFS system. While this is generally acceptable, if you experience slowdowns or hanging when DeepSpeed exits, it is recommended to set the TRITON_CACHE_DIR environment variable to a non-NFS path.
+[2026-07-03 20:06:21,874] [WARNING] [runner.py:232:fetch_hostfile] Unable to find hostfile, will proceed with training with local resources only.
+Detected VISIBLE_DEVICES=0 but ignoring it because one or several of --include/--exclude/--num_gpus/--num_nodes cl args were used. If you want to use CUDA_VISIBLE_DEVICES don't pass any of these arguments to deepspeed.
+[2026-07-03 20:06:21,874] [INFO] [runner.py:630:main] cmd = /home/b/brandonk/unlearning/.venv/bin/python3 -u -m deepspeed.launcher.launch --world_info=eyJsb2NhbGhvc3QiOiBbMF19 --master_addr=127.0.0.1 --master_port=29500 --enable_each_rank_log=None --log_level=info scripts/tofu_02_unlearn.py --checkpoint /home/b/brandonk/unlearning/experiments/tofu_learn_full_full --method idk
+Warning: The cache directory for DeepSpeed Triton autotune, /home/b/brandonk/.triton/autotune, appears to be on an NFS system. While this is generally acceptable, if you experience slowdowns or hanging when DeepSpeed exits, it is recommended to set the TRITON_CACHE_DIR environment variable to a non-NFS path.
+[2026-07-03 20:06:26,629] [INFO] [launch.py:162:main] WORLD INFO DICT: {'localhost': [0]}
+[2026-07-03 20:06:26,629] [INFO] [launch.py:168:main] nnodes=1, num_local_procs=1, node_rank=0
+[2026-07-03 20:06:26,629] [INFO] [launch.py:179:main] global_rank_mapping=defaultdict(<class 'list'>, {'localhost': [0]})
+[2026-07-03 20:06:26,629] [INFO] [launch.py:180:main] dist_world_size=1
+[2026-07-03 20:06:26,629] [INFO] [launch.py:184:main] Setting CUDA_VISIBLE_DEVICES=0
+[2026-07-03 20:06:26,630] [INFO] [launch.py:272:main] process 2344095 spawned with command: ['/home/b/brandonk/unlearning/.venv/bin/python3', '-u', 'scripts/tofu_02_unlearn.py', '--local_rank=0', '--checkpoint', '/home/b/brandonk/unlearning/experiments/tofu_learn_full_full', '--method', 'idk']
+Warning: The cache directory for DeepSpeed Triton autotune, /home/b/brandonk/.triton/autotune, appears to be on an NFS system. While this is generally acceptable, if you experience slowdowns or hanging when DeepSpeed exits, it is recommended to set the TRITON_CACHE_DIR environment variable to a non-NFS path.
+[2026-07-03 20:06:38,565] [WARNING] [engine.py:1687:_do_optimizer_sanity_check] **** You are using ZeRO with an untested optimizer, proceed with caution *****
+{'loss': '3.495', 'grad_norm': '25.08', 'learning_rate': '6.923e-06', 'epoch': '0.8'}
+{'loss': '0.6687', 'grad_norm': '17.37', 'learning_rate': '8.846e-06', 'epoch': '1.56'}
+{'loss': '0.5563', 'grad_norm': '9.847', 'learning_rate': '6.923e-06', 'epoch': '2.32'}
+{'loss': '0.4193', 'grad_norm': '8.445', 'learning_rate': '5e-06', 'epoch': '3.08'}
+{'loss': '0.3416', 'grad_norm': '5.769', 'learning_rate': '3.077e-06', 'epoch': '3.88'}
+{'loss': '0.3142', 'grad_norm': '5.914', 'learning_rate': '1.154e-06', 'epoch': '4.64'}
+{'train_runtime': '1085', 'train_samples_per_second': '1.843', 'train_steps_per_second': '0.06', 'train_loss': '0.9154', 'epoch': '5'}
+[2026-07-03 20:25:09,740] [INFO] [launch.py:367:main] Process 2344095 exits successfully.
+=== Unlearn phase complete ===

@@ -1,0 +1,13 @@
+Node: xgph5
+NVIDIA A100 80GB PCIe, 81920 MiB
+=== LoRA unlearning: gradient_difference ===
+trainable params: 16,777,216 || all params: 6,755,192,832 || trainable%: 0.2484
+Warning: The cache directory for DeepSpeed Triton autotune, /home/b/brandonk/.triton/autotune, appears to be on an NFS system. While this is generally acceptable, if you experience slowdowns or hanging when DeepSpeed exits, it is recommended to set the TRITON_CACHE_DIR environment variable to a non-NFS path.
+{'loss': '0.0009462', 'grad_norm': '0.03726', 'learning_rate': '0.0001385', 'epoch': '0.8'}
+{'loss': '-0.009386', 'grad_norm': '0.1949', 'learning_rate': '0.0001769', 'epoch': '1.56'}
+{'loss': '-0.04319', 'grad_norm': '1.335', 'learning_rate': '0.0001385', 'epoch': '2.32'}
+{'loss': '-0.5312', 'grad_norm': '16.91', 'learning_rate': '0.0001', 'epoch': '3.08'}
+{'loss': '-3.036', 'grad_norm': '92.85', 'learning_rate': '6.154e-05', 'epoch': '3.88'}
+{'loss': '-18.1', 'grad_norm': '140.5', 'learning_rate': '2.308e-05', 'epoch': '4.64'}
+{'train_runtime': '802.6', 'train_samples_per_second': '2.492', 'train_steps_per_second': '0.081', 'train_loss': '-5.657', 'epoch': '5'}
+=== LoRA unlearn complete ===
