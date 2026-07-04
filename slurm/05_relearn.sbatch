@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=tofu_relearn
-#SBATCH --partition=gpu
-#SBATCH --gres=gpu:a100-80:1
+#SBATCH --partition=gpu-long
+#SBATCH --gres=gpu:h200-141:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=128G
 #SBATCH --time=08:00:00
@@ -37,6 +37,9 @@ for EP in 1 2 4; do
     deepspeed --num_gpus=1 scripts/tofu_relearn.py --checkpoint "$UNLEARNED" --epochs $EP
     RELEARNED="$PROJECT_DIR/experiments/relearn_$(basename $UNLEARNED)_ep${EP}"
     python scripts/tofu_forget_rouge.py --checkpoints "$RELEARNED"
+    # We only need the forget-ROUGE number, not the 13.5GB checkpoint -> delete it
+    # so the probe doesn't pile up disk (each epoch's checkpoint is independent).
+    rm -rf "$RELEARNED"
 done
 
 echo "=== Relearn probe complete. Recovery curve in results/relearn_forget_rouge.json ==="
