@@ -5,7 +5,7 @@ trend the paper states. The reproduction is in the PATTERN: gradient_ascent
 destroys utility; the gentle methods preserve utility but barely forget (forget
 quality never crosses the 0.05 significance threshold).
 
-    python scripts/tofu_05_compare.py     # CPU-only; reads results/*.json
+    python scripts/diagnostics/compare.py     # CPU-only; reads results/*.json
 
 Writes results/comparison.md and prints the table.
 """
@@ -14,7 +14,7 @@ import math
 import sys
 from pathlib import Path
 
-sys.path.append(str(Path(__file__).resolve().parents[1]))
+sys.path.append(str(Path(__file__).resolve().parents[2]))
 from src.utils.logging_utils import load_config
 
 RESULTS = Path("results")

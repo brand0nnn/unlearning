@@ -24,7 +24,7 @@ LEARNED="$PROJECT_DIR/experiments/tofu_learn_full_full"
 
 for METHOD in gradient_ascent gradient_difference kl_minimization idk; do
     echo "=== Unlearning: $METHOD ==="
-    deepspeed --num_gpus=1 scripts/tofu_02_unlearn.py --checkpoint "$LEARNED" --method "$METHOD"
+    deepspeed --num_gpus=1 scripts/pipeline/02_unlearn.py --checkpoint "$LEARNED" --method "$METHOD"
 done
 
 echo "=== Unlearn phase complete ==="

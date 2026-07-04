@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=tofu_relearn
+#SBATCH --job-name=recover_relearn
 #SBATCH --partition=gpu-long
 #SBATCH --gres=gpu:h200-141:1
 #SBATCH --cpus-per-task=8
@@ -27,17 +27,17 @@ source ~/.env_hf
 echo "Node: $(hostname)"; nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 
 # Pass the unlearned checkpoint as the first sbatch arg; defaults to the full-FT one.
-#   sbatch slurm/05_relearn.sbatch experiments/tofu_unlearn_gradient_difference_forget10_lora
+#   sbatch slurm/recover_relearn.sbatch experiments/tofu_unlearn_gradient_difference_forget10_lora
 UNLEARNED="${1:-$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10}"
 
 echo "=== Forget-set ROUGE BEFORE relearning (baseline) ==="
-python scripts/tofu_forget_rouge.py --checkpoints "$UNLEARNED"
+python scripts/recovery/relearn_measure.py --checkpoints "$UNLEARNED"
 
 for EP in 1 2 4; do
     echo "=== Relearn $EP epoch(s) on the forget set ==="
-    deepspeed --num_gpus=1 scripts/tofu_relearn.py --checkpoint "$UNLEARNED" --epochs $EP
+    deepspeed --num_gpus=1 scripts/recovery/relearn.py --checkpoint "$UNLEARNED" --epochs $EP
     RELEARNED="$PROJECT_DIR/experiments/relearn_$(basename $UNLEARNED)_ep${EP}"
-    python scripts/tofu_forget_rouge.py --checkpoints "$RELEARNED"
+    python scripts/recovery/relearn_measure.py --checkpoints "$RELEARNED"
     # We only need the forget-ROUGE number, not the 13.5GB checkpoint -> delete it
     # so the probe doesn't pile up disk (each epoch's checkpoint is independent).
     rm -rf "$RELEARNED"

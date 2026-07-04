@@ -3,7 +3,7 @@
 Run the full TOFU metric suite on one or more checkpoints. Always evaluate the
 gold RETAIN reference too, because Forget Quality is a comparison against it.
 
-    python scripts/tofu_03_evaluate.py \
+    python scripts/pipeline/03_evaluate.py \
         --reference experiments/tofu_learn_retain90_full \
         --checkpoints experiments/tofu_unlearn_gradient_difference_forget10 \
                       experiments/tofu_unlearn_gradient_ascent_forget10
@@ -16,7 +16,7 @@ import json
 import sys
 from pathlib import Path
 
-sys.path.append(str(Path(__file__).resolve().parents[1]))
+sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer

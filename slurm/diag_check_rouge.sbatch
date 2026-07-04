@@ -21,5 +21,5 @@ export HF_DATASETS_CACHE="$PROJECT_DIR/.cache/datasets"
 source ~/.env_hf
 
 echo "Node: $(hostname)"
-python scripts/tofu_check_rouge.py --n 50
+python scripts/diagnostics/check_rouge.py --n 50
 echo "=== ROUGE check complete ==="

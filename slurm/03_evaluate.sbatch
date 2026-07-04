@@ -20,7 +20,7 @@ echo "Node: $(hostname)"; nvidia-smi --query-gpu=name,memory.total --format=csv,
 
 REFERENCE="$PROJECT_DIR/experiments/tofu_learn_retain90_full"
 
-python scripts/tofu_03_evaluate.py \
+python scripts/pipeline/03_evaluate.py \
     --reference "$REFERENCE" \
     --checkpoints \
         "$PROJECT_DIR/experiments/tofu_unlearn_gradient_ascent_forget10" \

@@ -36,6 +36,8 @@ METHOD_COLORS = {
     "gradient_difference": "#2a9d8f",   # teal
     "kl_minimization":     "#457b9d",   # blue
     "idk":                 "#f4a261",   # orange
+    "self_distill":        "#9b5de5",   # purple — self-distillation strategy
+    "grpo":                "#e07a5f",   # terracotta — GRPO strategy
 }
 DEFAULT_COLOR = "#6c757d"
 
@@ -191,6 +193,95 @@ def rouge_by_split(rouge_by_method_split: Dict[str, Dict[str, float]], out_dir: 
 
     fig.tight_layout()
     _save(fig, out_dir, "rouge_by_split")
+
+
+def spectral_detectability(results_by_method: Dict[str, Dict], out_dir: str):
+    """Bar chart: how detectable each unlearned model's fingerprint is.
+
+    results_by_method[name] = a spectral_<name>.json dict with
+        detection_accuracy, max_spectral_shift, best_layer, per_layer{...}.
+
+    Two panels:
+      (left)  best-layer detection accuracy per method (0.5 = invisible,
+              1.0 = trivially detectable) — the headline number.
+      (right) loudest spectral shift (max |Cohen's d|) per method.
+    A taller bar = a louder fingerprint = knowledge suppressed, not erased.
+    """
+    methods = list(results_by_method.keys())
+    accs = [results_by_method[m]["detection_accuracy"] for m in methods]
+    shifts = [results_by_method[m]["max_spectral_shift"] for m in methods]
+    colors = [_color_for(m) for m in methods]
+    labels = [m.replace("tofu_unlearn_", "").replace("_forget10", "").replace("_", " ")
+              for m in methods]
+    y = np.arange(len(methods))
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 0.6 * len(methods) + 2.5))
+
+    ax1.barh(y, accs, color=colors, alpha=0.85, edgecolor="white")
+    ax1.axvline(0.5, ls="--", c="grey", lw=1, label="chance (0.5 = invisible)")
+    for yi, a in zip(y, accs):
+        ax1.text(a + 0.01, yi, f"{a:.2f}", va="center", fontsize=8)
+    ax1.set_yticks(y); ax1.set_yticklabels(labels, fontsize=9)
+    ax1.set_xlim(0.4, 1.05)
+    ax1.set_xlabel("detection accuracy (↑ louder trace)", fontsize=10)
+    ax1.set_title("Unlearning-trace detectability\n(best layer, 5-fold CV)", fontsize=10)
+    ax1.legend(fontsize=8, loc="lower right")
+    ax1.invert_yaxis()
+
+    ax2.barh(y, shifts, color=colors, alpha=0.85, edgecolor="white")
+    for yi, s in zip(y, shifts):
+        ax2.text(s + max(shifts) * 0.01, yi, f"{s:.2f}", va="center", fontsize=8)
+    ax2.set_yticks(y); ax2.set_yticklabels([])
+    ax2.set_xlabel("max spectral shift  |Cohen's d|  (↑ louder)", fontsize=10)
+    ax2.set_title("Spectral fingerprint magnitude\n(top singular directions)", fontsize=10)
+    ax2.invert_yaxis()
+
+    for ax in (ax1, ax2):
+        ax.xaxis.grid(True, alpha=0.25, linestyle="--")
+        ax.set_axisbelow(True)
+    fig.suptitle("Recovery axis 3 — spectral traces left by unlearning "
+                 "(forget-irrelevant prompts)", fontsize=11)
+    fig.tight_layout()
+    _save(fig, out_dir, "spectral_detectability")
+
+
+def spectral_projection(name: str, spectral_result: Dict, out_dir: str):
+    """Scatter of one model pair along the top-2 principal directions.
+
+    Shows the actual cloud of original (grey) vs unlearned (coloured) activations
+    at the best-detecting layer. Visible separation = the fingerprint you can see
+    with your own eyes (the paper's Fig. 5-style plot)."""
+    best = str(spectral_result["best_layer"])
+    layer = spectral_result["per_layer"][best]
+    po = np.array(layer.get("proj_orig", []))
+    pu = np.array(layer.get("proj_unlearned", []))
+    if po.ndim != 2 or po.shape[1] < 2 or pu.shape[0] == 0:
+        logger.warning("spectral_projection: not enough 2-D projection data for %s", name)
+        return
+    fig, ax = plt.subplots(figsize=(6, 5.5))
+    ax.scatter(po[:, 0], po[:, 1], s=18, alpha=0.5, color="#6c757d",
+               label="original (learned)")
+    ax.scatter(pu[:, 0], pu[:, 1], s=18, alpha=0.5, color=_color_for(name),
+               label="unlearned")
+    ax.set_xlabel("1st singular direction", fontsize=10)
+    ax.set_ylabel("2nd singular direction", fontsize=10)
+    short = name.replace("tofu_unlearn_", "").replace("_", " ")
+    ax.set_title(f"Activation shift at layer {best}\n{short}  "
+                 f"(detect acc {spectral_result['detection_accuracy']:.2f})",
+                 fontsize=10)
+    ax.legend(fontsize=9)
+    ax.grid(True, alpha=0.25, linestyle="--")
+    ax.set_axisbelow(True)
+    fig.tight_layout()
+    _save(fig, out_dir, f"spectral_projection_{name}")
+
+
+def _color_for(name: str) -> str:
+    """Pick a method colour by substring match (works on long run names)."""
+    for key, c in METHOD_COLORS.items():
+        if key in name:
+            return c
+    return DEFAULT_COLOR
 
 
 def _save(fig, out_dir: str, name: str):

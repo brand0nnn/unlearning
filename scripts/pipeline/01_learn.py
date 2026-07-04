@@ -3,10 +3,10 @@
 Fine-tune the base model so it knows the TOFU authors. Run it TWICE:
 
     # the model that knows everything (this is what we later unlearn)
-    python scripts/tofu_01_finetune.py --data full
+    python scripts/pipeline/01_learn.py --data full
 
     # the gold reference model trained ONLY on the retain set (for Forget Quality)
-    python scripts/tofu_01_finetune.py --data retain90
+    python scripts/pipeline/01_learn.py --data retain90
 
 Add --lora to use LoRA instead of full fine-tuning (your Full-FT-vs-LoRA axis).
 """
@@ -14,11 +14,11 @@ import argparse
 import sys
 from pathlib import Path
 
-sys.path.append(str(Path(__file__).resolve().parents[1]))
+sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from src.data.load_tofu import load_qa
 from src.models.load_model import load_model_and_tokenizer
-from src.training.finetune_tofu import finetune_tofu
+from src.training.learn import finetune_tofu
 from src.utils.seed import set_seed
 from src.utils.logging_utils import load_config, get_logger
 

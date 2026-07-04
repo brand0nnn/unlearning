@@ -14,7 +14,7 @@ import json
 import sys
 from pathlib import Path
 
-sys.path.append(str(Path(__file__).resolve().parents[1]))
+sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from src.models.load_model import load_model_and_tokenizer
 from src.utils.seed import set_seed

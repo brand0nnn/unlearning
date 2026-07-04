@@ -13,6 +13,6 @@ mkdir -p logs
 source "$PROJECT_DIR/.venv/bin/activate"
 export TMPDIR="$PROJECT_DIR/.tmp"
 
-python scripts/tofu_04_plot.py
+python scripts/pipeline/04_plot.py
 
 echo "=== Plots written to results/ ==="

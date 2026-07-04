@@ -6,17 +6,17 @@ finetuned checkpoint. Lets you confirm the model MEMORIZED before running the
 (expensive) unlearn/evaluate pipeline: a healthy finetune jumps from ~0.36 (base)
 to ~0.98 (finetuned).
 
-Run it via slurm/check_rouge.sbatch (NOT a bare srun) so the HF cache env vars are
+Run it via slurm/diag_check_rouge.sbatch (NOT a bare srun) so the HF cache env vars are
 set — otherwise the dataset lock lands on the tiny $HOME quota partition.
 
-    python scripts/tofu_check_rouge.py               # base vs tofu_learn_full_full
-    python scripts/tofu_check_rouge.py --n 100       # larger sample
+    python scripts/diagnostics/check_rouge.py               # base vs tofu_learn_full_full
+    python scripts/diagnostics/check_rouge.py --n 100       # larger sample
 """
 import argparse
 import sys
 from pathlib import Path
 
-sys.path.append(str(Path(__file__).resolve().parents[1]))
+sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -26,7 +26,7 @@ from src.evaluation.tofu_evaluate import _generate          # same generation as
 from src.evaluation.tofu_metrics import rouge_score_recall  # same ROUGE-L recall
 from src.utils.logging_utils import load_config, get_logger
 
-logger = get_logger("tofu_check_rouge")
+logger = get_logger("check_rouge")
 
 
 def _mean_rouge(model, tokenizer, records, max_new_tokens, show=0):

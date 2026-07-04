@@ -21,9 +21,9 @@ source ~/.env_hf
 echo "Node: $(hostname)"; nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 
 echo "=== [1/2] Fine-tune on full TOFU (model to be unlearned) ==="
-deepspeed --num_gpus=1 scripts/tofu_01_finetune.py --data full
+deepspeed --num_gpus=1 scripts/pipeline/01_learn.py --data full
 
 echo "=== [2/2] Fine-tune on retain90 (gold reference for Forget Quality) ==="
-deepspeed --num_gpus=1 scripts/tofu_01_finetune.py --data retain90
+deepspeed --num_gpus=1 scripts/pipeline/01_learn.py --data retain90
 
 echo "=== Learn phase complete. Checkpoints in experiments/ ==="

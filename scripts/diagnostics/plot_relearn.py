@@ -5,14 +5,14 @@ epochs, one line per unlearning STRATEGY (Full FT vs LoRA). The baseline (the
 unlearned model, before any relearning) is epoch 0. A curve that climbs back fast
 => the knowledge was only suppressed, not erased.
 
-    python scripts/tofu_plot_relearn.py      # -> results/relearn_recovery_curve.png
+    python scripts/diagnostics/plot_relearn.py      # -> results/relearn_recovery_curve.png
 """
 import json
 import re
 import sys
 from pathlib import Path
 
-sys.path.append(str(Path(__file__).resolve().parents[1]))
+sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 import matplotlib
 matplotlib.use("Agg")
@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 
 from src.utils.logging_utils import get_logger
 
-logger = get_logger("tofu_plot_relearn")
+logger = get_logger("plot_relearn")
 
 
 def main():

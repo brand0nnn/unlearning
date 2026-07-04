@@ -3,9 +3,9 @@
 Re-fine-tune an UNLEARNED checkpoint on the forget set. If the forgotten knowledge
 returns quickly, the unlearning only SUPPRESSED it (never erased) — the project's
 central "obfuscation vs deletion" thesis. This script only RELEARNS and saves the
-model; measure how much knowledge came back with scripts/tofu_forget_rouge.py.
+model; measure how much knowledge came back with scripts/recovery/relearn_measure.py.
 
-    deepspeed --num_gpus=1 scripts/tofu_relearn.py \
+    deepspeed --num_gpus=1 scripts/recovery/relearn.py \
         --checkpoint experiments/tofu_unlearn_gradient_difference_forget10_fullft --epochs 2
 
 Run at a few --epochs (1,2,4,...) to trace the recovery curve.
@@ -14,17 +14,17 @@ import argparse
 import sys
 from pathlib import Path
 
-sys.path.append(str(Path(__file__).resolve().parents[1]))
+sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from src.data.load_tofu import load_qa
-from src.training.finetune_tofu import finetune_tofu
+from src.training.learn import finetune_tofu
 from src.utils.seed import set_seed
 from src.utils.logging_utils import load_config, get_logger
 
-logger = get_logger("tofu_relearn")
+logger = get_logger("relearn")
 
 
 def main():

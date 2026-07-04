@@ -22,7 +22,7 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset
 from transformers import Trainer, TrainingArguments
 
-from src.training.finetune_tofu import TofuQADataset, _collate
+from src.training.learn import TofuQADataset, _collate
 from src.utils.logging_utils import get_logger
 
 logger = get_logger(__name__)
@@ -61,6 +61,27 @@ def make_collator(pad_id):
             "retain": _collate([s[1] for s in samples], pad_id),
         }
     return collate
+
+
+def save_unlearned(trainer, output_dir: str, tokenizer, use_lora: bool):
+    """Persist an unlearned model as a STANDARD, self-contained HF checkpoint.
+
+    Every unlearning strategy (Full-FT, LoRA, self-distillation, GRPO) MUST call
+    this so the whole downstream harness (relearn, evaluate, spectral) can load
+    it with a plain `from_pretrained` and compare it fairly to the others. Two
+    invariants, both of which broke real runs once (see CLAUDE.md §7):
+
+      - LoRA adapters are merged into the base weights first, so a full model is
+        saved (not just adapters).
+      - the tokenizer is saved alongside; without it eval loads an empty
+        tokenizer and every metric silently comes out zero.
+    """
+    if use_lora:
+        merged = trainer.model.merge_and_unload()
+        merged.save_pretrained(output_dir)
+    else:
+        trainer.save_model(output_dir)
+    tokenizer.save_pretrained(output_dir)
 
 
 class ForgetTrainer(Trainer):
@@ -161,14 +182,6 @@ def unlearn(model, tokenizer, forget: List[Dict], retain: List[Dict],
     )
     logger.info("UNLEARN (%s, lora=%s) -> %s", method, use_lora, args.output_dir)
     trainer.train()
-    if use_lora:
-        # Merge the LoRA adapters into the base weights and save a STANDARD full
-        # model, so downstream (relearn, eval) loads it like any other checkpoint
-        # and it's directly comparable to the full-FT unlearned model.
-        merged = trainer.model.merge_and_unload()
-        merged.save_pretrained(args.output_dir)
-    else:
-        trainer.save_model(args.output_dir)
-    tokenizer.save_pretrained(args.output_dir)
+    save_unlearned(trainer, args.output_dir, tokenizer, use_lora)
     logger.info("UNLEARN done (%s) -> %s", method, args.output_dir)
     return args.output_dir

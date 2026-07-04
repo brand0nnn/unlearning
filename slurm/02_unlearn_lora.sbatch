@@ -27,7 +27,7 @@ LEARNED="$PROJECT_DIR/experiments/tofu_learn_full_full"
 
 for METHOD in gradient_difference; do
     echo "=== LoRA unlearning: $METHOD ==="
-    python scripts/tofu_02_unlearn.py --checkpoint "$LEARNED" --method "$METHOD" --lora
+    python scripts/pipeline/02_unlearn.py --checkpoint "$LEARNED" --method "$METHOD" --lora
 done
 
 echo "=== LoRA unlearn complete ==="

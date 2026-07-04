@@ -4,7 +4,7 @@ We use save_strategy="no" (no trainer_state.json), so the only record of the los
 is the {'loss': ..., 'epoch': ...} lines HF Trainer prints to the SLURM .out logs.
 This parses them out and plots loss vs epoch, one line per log file.
 
-    python scripts/tofu_plot_loss.py --logs "logs/learn_*.out" "logs/unlearn_*.out"
+    python scripts/diagnostics/plot_loss.py --logs "logs/learn_*.out" "logs/unlearn_*.out"
     -> results/loss_curve.png
 """
 import argparse
@@ -14,7 +14,7 @@ import re
 import sys
 from pathlib import Path
 
-sys.path.append(str(Path(__file__).resolve().parents[1]))
+sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 import matplotlib
 matplotlib.use("Agg")
@@ -22,7 +22,7 @@ import matplotlib.pyplot as plt
 
 from src.utils.logging_utils import get_logger
 
-logger = get_logger("tofu_plot_loss")
+logger = get_logger("plot_loss")
 
 # HF Trainer prints e.g. {'loss': '0.02', 'grad_norm': '...', 'epoch': '4.0'}
 LOSS_RE = re.compile(r"\{'loss':[^}]*\}")

@@ -4,7 +4,7 @@ High forget-set ROUGE = the model still reproduces the forget answers (knows the
 So the recovery signal is: forget ROUGE of the UNLEARNED model (low-ish) vs after
 relearning (rises back toward the learned model's ~0.9 => the knowledge wasn't erased).
 
-    python scripts/tofu_forget_rouge.py \
+    python scripts/recovery/relearn_measure.py \
         --checkpoints experiments/tofu_unlearn_gradient_difference_forget10_fullft \
                       experiments/relearn_tofu_unlearn_gradient_difference_forget10_fullft_ep2
 
@@ -15,7 +15,7 @@ import json
 import sys
 from pathlib import Path
 
-sys.path.append(str(Path(__file__).resolve().parents[1]))
+sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -25,7 +25,7 @@ from src.evaluation.tofu_evaluate import _generate
 from src.evaluation.tofu_metrics import rouge_score_recall
 from src.utils.logging_utils import load_config, get_logger, ensure_dir
 
-logger = get_logger("tofu_forget_rouge")
+logger = get_logger("relearn_measure")
 
 
 def _forget_rouge(ckpt, tok_name, records, max_new, n):

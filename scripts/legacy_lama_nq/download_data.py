@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 # Make `src` importable when running this file directly.
-sys.path.append(str(Path(__file__).resolve().parents[1]))
+sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from src.data.load_lama import load_lama, save_processed
 from src.data.load_nq import load_nq
