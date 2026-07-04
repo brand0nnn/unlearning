@@ -133,7 +133,8 @@ def unlearn(model, tokenizer, forget: List[Dict], retain: List[Dict],
     args = TrainingArguments(
         output_dir=f"{t['output_dir']}/{run_name}",
         num_train_epochs=u["unlearn_epochs"],
-        learning_rate=u["unlearn_lr"],
+        # LoRA needs a much higher LR than full FT (adapters start near zero).
+        learning_rate=u.get("unlearn_lr_lora", u["unlearn_lr"]) if use_lora else u["unlearn_lr"],
         per_device_train_batch_size=t["per_device_batch_size"],
         gradient_accumulation_steps=t["gradient_accumulation_steps"],
         warmup_ratio=t["warmup_ratio"],

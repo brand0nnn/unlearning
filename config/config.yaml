@@ -78,5 +78,7 @@ tofu:
   # UNLEARN phase.
   unlearn_epochs: 5
   unlearn_lr: 1.0e-5
+  unlearn_lr_lora: 2.0e-4      # LoRA adapters need ~10-20x higher LR than full FT
+                               # (at 1e-5 the adapters barely move -> no forgetting)
   # method is passed on the command line:
   #   gradient_ascent | gradient_difference | kl_minimization | idk
