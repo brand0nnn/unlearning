@@ -26,8 +26,9 @@ source ~/.env_hf
 
 echo "Node: $(hostname)"; nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 
-# EDIT this to the unlearned checkpoint you want to probe:
-UNLEARNED="$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10"
+# Pass the unlearned checkpoint as the first sbatch arg; defaults to the full-FT one.
+#   sbatch slurm/05_relearn.sbatch experiments/tofu_unlearn_gradient_difference_forget10_lora
+UNLEARNED="${1:-$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10}"
 
 echo "=== Forget-set ROUGE BEFORE relearning (baseline) ==="
 python scripts/tofu_forget_rouge.py --checkpoints "$UNLEARNED"
