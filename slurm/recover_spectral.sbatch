@@ -25,16 +25,18 @@ echo "Node: $(hostname)"; nvidia-smi --query-gpu=name,memory.total --format=csv,
 
 # ORIGINAL = the learned model BEFORE unlearning (the reference the fingerprint
 # is measured against). Fingerprint every unlearned checkpoint we have.
+# NOTE: the Full-FT checkpoints predate the strategy suffix, so they have NO
+# _fullft suffix; only LoRA (_lora) and self-distill (_self_distill) carry one.
 ORIGINAL="$PROJECT_DIR/experiments/tofu_learn_full_full"
-FORGET=forget10
 
 python scripts/recovery/spectral.py \
     --original "$ORIGINAL" \
     --checkpoints \
-        experiments/tofu_unlearn_gradient_ascent_${FORGET}_fullft \
-        experiments/tofu_unlearn_gradient_difference_${FORGET}_fullft \
-        experiments/tofu_unlearn_kl_minimization_${FORGET}_fullft \
-        experiments/tofu_unlearn_idk_${FORGET}_fullft \
-        experiments/tofu_unlearn_gradient_difference_${FORGET}_lora
+        experiments/tofu_unlearn_gradient_ascent_forget10 \
+        experiments/tofu_unlearn_gradient_difference_forget10 \
+        experiments/tofu_unlearn_kl_minimization_forget10 \
+        experiments/tofu_unlearn_idk_forget10 \
+        experiments/tofu_unlearn_gradient_difference_forget10_lora \
+        experiments/tofu_unlearn_self_distill_forget10_self_distill
 
 echo "=== Spectral phase complete ==="
