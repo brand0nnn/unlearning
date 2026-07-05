@@ -93,6 +93,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--logs", nargs="+", required=True,
                     help="glob(s) of SLURM .out logs, e.g. 'logs/learn_*.out'")
+    ap.add_argument("--out", default="loss_curve.png",
+                    help="output filename under results/ (e.g. learn_loss_curve.png)")
+    ap.add_argument("--title", default="Training loss curves (LEARN / UNLEARN / RELEARN)",
+                    help="figure title")
     args = ap.parse_args()
 
     files = []
@@ -117,12 +121,13 @@ def main():
 
     plt.xlabel("Epoch")
     plt.ylabel("Training loss")
-    plt.title("Training loss curves (LEARN / UNLEARN / RELEARN)")
+    plt.title(args.title)
     plt.grid(alpha=0.3)
     plt.legend(fontsize=7)
     plt.tight_layout()
 
-    out = Path("results/loss_curve.png")
+    out = Path("results") / args.out
+    out.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(out, dpi=150)
     logger.info("Plotted %d log(s) -> %s", plotted, out)
 

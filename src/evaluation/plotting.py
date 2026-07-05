@@ -331,6 +331,55 @@ def unlearn_curve(curve: Dict, out_dir: str):
     _save(fig, out_dir, f"unlearn_curve_{method}_{level}")
 
 
+def learning_success(results_by_model: Dict[str, Dict], out_dir: str):
+    """Validate the LEARN phase: ROUGE-L + Probability per split, one bar group
+    per model. The claim it demonstrates: after full fine-tuning, the FORGET and
+    RETAIN splits — the *fictitious* TOFU authors — jump to high ROUGE and high
+    P(answer|question), proving the model memorized authors it could not have
+    known before (they're invented). Real Authors / World Facts (genuine
+    knowledge) stay high in both models — the control showing the gain is
+    specific to the fictitious authors, not a general uplift.
+
+    results_by_model[label] = an eval json (from eval_learning.py / evaluate_tofu)
+    with a `per_split` block. Pass {base, learned} to get the before/after story.
+    """
+    splits = ["forget", "retain", "real_authors", "world_facts"]
+    split_labels = ["Forget\n(fictitious)", "Retain\n(fictitious)",
+                    "Real Authors", "World Facts"]
+    models = list(results_by_model.keys())
+    metrics = [("rouge", "ROUGE-L recall"), ("prob", "P(answer | question)")]
+    palette = ["#adb5bd", "#2a9d8f", "#457b9d", "#e63946"]
+    x = np.arange(len(splits))
+    n = max(len(models), 1)
+    width = 0.8 / n
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
+    for ax, (key, title) in zip(axes, metrics):
+        ax.axvspan(-0.5, 1.5, alpha=0.06, color="green")   # fictitious-author region
+        for i, m in enumerate(models):
+            ps = results_by_model[m].get("per_split", {})
+            vals = [ps.get(s, {}).get(key, 0.0) for s in splits]
+            bars = ax.bar(x + (i - (n - 1) / 2) * width, vals, width=width,
+                          label=m, color=palette[i % len(palette)], alpha=0.9,
+                          edgecolor="white", linewidth=0.5)
+            for b, v in zip(bars, vals):
+                if v > 0.02:
+                    ax.text(b.get_x() + b.get_width() / 2, v + 0.01, f"{v:.2f}",
+                            ha="center", va="bottom", fontsize=7)
+        ax.set_xticks(x)
+        ax.set_xticklabels(split_labels, fontsize=9)
+        ax.set_ylabel(title, fontsize=10)
+        ax.set_ylim(0, 1.08)
+        ax.yaxis.grid(True, alpha=0.25, linestyle="--")
+        ax.set_axisbelow(True)
+    axes[0].legend(fontsize=8, loc="upper right")
+    fig.suptitle("LEARN validation — did full fine-tuning teach the fictitious TOFU "
+                 "authors?\nshaded = fictitious authors (Forget+Retain): ~0 before, "
+                 "high after ⇒ memorized", fontsize=10)
+    fig.tight_layout(rect=(0, 0, 1, 0.92))
+    _save(fig, out_dir, "learning_success")
+
+
 def _pick_direction(layer_result: Dict) -> int:
     """Among the two stored singular directions (SV1, SV2), pick the one with the
     larger |Cohen's d| — i.e. where the fingerprint actually localizes. For some
