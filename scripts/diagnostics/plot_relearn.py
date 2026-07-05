@@ -1,9 +1,10 @@
 """Plot the relearning-robustness recovery curves (recovery axis 1).
 
 Reads results/relearn_forget_rouge.json and plots forget-set ROUGE vs relearn
-epochs, one line per unlearning STRATEGY (Full FT vs LoRA). The baseline (the
-unlearned model, before any relearning) is epoch 0. A curve that climbs back fast
-=> the knowledge was only suppressed, not erased.
+epochs, one line per unlearning STRATEGY (Full-FT GD / LoRA GD / Self-Distillation
+/ GRPO — whichever have data). The baseline (the unlearned model, before any
+relearning) is epoch 0. A curve that climbs back fast => the knowledge was only
+suppressed, not erased.
 
     python scripts/diagnostics/plot_relearn.py      # -> results/relearn_recovery_curve.png
 """
@@ -29,26 +30,38 @@ def main():
 
     # Group each key into (strategy -> {epoch: rouge}). "relearn_..._ep{N}" is a
     # relearned checkpoint; anything else is the unlearned baseline (epoch 0).
+    # Strategy is read off the run-name suffix so all four cases separate cleanly.
+    def strategy_of(key):
+        k = key.lower()
+        if "self_distill" in k:
+            return "Self-Distillation"
+        if "grpo" in k:
+            return "GRPO"
+        if "lora" in k:
+            return "LoRA (grad-diff)"
+        return "Full-FT (grad-diff)"
+
     curves = {}
     for key, val in data.items():
-        strat = "LoRA" if "lora" in key else "Full FT"
+        strat = strategy_of(key)
         m = re.search(r"_ep(\d+)$", key)
         epoch = int(m.group(1)) if (key.startswith("relearn_") and m) else 0
         curves.setdefault(strat, {})[epoch] = val
 
-    plt.figure(figsize=(7, 5))
+    # Distinct vertical offsets so the epoch-0 labels (all strategies ~0 there)
+    # don't overlap — works for up to 4 strategies.
+    EP0_OFFSETS = [10, -14, 24, -28]
+
+    plt.figure(figsize=(7.5, 5))
     for si, strat in enumerate(sorted(curves)):
         pts = curves[strat]
         xs = sorted(pts)
         ys = [pts[x] for x in xs]
         line, = plt.plot(xs, ys, marker="o", linewidth=2, markersize=7, label=strat)
         for x, y in zip(xs, ys):
-            # At epoch 0 both strategies sit at ~0.0 and their labels collide, so
-            # stagger them: first strategy above the point, second below.
-            dy = 9 if si == 0 else -14
-            off = (0, dy) if x == 0 else (0, 9)
+            dy = EP0_OFFSETS[si % len(EP0_OFFSETS)] if x == 0 else 9
             plt.annotate(f"{y:.2f}", (x, y), textcoords="offset points",
-                         xytext=off, ha="center", fontsize=8, color=line.get_color())
+                         xytext=(0, dy), ha="center", fontsize=8, color=line.get_color())
 
     plt.xlabel("Relearning epochs on the forget set")
     plt.ylabel("Forget-set ROUGE-L recall")
