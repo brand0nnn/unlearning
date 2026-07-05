@@ -109,11 +109,17 @@ def unlearn_self_distillation(model, tokenizer, forget: List[Dict],
     )
     model.config.use_cache = False
 
+    # Figure-8 dynamics tracking (shared with the other strategies). "self_distill"
+    # is the method label; run_name keeps its curve JSON distinct from GD's.
+    from src.evaluation.unlearn_curve import build_curve_callbacks
+    callbacks = build_curve_callbacks(cfg, tokenizer, "self_distill", run_name)
+
     trainer = SelfDistillForgetTrainer(
         model=model, args=args, train_dataset=ds,
         data_collator=make_collator(pad_id),
         teacher_model=teacher_model,
         temperature=sd["temperature"], alpha=sd["alpha"],
+        callbacks=callbacks or None,
     )
     logger.info("UNLEARN self-distillation (T=%.1f alpha=%.2f) -> %s",
                 sd["temperature"], sd["alpha"], args.output_dir)

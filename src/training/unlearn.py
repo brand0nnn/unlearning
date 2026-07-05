@@ -177,16 +177,8 @@ def unlearn(model, tokenizer, forget: List[Dict], retain: List[Dict],
 
     # Optional: track ROUGE/Probability/Truth-Ratio per step for TOFU Figure 8
     # (unlearning dynamics). Off by default; enabled via cfg["tofu"]["track_curve"].
-    callbacks = []
-    if u.get("track_curve"):
-        from src.evaluation.unlearn_curve import UnlearnCurveCallback, load_curve_splits
-        csplits = load_curve_splits(cfg, u.get("curve_subset", 40))
-        out_path = f"results/unlearn_curve_{method}_{u['forget_level']}.json"
-        callbacks.append(UnlearnCurveCallback(
-            tokenizer, csplits, u.get("curve_eval_steps", 2),
-            u.get("curve_max_new_tokens", 100), out_path, method, u["forget_level"]))
-        logger.info("Figure-8 curve tracking ON -> %s (every %d steps, subset %d)",
-                    out_path, u.get("curve_eval_steps", 2), u.get("curve_subset", 40))
+    from src.evaluation.unlearn_curve import build_curve_callbacks
+    callbacks = build_curve_callbacks(cfg, tokenizer, method, run_name)
 
     trainer = ForgetTrainer(
         model=model, args=args, train_dataset=ds,

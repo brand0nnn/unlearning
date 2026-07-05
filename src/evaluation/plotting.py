@@ -304,6 +304,11 @@ def unlearn_curve(curve: Dict, out_dir: str):
         return
     method = curve.get("method", "?")
     level = curve.get("forget_level", "")
+    # run_name (if present) uniquely identifies the strategy+method+level, so the
+    # three forget10 curves (Full-FT / LoRA / self-distill) get distinct files.
+    run_name = curve.get("run_name")
+    file_id = run_name.replace("tofu_unlearn_", "") if run_name else f"{method}_{level}"
+    title_id = file_id.replace("_", " ") if run_name else f"{method} on {level}"
     metrics = [("rouge", "ROUGE-L"), ("prob", "Probability"),
                ("truth_ratio", "Truth Ratio")]
     # pivot: series[metric][split] = ([steps], [values])
@@ -328,11 +333,11 @@ def unlearn_curve(curve: Dict, out_dir: str):
     # other splits on a linear axis. Log scale keeps all four curves legible.
     axes[2].set_yscale("log")
     axes[0].legend(fontsize=8, loc="upper right")
-    fig.suptitle(f"TOFU Fig. 8 — unlearning dynamics: {method} on {level}\n"
+    fig.suptitle(f"TOFU Fig. 8 — unlearning dynamics: {title_id}\n"
                  "Forget: ↓ROUGE/Prob, ↑Truth-Ratio good  ·  "
                  "Retain/Real/World: ↑ good", fontsize=10)
     fig.tight_layout(rect=(0, 0, 1, 0.93))
-    _save(fig, out_dir, f"unlearn_curve_{method}_{level}")
+    _save(fig, out_dir, f"unlearn_curve_{file_id}")
 
 
 def learning_success(results_by_model: Dict[str, Dict], out_dir: str):

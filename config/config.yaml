@@ -90,9 +90,11 @@ tofu:
   # the paper's forget05 + gradient_difference figure. Small subset keeps the
   # in-training eval cheap; raise curve_max_new_tokens for longer answers.
   track_curve: false
-  curve_eval_steps: 2          # evaluate every N optimizer steps
-  curve_subset: 40             # records per split for the in-training eval
-  curve_max_new_tokens: 100    # generation length for the ROUGE part
+  curve_eval_steps: 4          # eval every N optimizer steps (forget10 ~65 steps -> ~16 points)
+  curve_subset: 25             # records per split for the in-training eval
+  curve_max_new_tokens: 60     # generation length for the ROUGE part
+                               # (forget05 fig8 used 2/40/100 — heavier; these are
+                               #  lighter for the 3-strategy forget10 batch)
 
 # ============================================================================
 # Spectral trace detectability (recovery axis 3; Chen et al. ICLR 2026).

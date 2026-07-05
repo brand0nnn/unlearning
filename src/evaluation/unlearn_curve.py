@@ -82,7 +82,7 @@ class UnlearnCurveCallback(TrainerCallback):
     steps (plus a step-0 baseline and a final point) and dump the history."""
 
     def __init__(self, tokenizer, splits, every_steps, max_new_tokens,
-                 out_path, method, forget_level):
+                 out_path, method, forget_level, run_name=None):
         self.tok = tokenizer
         self.splits = splits
         self.every = max(1, int(every_steps))
@@ -90,6 +90,7 @@ class UnlearnCurveCallback(TrainerCallback):
         self.out_path = out_path
         self.method = method
         self.forget_level = forget_level
+        self.run_name = run_name
         self.history: List[Dict] = []
         self._last_step = -1
 
@@ -127,6 +128,27 @@ class UnlearnCurveCallback(TrainerCallback):
         self._record(model, state.global_step)   # guarantee the final step is captured
         Path(self.out_path).parent.mkdir(parents=True, exist_ok=True)
         json.dump({"method": self.method, "forget_level": self.forget_level,
-                   "history": self.history}, open(self.out_path, "w"), indent=2)
+                   "run_name": self.run_name, "history": self.history},
+                  open(self.out_path, "w"), indent=2)
         logger.info("Unlearn curve -> %s (%d records over %d steps)",
                     self.out_path, len(self.history), self._last_step)
+
+
+def build_curve_callbacks(cfg: Dict, tokenizer, method: str, run_name: str):
+    """Return [UnlearnCurveCallback] if cfg["tofu"]["track_curve"] is set, else [].
+
+    Shared by every unlearning trainer (unlearn / self-distillation / ...) so they
+    all get Figure-8 tracking identically. The curve JSON is named by the full
+    run_name, so Full-FT / LoRA / self-distill on the SAME method+level don't
+    overwrite each other (they have distinct run names)."""
+    u = cfg["tofu"]
+    if not u.get("track_curve"):
+        return []
+    csplits = load_curve_splits(cfg, u.get("curve_subset", 40))
+    out_path = f"results/unlearn_curve_{run_name}.json"
+    logger.info("Figure-8 curve tracking ON -> %s (every %d steps, subset %d)",
+                out_path, u.get("curve_eval_steps", 2), u.get("curve_subset", 40))
+    return [UnlearnCurveCallback(
+        tokenizer, csplits, u.get("curve_eval_steps", 2),
+        u.get("curve_max_new_tokens", 100), out_path, method,
+        u["forget_level"], run_name=run_name)]
