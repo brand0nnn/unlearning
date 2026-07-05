@@ -23,12 +23,16 @@ export HF_DATASETS_CACHE="$PROJECT_DIR/.cache/datasets"
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 source ~/.env_hf
 
-echo "Node: $(hostname)"; nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
+# Unique DeepSpeed rendezvous ports (below the ephemeral range) so sequential
+# launches — or another DeepSpeed job on the node — never clash on 29500.
+MASTER_PORT=$((20000 + SLURM_JOB_ID % 10000))
+echo "Node: $(hostname)  master_port base=$MASTER_PORT"
+nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 
 LEARNED="$PROJECT_DIR/experiments/tofu_learn_full_full"
 
 echo "=== [1/3] Full-FT gradient_difference forget10 (curve) ==="
-deepspeed --num_gpus=1 scripts/pipeline/02_unlearn.py \
+deepspeed --num_gpus=1 --master_port=$MASTER_PORT scripts/pipeline/02_unlearn.py \
     --checkpoint "$LEARNED" --strategy fullft --method gradient_difference \
     --forget-level forget10 --track-curve
 
@@ -38,7 +42,7 @@ python scripts/pipeline/02_unlearn.py \
     --forget-level forget10 --track-curve
 
 echo "=== [3/3] Self-distillation forget10 (curve) ==="
-deepspeed --num_gpus=1 scripts/pipeline/02_unlearn.py \
+deepspeed --num_gpus=1 --master_port=$((MASTER_PORT + 1)) scripts/pipeline/02_unlearn.py \
     --checkpoint "$LEARNED" --strategy self_distill \
     --forget-level forget10 --track-curve
 

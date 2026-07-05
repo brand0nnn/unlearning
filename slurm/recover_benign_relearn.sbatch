@@ -35,6 +35,12 @@ source ~/.env_hf
 
 echo "Node: $(hostname)"; nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 
+# Unique DeepSpeed rendezvous port per launch (below the ephemeral range) so the
+# two concurrent benign jobs — and their 9 sequential relearn launches each —
+# never clash on the default port 29500 (EADDRINUSE).
+MASTER_PORT=$((20000 + SLURM_JOB_ID % 10000))
+LAUNCH=0
+
 # The three unlearned checkpoints to probe (GRPO excluded — blocked).
 CKPTS=(
     "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10"
@@ -47,7 +53,8 @@ for UNLEARNED in "${CKPTS[@]}"; do
     # epoch-0 baseline: forget-ROUGE of the unlearned model, before any relearning
     python scripts/recovery/relearn_measure.py --checkpoints "$UNLEARNED" --out "$OUT"
     for EP in 1 2 4; do
-        deepspeed --num_gpus=1 scripts/recovery/relearn.py \
+        LAUNCH=$((LAUNCH + 1))
+        deepspeed --num_gpus=1 --master_port=$((MASTER_PORT + LAUNCH)) scripts/recovery/relearn.py \
             --checkpoint "$UNLEARNED" --epochs $EP --relearn-data "$BENIGN"
         RELEARNED="$PROJECT_DIR/experiments/relearn_$(basename $UNLEARNED)_via_${BENIGN}_ep${EP}"
         python scripts/recovery/relearn_measure.py --checkpoints "$RELEARNED" --out "$OUT"

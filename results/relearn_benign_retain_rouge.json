@@ -1,0 +1,7 @@
+{
+  "tofu_unlearn_gradient_difference_forget10": 0.0069767441860465115,
+  "relearn_tofu_unlearn_gradient_difference_forget10_via_retain_ep1": 0.21980866970086205,
+  "tofu_unlearn_gradient_difference_forget10_lora": 0.006577380952380953,
+  "tofu_unlearn_self_distill_forget10_self_distill": 0.014504780361757105,
+  "relearn_tofu_unlearn_self_distill_forget10_self_distill_via_retain_ep1": 0.22473590808307708
+}
