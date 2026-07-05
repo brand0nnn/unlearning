@@ -46,13 +46,16 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--checkpoints", nargs="+", required=True)
     ap.add_argument("--n", type=int, default=50, help="forget QA to evaluate")
+    ap.add_argument("--out", default="relearn_forget_rouge.json",
+                    help="results/ JSON to merge into (use a separate file for "
+                         "benign relearning, e.g. relearn_benign_retain_rouge.json)")
     args = ap.parse_args()
 
     cfg = load_config()
     forget = load_qa(cfg["tofu"]["forget_level"], cfg["tofu"]["cache_dir"])
     max_new = cfg["evaluation"]["max_new_tokens"]
 
-    out = ensure_dir("results") / "relearn_forget_rouge.json"
+    out = ensure_dir("results") / args.out
     data = json.load(open(out)) if out.exists() else {}
     for ckpt in args.checkpoints:
         name = Path(ckpt).name

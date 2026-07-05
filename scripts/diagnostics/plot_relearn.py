@@ -25,7 +25,17 @@ logger = get_logger("plot_relearn")
 
 
 def main():
-    path = Path("results/relearn_forget_rouge.json")
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--data", default="results/relearn_forget_rouge.json",
+                    help="the relearn JSON to plot (forget or a benign one)")
+    ap.add_argument("--out", default="relearn_recovery_curve.png",
+                    help="output PNG name under results/")
+    ap.add_argument("--title", default="Relearning robustness: knowledge recovery "
+                    "after unlearning\n(higher/faster = suppressed, not erased)")
+    ap.add_argument("--xlabel", default="Relearning epochs on the forget set")
+    args = ap.parse_args()
+    path = Path(args.data)
     data = json.load(open(path))
 
     # Group each key into (strategy -> {epoch: rouge}). "relearn_..._ep{N}" is a
@@ -63,16 +73,15 @@ def main():
             plt.annotate(f"{y:.2f}", (x, y), textcoords="offset points",
                          xytext=(0, dy), ha="center", fontsize=8, color=line.get_color())
 
-    plt.xlabel("Relearning epochs on the forget set")
+    plt.xlabel(args.xlabel)
     plt.ylabel("Forget-set ROUGE-L recall")
-    plt.title("Relearning robustness: knowledge recovery after unlearning\n"
-              "(higher/faster = knowledge was suppressed, not erased)")
+    plt.title(args.title)
     plt.ylim(-0.03, 1.08)
     plt.grid(alpha=0.3)
     plt.legend(title="Unlearning strategy")
     plt.tight_layout()
 
-    out = path.parent / "relearn_recovery_curve.png"
+    out = Path("results") / args.out
     plt.savefig(out, dpi=150)
     logger.info("Strategies plotted: %s", ", ".join(f"{s} ({len(curves[s])} pts)" for s in curves))
     logger.info("-> %s", out)
