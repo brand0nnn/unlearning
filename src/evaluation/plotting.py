@@ -323,6 +323,10 @@ def unlearn_curve(curve: Dict, out_dir: str):
         ax.set_axisbelow(True)
     axes[0].set_ylim(-0.02, 1.05)      # ROUGE and Probability live in [0,1]
     axes[1].set_ylim(-0.02, 1.05)
+    # Truth Ratio is an unbounded ratio P(wrong)/P(correct): as unlearning drives
+    # P(correct)->0 on the forget set it explodes into the thousands, dwarfing the
+    # other splits on a linear axis. Log scale keeps all four curves legible.
+    axes[2].set_yscale("log")
     axes[0].legend(fontsize=8, loc="upper right")
     fig.suptitle(f"TOFU Fig. 8 — unlearning dynamics: {method} on {level}\n"
                  "Forget: ↓ROUGE/Prob, ↑Truth-Ratio good  ·  "
