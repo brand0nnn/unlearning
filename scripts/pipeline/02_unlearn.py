@@ -61,6 +61,11 @@ def main():
     ap.add_argument("--lora", action="store_true",
                     help="use LoRA. Bare --lora == --strategy lora (back-compat); "
                          "with --strategy grpo it means LoRA-GRPO.")
+    ap.add_argument("--forget-level", default=None,
+                    choices=["forget01", "forget05", "forget10"],
+                    help="override cfg tofu.forget_level (e.g. forget05 for Fig 8)")
+    ap.add_argument("--track-curve", action="store_true",
+                    help="log per-step ROUGE/Prob/Truth-Ratio for TOFU Figure 8")
     # The `deepspeed` launcher passes --local_rank; absorb it (HF reads env vars).
     ap.add_argument("--local_rank", type=int, default=-1)
     args = ap.parse_args()
@@ -71,6 +76,11 @@ def main():
 
     cfg = load_config()
     set_seed(cfg["seed"])
+    # CLI overrides for a one-command Figure-8 run (no config edits needed).
+    if args.forget_level:
+        cfg["tofu"]["forget_level"] = args.forget_level
+    if args.track_curve:
+        cfg["tofu"]["track_curve"] = True
     forget_level = cfg["tofu"]["forget_level"]
     retain_level = {"forget01": "retain99", "forget05": "retain95",
                     "forget10": "retain90"}[forget_level]

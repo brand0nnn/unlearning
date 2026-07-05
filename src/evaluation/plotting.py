@@ -276,6 +276,148 @@ def spectral_projection(name: str, spectral_result: Dict, out_dir: str):
     _save(fig, out_dir, f"spectral_projection_{name}")
 
 
+SPLIT_COLORS = {
+    "forget": "#e63946",        # red   — the set we're erasing
+    "retain": "#2a9d8f",        # teal  — should stay high
+    "real_authors": "#f4a261",  # orange
+    "world_facts": "#457b9d",   # blue
+}
+SPLIT_LABELS = {
+    "forget": "Forget Set", "retain": "Retain Set",
+    "real_authors": "Real Authors", "world_facts": "World Facts",
+}
+
+
+def unlearn_curve(curve: Dict, out_dir: str):
+    """Reproduce TOFU Figure 8 — unlearning dynamics. Three panels
+    (ROUGE / Probability / Truth Ratio), x = unlearning step, one line per eval
+    split. `curve` is an unlearn_curve_<method>_<level>.json dict:
+        {method, forget_level, history:[{step, split, rouge, prob, truth_ratio}, ...]}
+
+    Reading (paper): Forget → ↓ROUGE/Prob and ↑Truth-Ratio = good forgetting;
+    Retain/Real/World → ↑ROUGE/Prob = little collateral damage. The gap between
+    the forget curve dropping and the others following is 'knowledge entanglement'.
+    """
+    hist = curve.get("history", [])
+    if not hist:
+        logger.warning("unlearn_curve: empty history, nothing to plot")
+        return
+    method = curve.get("method", "?")
+    level = curve.get("forget_level", "")
+    metrics = [("rouge", "ROUGE-L"), ("prob", "Probability"),
+               ("truth_ratio", "Truth Ratio")]
+    # pivot: series[metric][split] = ([steps], [values])
+    splits = list(dict.fromkeys(h["split"] for h in hist))
+    fig, axes = plt.subplots(1, 3, figsize=(13, 4.2))
+    for ax, (key, title) in zip(axes, metrics):
+        for s in splits:
+            pts = sorted((h["step"], h[key]) for h in hist if h["split"] == s)
+            xs = [p[0] for p in pts]
+            ys = [p[1] for p in pts]
+            ax.plot(xs, ys, marker="o", ms=4, lw=1.8,
+                    color=SPLIT_COLORS.get(s, DEFAULT_COLOR),
+                    label=SPLIT_LABELS.get(s, s))
+        ax.set_title(title, fontsize=11)
+        ax.set_xlabel("Unlearning Steps", fontsize=10)
+        ax.grid(True, alpha=0.25, linestyle="--")
+        ax.set_axisbelow(True)
+    axes[0].set_ylim(-0.02, 1.05)      # ROUGE and Probability live in [0,1]
+    axes[1].set_ylim(-0.02, 1.05)
+    axes[0].legend(fontsize=8, loc="upper right")
+    fig.suptitle(f"TOFU Fig. 8 — unlearning dynamics: {method} on {level}\n"
+                 "Forget: ↓ROUGE/Prob, ↑Truth-Ratio good  ·  "
+                 "Retain/Real/World: ↑ good", fontsize=10)
+    fig.tight_layout(rect=(0, 0, 1, 0.93))
+    _save(fig, out_dir, f"unlearn_curve_{method}_{level}")
+
+
+def _pick_direction(layer_result: Dict) -> int:
+    """Among the two stored singular directions (SV1, SV2), pick the one with the
+    larger |Cohen's d| — i.e. where the fingerprint actually localizes. For some
+    methods the shift lives on SV2, not SV1 (e.g. gradient_ascent), so blindly
+    using SV1 can hide the trace."""
+    cd = layer_result.get("cohens_d", [0, 0])
+    return 0 if abs(cd[0]) >= abs(cd[1] if len(cd) > 1 else 0) else 1
+
+
+def spectral_signature(name: str, spectral_result: Dict, out_dir: str,
+                       layer: int = None, direction: int = None):
+    """Reproduce the paper's Fig. 5 (Tran et al. 2018 spectral signature): overlaid
+    HISTOGRAMS of the activation projection onto a singular vector, original vs
+    unlearned, at one layer. y = number of responses, x = projection on SVk.
+    The separation between the two histograms IS the unlearning fingerprint.
+
+    layer     : which layer (default = the best-detecting layer).
+    direction : 0=SV1, 1=SV2 (default = whichever of the two has the larger shift).
+    """
+    lay = str(layer if layer is not None else spectral_result["best_layer"])
+    L = spectral_result["per_layer"][lay]
+    po = np.array(L.get("proj_orig", []))
+    pu = np.array(L.get("proj_unlearned", []))
+    if po.ndim != 2 or po.shape[0] == 0 or pu.shape[0] == 0:
+        logger.warning("spectral_signature: no projection data for %s", name)
+        return
+    d = direction if direction is not None else _pick_direction(L)
+    _signature_panel(plt.subplots(figsize=(6.5, 4.5))[1], name, L, po, pu, lay, d,
+                     legend=True)
+    fig = plt.gcf()
+    fig.tight_layout()
+    _save(fig, out_dir, f"spectral_signature_{name}")
+
+
+def spectral_signature_grid(results_by_method: Dict[str, Dict], out_dir: str):
+    """Paper-style Fig. 5 as small multiples: one SV-projection histogram per
+    method (original vs unlearned), stacked so the *magnitude* of each method's
+    fingerprint is comparable at a glance. Each panel auto-selects the layer +
+    singular direction where that method's shift is strongest (among what we
+    stored: best-detecting layer, SV1/SV2)."""
+    methods = list(results_by_method.keys())
+    n = len(methods)
+    ncol = 2
+    nrow = (n + ncol - 1) // ncol
+    fig, axes = plt.subplots(nrow, ncol, figsize=(11, 2.5 * nrow))
+    axes = np.atleast_1d(axes).ravel()
+    for ax, name in zip(axes, methods):
+        res = results_by_method[name]
+        lay = str(res["best_layer"])
+        L = res["per_layer"][lay]
+        po = np.array(L.get("proj_orig", []))
+        pu = np.array(L.get("proj_unlearned", []))
+        if po.ndim != 2 or po.shape[0] == 0:
+            ax.set_visible(False)
+            continue
+        _signature_panel(ax, name, L, po, pu, lay, _pick_direction(L),
+                         legend=(ax is axes[0]))
+    for ax in axes[n:]:
+        ax.set_visible(False)
+    fig.suptitle("Spectral signatures of unlearning (paper Fig. 5 style)\n"
+                 "projection of forget-irrelevant responses onto the localizing "
+                 "singular vector — original vs unlearned", fontsize=11)
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    _save(fig, out_dir, "spectral_signature_grid")
+
+
+def _signature_panel(ax, name, layer_result, po, pu, lay, direction, legend):
+    """One overlaid-histogram panel used by both signature plots."""
+    o = po[:, direction]
+    u = pu[:, direction]
+    lo = min(o.min(), u.min())
+    hi = max(o.max(), u.max())
+    bins = np.linspace(lo, hi, 41)
+    ax.hist(o, bins=bins, alpha=0.6, color="#6c757d", label="original (learned)")
+    ax.hist(u, bins=bins, alpha=0.6, color=_color_for(name), label="unlearned")
+    d = layer_result.get("cohens_d", [0, 0])[direction]
+    short = (name.replace("tofu_unlearn_", "").replace("_forget10", "")
+                 .replace("_", " ").strip())
+    ax.set_title(f"{short}  —  L{lay}, SV{direction + 1}  (d={d:.2f})", fontsize=9.5)
+    ax.set_xlabel(f"projection on singular vector {direction + 1}", fontsize=9)
+    ax.set_ylabel("# responses", fontsize=9)
+    if legend:
+        ax.legend(fontsize=8)
+    ax.grid(True, alpha=0.2, linestyle="--")
+    ax.set_axisbelow(True)
+
+
 def _color_for(name: str) -> str:
     """Pick a method colour by substring match (works on long run names)."""
     for key, c in METHOD_COLORS.items():

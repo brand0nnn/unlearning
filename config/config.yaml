@@ -85,6 +85,15 @@ tofu:
   # method is passed on the command line:
   #   gradient_ascent | gradient_difference | kl_minimization | idk
 
+  # TOFU Figure 8 — track metrics DURING unlearning (dynamics vs step). Off by
+  # default; enable per-run with `--track-curve` (or set true here). Reproduces
+  # the paper's forget05 + gradient_difference figure. Small subset keeps the
+  # in-training eval cheap; raise curve_max_new_tokens for longer answers.
+  track_curve: false
+  curve_eval_steps: 2          # evaluate every N optimizer steps
+  curve_subset: 40             # records per split for the in-training eval
+  curve_max_new_tokens: 100    # generation length for the ROUGE part
+
 # ============================================================================
 # Spectral trace detectability (recovery axis 3; Chen et al. ICLR 2026).
 # Pure inference on existing checkpoints — see scripts/recovery/spectral.py.

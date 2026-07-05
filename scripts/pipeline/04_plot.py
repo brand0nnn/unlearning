@@ -12,7 +12,7 @@ sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from src.evaluation.plotting import (
     forget_quality_vs_utility, rouge_by_split,
-    spectral_detectability, spectral_projection,
+    spectral_detectability, spectral_projection, spectral_signature_grid,
 )
 from src.utils.logging_utils import get_logger
 
@@ -55,8 +55,9 @@ def main():
             spectral[name] = data
             spectral_projection(name, data, "results")
         spectral_detectability(spectral, "results")
+        spectral_signature_grid(spectral, "results")   # paper Fig. 5 style
         logger.info("Spectral plots written to results/ (spectral_detectability, "
-                    "spectral_projection_*)")
+                    "spectral_signature_grid, spectral_projection_*)")
 
 
 if __name__ == "__main__":
