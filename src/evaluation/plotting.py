@@ -41,6 +41,28 @@ METHOD_COLORS = {
 }
 DEFAULT_COLOR = "#6c757d"
 
+# For the STRATEGY comparison (axis 2), colour by training strategy — not by
+# unlearning method — so Full-FT and LoRA (both gradient_difference) get distinct
+# colours. Matches the relearn_recovery_curve palette.
+STRATEGY_COLORS = {
+    "Full-FT (grad-diff)": "#1f77b4",   # blue
+    "LoRA (grad-diff)":    "#ff7f0e",   # orange
+    "Self-Distillation":   "#2ca02c",   # green
+    "GRPO":                "#d62728",   # red
+}
+
+
+def strategy_label(name: str) -> str:
+    """Map a checkpoint run-name to its training-strategy label (axis 2)."""
+    n = name.lower()
+    if "self_distill" in n:
+        return "Self-Distillation"
+    if "grpo" in n:
+        return "GRPO"
+    if "lora" in n:
+        return "LoRA (grad-diff)"
+    return "Full-FT (grad-diff)"
+
 
 def forget_quality_vs_utility(results_by_method: Dict[str, Dict], out_dir: str,
                                retain_result: Dict = None):
@@ -195,8 +217,15 @@ def rouge_by_split(rouge_by_method_split: Dict[str, Dict[str, float]], out_dir: 
     _save(fig, out_dir, "rouge_by_split")
 
 
-def spectral_detectability(results_by_method: Dict[str, Dict], out_dir: str):
+def spectral_detectability(results_by_method: Dict[str, Dict], out_dir: str,
+                           strategy_view: bool = False, final_layer: bool = False):
     """Bar chart: how detectable each unlearned model's fingerprint is.
+
+    strategy_view=True colours + labels by training STRATEGY (Full-FT / LoRA /
+    Self-Distillation) and writes spectral_detectability_strategies.png — pass a
+    dict filtered to the gradient_difference-family checkpoints.
+    final_layer=True reports the FINAL-layer SV1 shift + accuracy (paper's NPO
+    analysis) so the bars match the signature panels, instead of a global max.
 
     results_by_method[name] = a spectral_<name>.json dict with
         detection_accuracy, max_spectral_shift, best_layer, per_layer{...}.
@@ -208,11 +237,26 @@ def spectral_detectability(results_by_method: Dict[str, Dict], out_dir: str):
     A taller bar = a louder fingerprint = knowledge suppressed, not erased.
     """
     methods = list(results_by_method.keys())
-    accs = [results_by_method[m]["detection_accuracy"] for m in methods]
-    shifts = [results_by_method[m]["max_spectral_shift"] for m in methods]
-    colors = [_color_for(m) for m in methods]
-    labels = [m.replace("tofu_unlearn_", "").replace("_forget10", "").replace("_", " ")
-              for m in methods]
+    if final_layer:
+        # Paper's NPO analysis: report the FINAL layer's SV1 shift + accuracy, so
+        # the bar chart matches the signature panels exactly (not a global max on
+        # some intermediate layer).
+        accs, shifts = [], []
+        for m in methods:
+            lay, d = _final_layer_direction(results_by_method[m])
+            L = results_by_method[m]["per_layer"][lay]
+            accs.append(L["detection_accuracy"])
+            shifts.append(abs(L["cohens_d"][d]))
+    else:
+        accs = [results_by_method[m]["detection_accuracy"] for m in methods]
+        shifts = [results_by_method[m]["max_spectral_shift"] for m in methods]
+    if strategy_view:
+        labels = [strategy_label(m) for m in methods]
+        colors = [STRATEGY_COLORS.get(l, DEFAULT_COLOR) for l, m in zip(labels, methods)]
+    else:
+        colors = [_color_for(m) for m in methods]
+        labels = [m.replace("tofu_unlearn_", "").replace("_forget10", "").replace("_", " ")
+                  for m in methods]
     y = np.arange(len(methods))
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 0.6 * len(methods) + 2.5))
@@ -224,7 +268,8 @@ def spectral_detectability(results_by_method: Dict[str, Dict], out_dir: str):
     ax1.set_yticks(y); ax1.set_yticklabels(labels, fontsize=9)
     ax1.set_xlim(0.4, 1.05)
     ax1.set_xlabel("detection accuracy (↑ louder trace)", fontsize=10)
-    ax1.set_title("Unlearning-trace detectability\n(best layer, 5-fold CV)", fontsize=10)
+    layer_note = "final layer, 5-fold CV" if final_layer else "best layer, 5-fold CV"
+    ax1.set_title(f"Unlearning-trace detectability\n({layer_note})", fontsize=10)
     ax1.legend(fontsize=8, loc="lower right")
     ax1.invert_yaxis()
 
@@ -232,17 +277,21 @@ def spectral_detectability(results_by_method: Dict[str, Dict], out_dir: str):
     for yi, s in zip(y, shifts):
         ax2.text(s + max(shifts) * 0.01, yi, f"{s:.2f}", va="center", fontsize=8)
     ax2.set_yticks(y); ax2.set_yticklabels([])
-    ax2.set_xlabel("max spectral shift  |Cohen's d|  (↑ louder)", fontsize=10)
-    ax2.set_title("Spectral fingerprint magnitude\n(top singular directions)", fontsize=10)
+    ax2.set_xlabel("spectral shift  |Cohen's d|  (↑ louder)", fontsize=10)
+    shift_note = "final layer, SV1" if final_layer else "top singular directions"
+    ax2.set_title(f"Spectral fingerprint magnitude\n({shift_note})", fontsize=10)
     ax2.invert_yaxis()
 
     for ax in (ax1, ax2):
         ax.xaxis.grid(True, alpha=0.25, linestyle="--")
         ax.set_axisbelow(True)
-    fig.suptitle("Recovery axis 3 — spectral traces left by unlearning "
-                 "(forget-irrelevant prompts)", fontsize=11)
+    sub = ("by training STRATEGY (all gradient_difference)" if strategy_view
+           else "(forget-irrelevant prompts)")
+    fig.suptitle(f"Recovery axis 3 — spectral traces left by unlearning  {sub}",
+                 fontsize=11)
     fig.tight_layout()
-    _save(fig, out_dir, "spectral_detectability")
+    _save(fig, out_dir, "spectral_detectability_strategies" if strategy_view
+          else "spectral_detectability")
 
 
 def spectral_projection(name: str, spectral_result: Dict, out_dir: str):
@@ -398,6 +447,39 @@ def _pick_direction(layer_result: Dict) -> int:
     return 0 if abs(cd[0]) >= abs(cd[1] if len(cd) > 1 else 0) else 1
 
 
+def _best_visible_direction(spectral_result: Dict):
+    """(layer_key, direction) with the largest |Cohen's d| among the directions we
+    actually stored projections for (SV1/SV2, at EVERY layer) — i.e. where the
+    fingerprint is most visible: "the one with the highest difference." Scans all
+    layers, not just the best-detection layer.
+
+    NOTE: limited to the top-2 SVs we saved; a larger shift can live on SV3-5
+    (e.g. gradient_difference's global max is L15-SV4) — showing those exactly
+    would need re-running spectral with more stored projection columns."""
+    best_lay, best_dir, best_d = None, 0, -1.0
+    for lay, L in spectral_result["per_layer"].items():
+        if not L.get("proj_orig"):
+            continue
+        cd = L.get("cohens_d", [])
+        for direction in range(min(2, len(cd))):   # only SV1/SV2 have stored proj
+            if abs(cd[direction]) > best_d:
+                best_lay, best_dir, best_d = lay, direction, abs(cd[direction])
+    return (best_lay or str(spectral_result["best_layer"])), best_dir
+
+
+def _final_layer_direction(spectral_result: Dict):
+    """(final layer, SV with the largest shift there). This is the paper's NPO
+    analysis: the FINAL post-RMSNorm activations, projected onto the top singular
+    vector. For loss-based (NPO-family) unlearning the shift concentrates on SV1,
+    so this returns (last layer, SV1) in practice — a clean, paper-aligned choice
+    for gradient_difference / self-distillation."""
+    per = spectral_result["per_layer"]
+    lay = str(max(int(k) for k in per))          # highest layer index = final layer
+    cd = per[lay].get("cohens_d", [0, 0])
+    direction = max(range(min(2, len(cd))), key=lambda i: abs(cd[i]))
+    return lay, direction
+
+
 def spectral_signature(name: str, spectral_result: Dict, out_dir: str,
                        layer: int = None, direction: int = None):
     """Reproduce the paper's Fig. 5 (Tran et al. 2018 spectral signature): overlaid
@@ -408,14 +490,19 @@ def spectral_signature(name: str, spectral_result: Dict, out_dir: str,
     layer     : which layer (default = the best-detecting layer).
     direction : 0=SV1, 1=SV2 (default = whichever of the two has the larger shift).
     """
-    lay = str(layer if layer is not None else spectral_result["best_layer"])
+    if layer is not None:
+        lay = str(layer)
+        d = direction if direction is not None else _pick_direction(
+            spectral_result["per_layer"][lay])
+    else:
+        lay, best_d = _best_visible_direction(spectral_result)
+        d = direction if direction is not None else best_d
     L = spectral_result["per_layer"][lay]
     po = np.array(L.get("proj_orig", []))
     pu = np.array(L.get("proj_unlearned", []))
     if po.ndim != 2 or po.shape[0] == 0 or pu.shape[0] == 0:
         logger.warning("spectral_signature: no projection data for %s", name)
         return
-    d = direction if direction is not None else _pick_direction(L)
     _signature_panel(plt.subplots(figsize=(6.5, 4.5))[1], name, L, po, pu, lay, d,
                      legend=True)
     fig = plt.gcf()
@@ -423,53 +510,92 @@ def spectral_signature(name: str, spectral_result: Dict, out_dir: str,
     _save(fig, out_dir, f"spectral_signature_{name}")
 
 
-def spectral_signature_grid(results_by_method: Dict[str, Dict], out_dir: str):
-    """Paper-style Fig. 5 as small multiples: one SV-projection histogram per
-    method (original vs unlearned), stacked so the *magnitude* of each method's
-    fingerprint is comparable at a glance. Each panel auto-selects the layer +
-    singular direction where that method's shift is strongest (among what we
-    stored: best-detecting layer, SV1/SV2)."""
+def spectral_signature_grid(results_by_method: Dict[str, Dict], out_dir: str,
+                            strategy_view: bool = False, final_layer: bool = False):
+    """Paper-style Fig. 5 as small multiples: one SV-projection density per method
+    (original vs unlearned), stacked so the *magnitude* of each fingerprint is
+    comparable at a glance.
+
+    final_layer=True uses the FINAL layer + SV1 (paper's NPO analysis) for every
+    panel; otherwise each panel auto-selects the layer+SV with the strongest shift.
+    strategy_view=True colours + labels by training strategy and writes
+    spectral_signature_strategies.png (pass the gradient_difference-family subset)."""
     methods = list(results_by_method.keys())
     n = len(methods)
-    ncol = 2
+    ncol = 1 if strategy_view else 2   # 3 strategies read better in one column
     nrow = (n + ncol - 1) // ncol
-    fig, axes = plt.subplots(nrow, ncol, figsize=(11, 2.5 * nrow))
+    fig, axes = plt.subplots(nrow, ncol, figsize=(7 if strategy_view else 11,
+                                                  2.5 * nrow))
     axes = np.atleast_1d(axes).ravel()
+    pick = _final_layer_direction if final_layer else _best_visible_direction
     for ax, name in zip(axes, methods):
         res = results_by_method[name]
-        lay = str(res["best_layer"])
+        lay, direction = pick(res)
         L = res["per_layer"][lay]
         po = np.array(L.get("proj_orig", []))
         pu = np.array(L.get("proj_unlearned", []))
         if po.ndim != 2 or po.shape[0] == 0:
             ax.set_visible(False)
             continue
-        _signature_panel(ax, name, L, po, pu, lay, _pick_direction(L),
-                         legend=(ax is axes[0]))
+        color = title_label = None
+        if strategy_view:
+            title_label = strategy_label(name)
+            color = STRATEGY_COLORS.get(title_label, DEFAULT_COLOR)
+        _signature_panel(ax, name, L, po, pu, lay, direction,
+                         legend=(ax is axes[0]), color=color, title_label=title_label)
     for ax in axes[n:]:
         ax.set_visible(False)
-    fig.suptitle("Spectral signatures of unlearning (paper Fig. 5 style)\n"
-                 "projection of forget-irrelevant responses onto the localizing "
-                 "singular vector — original vs unlearned", fontsize=11)
+    head = ("Spectral signatures by training STRATEGY (all gradient_difference)"
+            if strategy_view else "Spectral signatures of unlearning (paper Fig. 5 style)")
+    fig.suptitle(head + "\nprojection of forget-irrelevant responses onto the "
+                 "localizing singular vector — original vs unlearned", fontsize=11)
     fig.tight_layout(rect=(0, 0, 1, 0.95))
-    _save(fig, out_dir, "spectral_signature_grid")
+    _save(fig, out_dir, "spectral_signature_strategies" if strategy_view
+          else "spectral_signature_grid")
 
 
-def _signature_panel(ax, name, layer_result, po, pu, lay, direction, legend):
-    """One overlaid-histogram panel used by both signature plots."""
+def _kde(data, xs):
+    """Smooth density estimate of `data` over grid `xs` (paper Fig. 5 uses smooth
+    curves, not bars). Falls back to a normalised histogram if a KDE can't be fit
+    (e.g. zero-variance data)."""
+    data = np.asarray(data, dtype=float)
+    if len(data) > 1 and data.std() > 1e-8:
+        try:
+            from scipy.stats import gaussian_kde
+            return gaussian_kde(data)(xs)
+        except Exception:
+            pass
+    counts, edges = np.histogram(data, bins=30, range=(xs[0], xs[-1]), density=True)
+    centers = 0.5 * (edges[:-1] + edges[1:])
+    return np.interp(xs, centers, counts, left=0, right=0)
+
+
+def _signature_panel(ax, name, layer_result, po, pu, lay, direction, legend,
+                     color=None, title_label=None):
+    """One overlaid smooth-density panel (KDE) used by both signature plots — the
+    original vs unlearned projection distributions along a singular vector.
+    `color`/`title_label` override the per-method colour/label (for strategy view)."""
     o = po[:, direction]
     u = pu[:, direction]
     lo = min(o.min(), u.min())
     hi = max(o.max(), u.max())
-    bins = np.linspace(lo, hi, 41)
-    ax.hist(o, bins=bins, alpha=0.6, color="#6c757d", label="original (learned)")
-    ax.hist(u, bins=bins, alpha=0.6, color=_color_for(name), label="unlearned")
+    pad = 0.05 * (hi - lo) if hi > lo else 1.0
+    xs = np.linspace(lo - pad, hi + pad, 400)
+    bin_w = (xs[-1] - xs[0]) / 40.0    # scale the KDE by N*bin_w so y reads as counts
+    unl_color = color if color is not None else _color_for(name)
+    for data, col, label in [(o, "#6c757d", "original (learned)"),
+                             (u, unl_color, "unlearned")]:
+        ys = _kde(data, xs) * len(data) * bin_w    # smooth curve on a "# responses" scale
+        ax.fill_between(xs, ys, alpha=0.30, color=col)
+        ax.plot(xs, ys, lw=1.8, color=col, label=label)
     d = layer_result.get("cohens_d", [0, 0])[direction]
-    short = (name.replace("tofu_unlearn_", "").replace("_forget10", "")
-                 .replace("_", " ").strip())
+    short = title_label if title_label is not None else (
+        name.replace("tofu_unlearn_", "").replace("_forget10", "")
+            .replace("_", " ").strip())
     ax.set_title(f"{short}  —  L{lay}, SV{direction + 1}  (d={d:.2f})", fontsize=9.5)
     ax.set_xlabel(f"projection on singular vector {direction + 1}", fontsize=9)
     ax.set_ylabel("# responses", fontsize=9)
+    ax.set_ylim(bottom=0)
     if legend:
         ax.legend(fontsize=8)
     ax.grid(True, alpha=0.2, linestyle="--")
