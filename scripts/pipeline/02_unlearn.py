@@ -48,6 +48,20 @@ def _load_frozen(checkpoint, pad_id):
     return m
 
 
+# LoRA target-module presets for the "where does knowledge live" ablation.
+# Hypothesis (Geva et al.; ROME/MEMIT): facts are stored in the MLP/FFN layers,
+# so LoRA on MLP should reach + delete the knowledge that attention-only LoRA
+# can't — i.e. MLP-LoRA unlearning should be LESS recoverable (closer to Full-FT).
+LORA_TARGETS = {
+    "attn":   ["q_proj", "k_proj", "v_proj", "o_proj"],   # attention (current default)
+    "qkv":    ["q_proj", "k_proj", "v_proj"],             # QKV only
+    "mlp":    ["gate_proj", "up_proj", "down_proj"],      # full MLP (SwiGLU)
+    "updown": ["up_proj", "down_proj"],                   # MLP up/down only
+    "all":    ["q_proj", "k_proj", "v_proj", "o_proj",
+               "gate_proj", "up_proj", "down_proj"],      # attention + MLP
+}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--checkpoint", required=True, help="the learned model to unlearn from")
@@ -66,6 +80,10 @@ def main():
                     help="override cfg tofu.forget_level (e.g. forget05 for Fig 8)")
     ap.add_argument("--track-curve", action="store_true",
                     help="log per-step ROUGE/Prob/Truth-Ratio for TOFU Figure 8")
+    ap.add_argument("--lora-target", default=None,
+                    help="LoRA target-module ablation: attn|qkv|mlp|updown|all "
+                         "(or a comma-separated custom list). Overrides config + "
+                         "tags the run name (LoRA strategy only).")
     # The `deepspeed` launcher passes --local_rank; absorb it (HF reads env vars).
     ap.add_argument("--local_rank", type=int, default=-1)
     args = ap.parse_args()
@@ -81,6 +99,14 @@ def main():
         cfg["tofu"]["forget_level"] = args.forget_level
     if args.track_curve:
         cfg["tofu"]["track_curve"] = True
+    # LoRA target-module ablation: override the modules LoRA adapts, and remember a
+    # tag so the run name / checkpoint stays distinct per variant.
+    lora_tag = ""
+    if args.lora_target and args.strategy == "lora":
+        mods = LORA_TARGETS.get(args.lora_target) or args.lora_target.split(",")
+        cfg["training"]["lora"] = {**cfg["training"]["lora"], "target_modules": mods}
+        lora_tag = f"_{args.lora_target if args.lora_target in LORA_TARGETS else 'custom'}"
+        logger.info("LoRA target modules -> %s (tag %s)", mods, lora_tag)
     forget_level = cfg["tofu"]["forget_level"]
     retain_level = {"forget01": "retain99", "forget05": "retain95",
                     "forget10": "retain90"}[forget_level]
@@ -100,7 +126,7 @@ def main():
     # colour them by method. Same "<method>_<level>_<strategy>" shape for all.
     label = args.method if args.strategy in ("fullft", "lora") else args.strategy
     strat_suffix = "grpo_lora" if (args.strategy == "grpo" and args.lora) else args.strategy
-    run_name = f"tofu_unlearn_{label}_{forget_level}_{strat_suffix}"
+    run_name = f"tofu_unlearn_{label}_{forget_level}_{strat_suffix}{lora_tag}"
 
     if args.strategy in ("fullft", "lora"):
         use_lora = args.strategy == "lora"

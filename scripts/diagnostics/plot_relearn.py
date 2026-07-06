@@ -34,6 +34,10 @@ def main():
     ap.add_argument("--title", default="Relearning robustness: knowledge recovery "
                     "after unlearning\n(higher/faster = suppressed, not erased)")
     ap.add_argument("--xlabel", default="Relearning epochs on the forget set")
+    ap.add_argument("--label-by", default="strategy",
+                    choices=["strategy", "lora_target"],
+                    help="group curves by training strategy, or by LoRA target "
+                         "module (for the target-module ablation)")
     args = ap.parse_args()
     path = Path(args.data)
     data = json.load(open(path))
@@ -51,9 +55,20 @@ def main():
             return "LoRA (grad-diff)"
         return "Full-FT (grad-diff)"
 
+    def lora_target_of(key):
+        k = key.lower()
+        if "lora_all" in k:    return "LoRA-all (attn+MLP)"
+        if "lora_mlp" in k:    return "LoRA-MLP (gate/up/down)"
+        if "lora_updown" in k: return "LoRA-MLP (up/down)"
+        if "lora_qkv" in k:    return "LoRA-QKV"
+        if "lora" in k:        return "LoRA-attn (q/k/v/o)"   # _lora or _lora_attn
+        return "Full-FT (reference)"
+
+    labeler = lora_target_of if args.label_by == "lora_target" else strategy_of
+
     curves = {}
     for key, val in data.items():
-        strat = strategy_of(key)
+        strat = labeler(key)
         m = re.search(r"_ep(\d+)$", key)
         epoch = int(m.group(1)) if (key.startswith("relearn_") and m) else 0
         curves.setdefault(strat, {})[epoch] = val
@@ -78,7 +93,8 @@ def main():
     plt.title(args.title)
     plt.ylim(-0.03, 1.08)
     plt.grid(alpha=0.3)
-    plt.legend(title="Unlearning strategy")
+    plt.legend(title="LoRA target module" if args.label_by == "lora_target"
+               else "Unlearning strategy")
     plt.tight_layout()
 
     out = Path("results") / args.out

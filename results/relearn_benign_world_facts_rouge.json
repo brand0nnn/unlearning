@@ -3,5 +3,12 @@
   "relearn_tofu_unlearn_gradient_difference_forget10_via_world_facts_ep1": 0.0065116279069767444,
   "relearn_tofu_unlearn_gradient_difference_forget10_via_world_facts_ep2": 0.0,
   "tofu_unlearn_gradient_difference_forget10_lora": 0.006577380952380953,
-  "tofu_unlearn_self_distill_forget10_self_distill": 0.014504780361757105
+  "tofu_unlearn_self_distill_forget10_self_distill": 0.014504780361757105,
+  "relearn_tofu_unlearn_gradient_difference_forget10_via_world_facts_ep4": 0.00125,
+  "relearn_tofu_unlearn_gradient_difference_forget10_lora_via_world_facts_ep1": 0.007461048507760617,
+  "relearn_tofu_unlearn_gradient_difference_forget10_lora_via_world_facts_ep2": 0.002896862379621,
+  "relearn_tofu_unlearn_gradient_difference_forget10_lora_via_world_facts_ep4": 0.008230271418912393,
+  "relearn_tofu_unlearn_self_distill_forget10_self_distill_via_world_facts_ep1": 0.010783850129198967,
+  "relearn_tofu_unlearn_self_distill_forget10_self_distill_via_world_facts_ep2": 0.004272222222222222,
+  "relearn_tofu_unlearn_self_distill_forget10_self_distill_via_world_facts_ep4": 0.004272222222222222
 }
