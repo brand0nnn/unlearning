@@ -54,7 +54,7 @@ def main():
     splits = load_all_eval_splits(cfg["tofu"]["cache_dir"],
                                   cfg["tofu"]["forget_level"], limit)
     max_new = cfg["evaluation"]["max_new_tokens"]
-    out_dir = ensure_dir("results")
+    out_dir = ensure_dir("results/eval")
 
     for ckpt in args.models:
         name = Path(ckpt).name

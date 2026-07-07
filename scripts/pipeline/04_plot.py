@@ -21,10 +21,11 @@ logger = get_logger("tofu_plot")
 
 def main():
     results_dir = Path("results")
-    files = [f for f in results_dir.glob("tofu_*.json")
+    fig_dir = "results/figures"
+    files = [f for f in (results_dir / "eval").glob("tofu_*.json")
              if f.name != "tofu_reference.json"]
     if not files:
-        logger.warning("No tofu_*.json result files found in results/. Run step 3 first.")
+        logger.warning("No tofu_*.json result files found in results/eval/. Run step 3 first.")
         return
 
     scatter, rouge = {}, {}
@@ -41,22 +42,22 @@ def main():
                        for s in ("forget", "retain", "real_authors", "world_facts")}
 
     if scatter:
-        forget_quality_vs_utility(scatter, "results")
-    rouge_by_split(rouge, "results")
-    logger.info("Plots written to results/ (forget_quality_vs_utility, rouge_by_split)")
+        forget_quality_vs_utility(scatter, fig_dir)
+    rouge_by_split(rouge, fig_dir)
+    logger.info("Plots written to results/figures/ (forget_quality_vs_utility, rouge_by_split)")
 
     # Recovery axis 3 — spectral traces (only if scripts/recovery/spectral.py has been run).
-    spectral_files = sorted(results_dir.glob("spectral_*.json"))
+    spectral_files = sorted((results_dir / "spectral").glob("spectral_*.json"))
     if spectral_files:
         spectral = {}
         for f in spectral_files:
             data = json.load(open(f))
             name = f.stem.replace("spectral_", "")
             spectral[name] = data
-            spectral_projection(name, data, "results")
-        spectral_detectability(spectral, "results")
-        spectral_signature_grid(spectral, "results")   # paper Fig. 5 style
-        logger.info("Spectral plots written to results/ (spectral_detectability, "
+            spectral_projection(name, data, fig_dir)
+        spectral_detectability(spectral, fig_dir)
+        spectral_signature_grid(spectral, fig_dir)   # paper Fig. 5 style
+        logger.info("Spectral plots written to results/figures/ (spectral_detectability, "
                     "spectral_signature_grid, spectral_projection_*)")
 
 

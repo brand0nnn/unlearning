@@ -74,7 +74,7 @@ def main():
     n_prompts = sp.get("n_prompts", 300)
     max_new = sp.get("max_new_tokens", 64)
     k = sp.get("top_k", 5)
-    out_dir = ensure_dir("results")
+    out_dir = ensure_dir("results/spectral")
     model_name = cfg["model"]["name"]
 
     questions = _forget_irrelevant_prompts(cfg, n_prompts)

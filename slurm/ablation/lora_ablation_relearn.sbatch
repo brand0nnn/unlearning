@@ -51,6 +51,6 @@ for UNLEARNED in "${CKPTS[@]}"; do
     done
 done
 
-echo "=== done -> results/$OUT ==="
-echo "Plot: python scripts/diagnostics/plot_relearn.py --data results/$OUT --label-by lora_target \\"
+echo "=== done -> results/relearn/$OUT ==="
+echo "Plot: python scripts/diagnostics/plot_relearn.py --data results/relearn/$OUT --label-by lora_target \\"
 echo "   --out lora_ablation_recovery.png --title 'LoRA target-module ablation: recovery after unlearning'"

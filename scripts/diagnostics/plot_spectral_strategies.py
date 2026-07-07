@@ -34,7 +34,7 @@ STRATEGY_CKPTS = [
 
 
 def main():
-    results_dir = Path("results")
+    results_dir = Path("results/spectral")
     spec = {}
     for name in STRATEGY_CKPTS:
         f = results_dir / f"spectral_{name}.json"
@@ -48,8 +48,8 @@ def main():
 
     # final_layer=True -> the paper's NPO analysis (final post-RMSNorm layer, SV1),
     # which is where these loss-based strategies' fingerprints concentrate.
-    spectral_detectability(spec, "results", strategy_view=True, final_layer=True)
-    spectral_signature_grid(spec, "results", strategy_view=True, final_layer=True)
+    spectral_detectability(spec, "results/figures", strategy_view=True, final_layer=True)
+    spectral_signature_grid(spec, "results/figures", strategy_view=True, final_layer=True)
     logger.info("Strategy spectral figures for %d strategies -> "
                 "spectral_detectability_strategies.png, spectral_signature_strategies.png",
                 len(spec))

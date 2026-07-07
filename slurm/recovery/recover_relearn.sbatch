@@ -43,4 +43,4 @@ for EP in 1 2 4; do
     rm -rf "$RELEARNED"
 done
 
-echo "=== Relearn probe complete. Recovery curve in results/relearn_forget_rouge.json ==="
+echo "=== Relearn probe complete. Recovery curve in results/relearn/relearn_forget_rouge.json ==="

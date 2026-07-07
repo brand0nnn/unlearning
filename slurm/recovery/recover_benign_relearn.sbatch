@@ -62,7 +62,7 @@ for UNLEARNED in "${CKPTS[@]}"; do
     done
 done
 
-echo "=== Benign-relearn probe complete -> results/$OUT ==="
-echo "Plot with: python scripts/diagnostics/plot_relearn.py --data results/$OUT \\"
+echo "=== Benign-relearn probe complete -> results/relearn/$OUT ==="
+echo "Plot with: python scripts/diagnostics/plot_relearn.py --data results/relearn/$OUT \\"
 echo "   --out benign_relearn_${BENIGN}_curve.png --xlabel 'Relearning epochs on ${BENIGN} (benign)' \\"
 echo "   --title 'Benign relearning on ${BENIGN}: does unrelated fine-tuning jog forgotten knowledge?'"

@@ -29,14 +29,14 @@ def main():
     args = ap.parse_args()
 
     files = ([Path(c) for c in args.curve] if args.curve
-             else sorted(Path("results").glob("unlearn_curve_*.json")))
+             else sorted(Path("results/curves").glob("unlearn_curve_*.json")))
     if not files:
         logger.warning("No unlearn_curve_*.json found. Re-run unlearning with "
                        "--track-curve first.")
         return
     for f in files:
         curve = json.load(open(f))
-        unlearn_curve(curve, "results")
+        unlearn_curve(curve, "results/figures")
         logger.info("Plotted %s (%d points)", f.name, len(curve.get("history", [])))
 
 

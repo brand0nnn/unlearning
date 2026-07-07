@@ -54,7 +54,7 @@ def main():
                                   cfg["tofu"]["forget_level"],
                                   cfg["tofu"]["eval_limit"])
     max_new = cfg["evaluation"]["max_new_tokens"]
-    out_dir = ensure_dir("results")
+    out_dir = ensure_dir("results/eval")
 
     model_name = cfg["model"]["name"]
 

@@ -33,7 +33,7 @@ def main():
     args = ap.parse_args()
 
     files = ([Path(e) for e in args.evals] if args.evals
-             else sorted(Path("results").glob("learn_eval_*.json")))
+             else sorted(Path("results/eval").glob("learn_eval_*.json")))
     if not files:
         logger.warning("No learn_eval_*.json found. Run eval_learning.py "
                        "(slurm/learn_eval.sbatch) first.")
@@ -48,8 +48,8 @@ def main():
     for f in sorted(files, key=lambda f: 0 if is_base(f) else 1):
         name = f.stem.replace("learn_eval_", "")
         results[LABELS.get(name, name)] = json.load(open(f))
-    learning_success(results, "results")
-    logger.info("Wrote results/learning_success.png from %d model(s)", len(results))
+    learning_success(results, "results/figures")
+    logger.info("Wrote results/figures/learning_success.png from %d model(s)", len(results))
 
 
 if __name__ == "__main__":

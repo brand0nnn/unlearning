@@ -31,7 +31,7 @@ ORDER = ["reference", "gradient_ascent", "gradient_difference", "idk", "kl_minim
 
 
 def _load(name):
-    p = RESULTS / name
+    p = RESULTS / "eval" / name
     return json.load(open(p)) if p.exists() else None
 
 

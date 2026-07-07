@@ -55,7 +55,7 @@ def main():
     forget = load_qa(cfg["tofu"]["forget_level"], cfg["tofu"]["cache_dir"])
     max_new = cfg["evaluation"]["max_new_tokens"]
 
-    out = ensure_dir("results") / args.out
+    out = ensure_dir("results/relearn") / args.out
     data = json.load(open(out)) if out.exists() else {}
     for ckpt in args.checkpoints:
         name = Path(ckpt).name

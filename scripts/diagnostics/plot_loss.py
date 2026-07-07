@@ -126,7 +126,7 @@ def main():
     plt.legend(fontsize=7)
     plt.tight_layout()
 
-    out = Path("results") / args.out
+    out = Path("results/figures") / args.out
     out.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(out, dpi=150)
     logger.info("Plotted %d log(s) -> %s", plotted, out)

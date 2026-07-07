@@ -145,7 +145,7 @@ def build_curve_callbacks(cfg: Dict, tokenizer, method: str, run_name: str):
     if not u.get("track_curve"):
         return []
     csplits = load_curve_splits(cfg, u.get("curve_subset", 40))
-    out_path = f"results/unlearn_curve_{run_name}.json"
+    out_path = f"results/curves/unlearn_curve_{run_name}.json"
     logger.info("Figure-8 curve tracking ON -> %s (every %d steps, subset %d)",
                 out_path, u.get("curve_eval_steps", 2), u.get("curve_subset", 40))
     return [UnlearnCurveCallback(
