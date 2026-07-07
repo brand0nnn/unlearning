@@ -28,6 +28,7 @@ python scripts/pipeline/03_evaluate.py \
         "$PROJECT_DIR/experiments/tofu_unlearn_kl_minimization_forget10" \
         "$PROJECT_DIR/experiments/tofu_unlearn_idk_forget10" \
         "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_lora" \
-        "$PROJECT_DIR/experiments/tofu_unlearn_self_distill_forget10_self_distill"
+        "$PROJECT_DIR/experiments/tofu_unlearn_self_distill_forget10_self_distill" \
+        "$PROJECT_DIR/experiments/tofu_unlearn_grpo_forget10_grpo_lora"
 
 echo "=== Evaluate phase complete. Results in results/ ==="
