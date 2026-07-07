@@ -7,15 +7,12 @@ transformers>=4.44
 datasets>=2.20
 accelerate>=0.33
 peft>=0.12
-# trl is used ONLY by the GRPO unlearning strategy; nothing else in the pipeline
-# imports it. trl>=0.16 imports FSDPModule (FSDP2) from torch.distributed.fsdp,
-# which needs torch>=2.6 — our main venv runs the cu121 torch build (<=2.5.1) that
-# lacks it, so newer trl crashes at `from trl import GRPOTrainer`. We pin to the
-# pre-FSDP2 window (0.14–0.15): it still has GRPOTrainer, runs on the existing
-# cu121 torch, and matches grpo.py's API (processing_class / reward_funcs). Safe
-# to pin here because NOTHING else imports trl, so it can't affect the working
-# Full-FT / LoRA / self-distill / eval / spectral stack.
-trl>=0.14,<0.16
+# NOTE: trl (for the GRPO strategy) is intentionally NOT here. No trl works on the
+# main venv's cu121 torch 2.5.1: modern trl needs FSDPModule (torch>=2.6), and the
+# old trl that runs on 2.5.1 (0.14/0.15) hard-imports mergekit+vllm. GRPO therefore
+# lives in a SEPARATE env, .venv-grpo (torch>=2.6 + latest trl), built by
+# setup_grpo.sh — the main stack (Full-FT / LoRA / self-distill / eval / spectral)
+# stays trl-free and on its validated cu121 torch 2.5.1.
 # 8-bit AdamW + 4-bit (NF4) loading, to fit 7B full-parameter unlearning on 40GB.
 bitsandbytes>=0.43
 # DeepSpeed ZeRO-3 for the learn phase (fp32 master weights, exactly like the TOFU repo).

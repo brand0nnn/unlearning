@@ -15,22 +15,23 @@
 PROJECT_DIR="/home/b/brandonk/unlearning"
 cd "$PROJECT_DIR"
 mkdir -p logs
-source "$PROJECT_DIR/.venv/bin/activate"
+# GRPO runs in its OWN venv (torch>=2.6 + modern trl) — NOT the main .venv, whose
+# cu121 torch 2.5.1 can't run any trl. Build it once: bash setup_grpo.sh
+if [ ! -d "$PROJECT_DIR/.venv-grpo" ]; then
+  echo "ERROR: .venv-grpo missing — run 'bash setup_grpo.sh' on the login node first." >&2
+  exit 1
+fi
+source "$PROJECT_DIR/.venv-grpo/bin/activate"
 export TMPDIR="$PROJECT_DIR/.tmp"
-export PIP_CACHE_DIR="$PROJECT_DIR/.cache/pip"     # keep pip off the tiny $HOME quota (§6)
 export HF_HOME="$PROJECT_DIR/.cache/huggingface"
 export HF_DATASETS_CACHE="$PROJECT_DIR/.cache/datasets"
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 source ~/.env_hf
 
-echo "Node: $(hostname)"; nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
-
-# GRPO needs trl, but trl>=0.16 imports FSDPModule (needs torch>=2.6) and our
-# cu121 torch is 2.5.1. Pin to the pre-FSDP2 window that keeps GRPOTrainer and
-# runs on the existing torch. Idempotent + cached -> a no-op after the first run;
-# nothing else imports trl so this can't affect other jobs.
-pip install -q "trl>=0.14,<0.16"
-python -c "import trl, torch; print(f'trl {trl.__version__} | torch {torch.__version__}')"
+# Full nvidia-smi shows the driver's CUDA version; the python line confirms the
+# cu124 torch build actually sees the GPU (first-run proof that cu124 fits the driver).
+echo "=== Node: $(hostname) ==="; nvidia-smi
+python -c "import torch, trl; print(f'torch {torch.__version__} | cuda {torch.version.cuda} | avail {torch.cuda.is_available()} | trl {trl.__version__}')"
 
 LEARNED="$PROJECT_DIR/experiments/tofu_learn_full_full"
 
