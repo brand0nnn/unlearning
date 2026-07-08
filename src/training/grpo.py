@@ -95,6 +95,13 @@ def unlearn_grpo(model, tokenizer, forget: List[Dict], cfg: Dict, run_name: str,
         # LoRA fits on one GPU; full-parameter GRPO needs DeepSpeed like the rest.
         deepspeed=None if use_lora else "config/ds_config.json",
     )
+    # Figure-8 dynamics tracking (shared with the other strategies): logs
+    # ROUGE/Prob/Truth-Ratio on a forget subset every few steps when --track-curve
+    # is set. GRPOTrainer subclasses HF Trainer, so it accepts callbacks. "grpo" is
+    # the method label; run_name keeps its curve JSON distinct from the others.
+    from src.evaluation.unlearn_curve import build_curve_callbacks
+    callbacks = build_curve_callbacks(cfg, tokenizer, "grpo", run_name)
+
     trainer = GRPOTrainer(
         model=model,
         processing_class=tokenizer,
@@ -102,6 +109,7 @@ def unlearn_grpo(model, tokenizer, forget: List[Dict], cfg: Dict, run_name: str,
         args=grpo_args,
         train_dataset=prompt_ds,
         peft_config=peft_config,
+        callbacks=callbacks or None,
     )
     logger.info("UNLEARN GRPO (lora=%s, n_gen=%d, beta=%.3f) -> %s",
                 use_lora, g["num_generations"], g["kl_beta"], grpo_args.output_dir)

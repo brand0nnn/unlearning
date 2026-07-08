@@ -36,7 +36,9 @@ python -c "import torch, trl; print(f'torch {torch.__version__} | cuda {torch.ve
 LEARNED="$PROJECT_DIR/experiments/tofu_learn_full_full"
 
 echo "=== GRPO unlearning (LoRA) ==="
+# --track-curve logs ROUGE/Prob/Truth-Ratio per step -> results/curves/unlearn_curve_*.json
+# (the TOFU Figure-8 unlearning-dynamics plot).
 python scripts/pipeline/02_unlearn.py \
-    --checkpoint "$LEARNED" --strategy grpo --lora
+    --checkpoint "$LEARNED" --strategy grpo --lora --track-curve
 
 echo "=== GRPO unlearn complete ==="

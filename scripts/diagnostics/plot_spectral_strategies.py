@@ -1,17 +1,16 @@
-"""Strategy-only spectral figures (axis 2 — training-strategy comparison).
+"""Final-layer spectral fingerprint, one point per TRAINING STRATEGY.
 
-The main spectral plots (04_plot) include all 6 checkpoints — the 4 Full-FT TOFU
-methods (the paper-reproduction / method axis) PLUS the strategy variants. For the
-training-STRATEGY comparison we want just the gradient_difference-family points,
-coloured/labelled by strategy:
+All four strategies are NPO-style unlearners, so (per the spectral paper) we read
+the fingerprint at the FINAL post-RMSNorm layer / SV1:
 
-    gradient_difference (Full-FT)  ·  gradient_difference (LoRA)  ·  self-distill
+    Full-FT (grad-diff) · LoRA (grad-diff) · Self-Distillation · GRPO
 
     python scripts/diagnostics/plot_spectral_strategies.py
-    -> results/spectral_detectability_strategies.png
-    -> results/spectral_signature_strategies.png
+    -> results/figures/spectral_detectability_strategies.png
+    -> results/figures/spectral_signature_strategies.png
 
-CPU-only. Reads the existing results/spectral_*.json (no recompute).
+CPU-only, local. Reads results/spectral/spectral_*.json (no recompute); each
+strategy is skipped if its JSON isn't there yet.
 """
 import json
 import sys
@@ -24,12 +23,13 @@ from src.utils.logging_utils import get_logger
 
 logger = get_logger("plot_spectral_strategies")
 
-# The gradient_difference-family checkpoints = the strategy axis (GRPO when ready).
+# The four training strategies = the comparison axis. Each entry is skipped if its
+# spectral_*.json isn't present yet, so the plot works before GRPO's is computed.
 STRATEGY_CKPTS = [
     "tofu_unlearn_gradient_difference_forget10",         # Full-FT
     "tofu_unlearn_gradient_difference_forget10_lora",    # LoRA
     "tofu_unlearn_self_distill_forget10_self_distill",   # Self-Distillation
-    "tofu_unlearn_grpo_forget10_grpo",                   # GRPO (if present)
+    "tofu_unlearn_grpo_forget10_grpo_lora",              # GRPO (LoRA-GRPO checkpoint name)
 ]
 
 
