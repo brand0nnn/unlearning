@@ -25,18 +25,17 @@ echo "Node: $(hostname)"; nvidia-smi --query-gpu=name,memory.total --format=csv,
 
 # ORIGINAL = the learned model BEFORE unlearning (the reference the fingerprint
 # is measured against). Fingerprint every unlearned checkpoint we have.
-# NOTE: the Full-FT checkpoints predate the strategy suffix, so they have NO
-# _fullft suffix; only LoRA (_lora) and self-distill (_self_distill) carry one.
+# The FOUR training strategies (all NPO-family). Full-param GRPO carries the plain
+# _grpo suffix. Spectral is cheap (no training — just activation collection), so we
+# fingerprint all four; each writes results/spectral/spectral_<ckpt>.json.
 ORIGINAL="$PROJECT_DIR/experiments/tofu_learn_full_full"
 
 python scripts/recovery/spectral.py \
     --original "$ORIGINAL" \
     --checkpoints \
-        experiments/tofu_unlearn_gradient_ascent_forget10 \
         experiments/tofu_unlearn_gradient_difference_forget10 \
-        experiments/tofu_unlearn_kl_minimization_forget10 \
-        experiments/tofu_unlearn_idk_forget10 \
         experiments/tofu_unlearn_gradient_difference_forget10_lora \
-        experiments/tofu_unlearn_self_distill_forget10_self_distill
+        experiments/tofu_unlearn_self_distill_forget10_self_distill \
+        experiments/tofu_unlearn_grpo_forget10_grpo
 
 echo "=== Spectral phase complete ==="

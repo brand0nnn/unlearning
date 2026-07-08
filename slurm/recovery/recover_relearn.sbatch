@@ -13,7 +13,8 @@
 # not deletion. Traces forget-set ROUGE vs relearn epochs.
 #
 # Point UNLEARNED at the checkpoint whose robustness you want to test — run it once
-# for the Full-FT unlearned model and once for the LoRA one to compare strategies.
+# per strategy (Full-FT / LoRA / self-distill / GRPO). The forget-ROUGE JSON MERGES,
+# so each run just adds that strategy's point to results/relearn/relearn_forget_rouge.json.
 PROJECT_DIR="/home/b/brandonk/unlearning"
 cd "$PROJECT_DIR"
 mkdir -p logs
@@ -26,9 +27,10 @@ source ~/.env_hf
 
 echo "Node: $(hostname)"; nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 
-# Pass the unlearned checkpoint as the first sbatch arg; defaults to the full-FT one.
-#   sbatch slurm/recover_relearn.sbatch experiments/tofu_unlearn_gradient_difference_forget10_lora
-UNLEARNED="${1:-$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10}"
+# Pass the unlearned checkpoint as the first sbatch arg; defaults to the NEW GRPO one
+# (Full-FT / LoRA / self-distill are already in the merged JSON).
+#   sbatch slurm/recovery/recover_relearn.sbatch experiments/tofu_unlearn_gradient_difference_forget10_lora
+UNLEARNED="${1:-$PROJECT_DIR/experiments/tofu_unlearn_grpo_forget10_grpo}"
 
 echo "=== Forget-set ROUGE BEFORE relearning (baseline) ==="
 python scripts/recovery/relearn_measure.py --checkpoints "$UNLEARNED"

@@ -41,11 +41,15 @@ echo "Node: $(hostname)"; nvidia-smi --query-gpu=name,memory.total --format=csv,
 MASTER_PORT=$((20000 + SLURM_JOB_ID % 10000))
 LAUNCH=0
 
-# The three unlearned checkpoints to probe (GRPO excluded — blocked).
+# The four training strategies. Benign relearn RE-TRAINS each checkpoint (3 epochs ×
+# expensive), and the output JSON MERGES — so by default we probe ONLY the new GRPO
+# point; the other three are already in results/relearn/relearn_benign_retain_rouge.json.
+# Uncomment them to recompute the full set.
 CKPTS=(
-    "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10"
-    "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_lora"
-    "$PROJECT_DIR/experiments/tofu_unlearn_self_distill_forget10_self_distill"
+    "$PROJECT_DIR/experiments/tofu_unlearn_grpo_forget10_grpo"                    # NEW (full-param GRPO)
+    # "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10"        # done (Full-FT)
+    # "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_lora"   # done (LoRA)
+    # "$PROJECT_DIR/experiments/tofu_unlearn_self_distill_forget10_self_distill"  # done (Self-Distill)
 )
 
 for UNLEARNED in "${CKPTS[@]}"; do
