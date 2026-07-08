@@ -10,5 +10,9 @@
   "tofu_unlearn_self_distill_forget10_self_distill": 0.014504780361757105,
   "relearn_tofu_unlearn_self_distill_forget10_self_distill_ep1": 0.31485681117250763,
   "relearn_tofu_unlearn_self_distill_forget10_self_distill_ep2": 0.2893274533730021,
-  "relearn_tofu_unlearn_self_distill_forget10_self_distill_ep4": 0.41616375703858494
+  "relearn_tofu_unlearn_self_distill_forget10_self_distill_ep4": 0.41616375703858494,
+  "tofu_unlearn_grpo_forget10_grpo": 0.0,
+  "relearn_tofu_unlearn_grpo_forget10_grpo_ep1": 0.21802838934282384,
+  "relearn_tofu_unlearn_grpo_forget10_grpo_ep2": 0.707864595845349,
+  "relearn_tofu_unlearn_grpo_forget10_grpo_ep4": 0.9579524085094228
 }

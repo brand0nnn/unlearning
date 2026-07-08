@@ -79,7 +79,9 @@ def unlearn_grpo(model, tokenizer, forget: List[Dict], cfg: Dict, run_name: str,
 
     grpo_args = GRPOConfig(
         output_dir=f"{t['output_dir']}/{run_name}",
-        learning_rate=u.get("unlearn_lr_lora", u["unlearn_lr"]) if use_lora else u["unlearn_lr"],
+        # GRPO's own (gentler) LR if set; else fall back to the shared unlearn LR.
+        learning_rate=g.get("learning_rate",
+                            u.get("unlearn_lr_lora", u["unlearn_lr"]) if use_lora else u["unlearn_lr"]),
         per_device_train_batch_size=g["num_generations"],  # >= num_generations
         gradient_accumulation_steps=t["gradient_accumulation_steps"],
         num_train_epochs=u["unlearn_epochs"],

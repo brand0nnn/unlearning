@@ -1,0 +1,455 @@
+{
+  "method": "grpo",
+  "forget_level": "forget10",
+  "run_name": "tofu_unlearn_grpo_forget10_grpo",
+  "history": [
+    {
+      "step": 0,
+      "split": "forget",
+      "rouge": 0.9840000000000001,
+      "prob": 0.732421875,
+      "truth_ratio": 0.5158501851458951
+    },
+    {
+      "step": 0,
+      "split": "retain",
+      "rouge": 0.9595894736842105,
+      "prob": 0.785,
+      "truth_ratio": 0.5999651591938607
+    },
+    {
+      "step": 0,
+      "split": "real_authors",
+      "rouge": 0.98,
+      "prob": 0.628792228828058,
+      "truth_ratio": 0.395861311575763
+    },
+    {
+      "step": 0,
+      "split": "world_facts",
+      "rouge": 0.92,
+      "prob": 0.5796512959083442,
+      "truth_ratio": 0.3838494034116391
+    },
+    {
+      "step": 4,
+      "split": "forget",
+      "rouge": 0.8050833825672535,
+      "prob": 0.714765625,
+      "truth_ratio": 0.5076040879102905
+    },
+    {
+      "step": 4,
+      "split": "retain",
+      "rouge": 0.8575381162181472,
+      "prob": 0.76921875,
+      "truth_ratio": 0.5977828633167849
+    },
+    {
+      "step": 4,
+      "split": "real_authors",
+      "rouge": 1.0,
+      "prob": 0.6642347245146527,
+      "truth_ratio": 0.2362699841312317
+    },
+    {
+      "step": 4,
+      "split": "world_facts",
+      "rouge": 0.92,
+      "prob": 0.6123440950617285,
+      "truth_ratio": 0.20180420745463482
+    },
+    {
+      "step": 8,
+      "split": "forget",
+      "rouge": 0.532970535564763,
+      "prob": 0.625234375,
+      "truth_ratio": 0.5347175760245341
+    },
+    {
+      "step": 8,
+      "split": "retain",
+      "rouge": 0.5623731821438309,
+      "prob": 0.67515625,
+      "truth_ratio": 0.6045107523234617
+    },
+    {
+      "step": 8,
+      "split": "real_authors",
+      "rouge": 0.98,
+      "prob": 0.6646402374302925,
+      "truth_ratio": 0.1880909740408864
+    },
+    {
+      "step": 8,
+      "split": "world_facts",
+      "rouge": 0.92,
+      "prob": 0.6491373293478017,
+      "truth_ratio": 0.17513831429210172
+    },
+    {
+      "step": 12,
+      "split": "forget",
+      "rouge": 0.24390617020498176,
+      "prob": 0.49734375,
+      "truth_ratio": 0.5729102146407465
+    },
+    {
+      "step": 12,
+      "split": "retain",
+      "rouge": 0.2507913525701612,
+      "prob": 0.548828125,
+      "truth_ratio": 0.6417299451949046
+    },
+    {
+      "step": 12,
+      "split": "real_authors",
+      "rouge": 0.98,
+      "prob": 0.6565851428933465,
+      "truth_ratio": 0.16462166515293902
+    },
+    {
+      "step": 12,
+      "split": "world_facts",
+      "rouge": 0.92,
+      "prob": 0.6968117959830802,
+      "truth_ratio": 0.15222646354768943
+    },
+    {
+      "step": 16,
+      "split": "forget",
+      "rouge": 0.09358944922272595,
+      "prob": 0.397890625,
+      "truth_ratio": 0.6020943277320169
+    },
+    {
+      "step": 16,
+      "split": "retain",
+      "rouge": 0.09895599019809045,
+      "prob": 0.443359375,
+      "truth_ratio": 0.66214115674504
+    },
+    {
+      "step": 16,
+      "split": "real_authors",
+      "rouge": 0.92,
+      "prob": 0.6586992520980546,
+      "truth_ratio": 0.15660194577891412
+    },
+    {
+      "step": 16,
+      "split": "world_facts",
+      "rouge": 0.88,
+      "prob": 0.7406762695179603,
+      "truth_ratio": 0.10655956684322142
+    },
+    {
+      "step": 20,
+      "split": "forget",
+      "rouge": 0.0,
+      "prob": 0.2834765625,
+      "truth_ratio": 0.6279991851730738
+    },
+    {
+      "step": 20,
+      "split": "retain",
+      "rouge": 0.0,
+      "prob": 0.3044921875,
+      "truth_ratio": 0.6869019325453294
+    },
+    {
+      "step": 20,
+      "split": "real_authors",
+      "rouge": 0.0,
+      "prob": 0.5249825044037313,
+      "truth_ratio": 0.3038378372493338
+    },
+    {
+      "step": 20,
+      "split": "world_facts",
+      "rouge": 0.0,
+      "prob": 0.6754308642392496,
+      "truth_ratio": 0.13357150114343402
+    },
+    {
+      "step": 24,
+      "split": "forget",
+      "rouge": 0.0,
+      "prob": 0.23396484375,
+      "truth_ratio": 0.6351920122984922
+    },
+    {
+      "step": 24,
+      "split": "retain",
+      "rouge": 0.0,
+      "prob": 0.2473828125,
+      "truth_ratio": 0.6926245112386523
+    },
+    {
+      "step": 24,
+      "split": "real_authors",
+      "rouge": 0.0,
+      "prob": 0.4547020080570835,
+      "truth_ratio": 0.448603330921638
+    },
+    {
+      "step": 24,
+      "split": "world_facts",
+      "rouge": 0.0,
+      "prob": 0.5725458470357352,
+      "truth_ratio": 0.4962509331229484
+    },
+    {
+      "step": 28,
+      "split": "forget",
+      "rouge": 0.0,
+      "prob": 0.20751953125,
+      "truth_ratio": 0.6438269111606205
+    },
+    {
+      "step": 28,
+      "split": "retain",
+      "rouge": 0.0,
+      "prob": 0.218515625,
+      "truth_ratio": 0.7011145303754922
+    },
+    {
+      "step": 28,
+      "split": "real_authors",
+      "rouge": 0.0,
+      "prob": 0.42882115190077125,
+      "truth_ratio": 0.5346978843560168
+    },
+    {
+      "step": 28,
+      "split": "world_facts",
+      "rouge": 0.0,
+      "prob": 0.5533078716981817,
+      "truth_ratio": 0.8507992364497783
+    },
+    {
+      "step": 32,
+      "split": "forget",
+      "rouge": 0.0,
+      "prob": 0.19251953125,
+      "truth_ratio": 0.6503476208921107
+    },
+    {
+      "step": 32,
+      "split": "retain",
+      "rouge": 0.0,
+      "prob": 0.20267578125,
+      "truth_ratio": 0.7048559934586115
+    },
+    {
+      "step": 32,
+      "split": "real_authors",
+      "rouge": 0.0,
+      "prob": 0.4138929252961128,
+      "truth_ratio": 0.5915562885128602
+    },
+    {
+      "step": 32,
+      "split": "world_facts",
+      "rouge": 0.0,
+      "prob": 0.5469131489915435,
+      "truth_ratio": 1.1563650489109605
+    },
+    {
+      "step": 36,
+      "split": "forget",
+      "rouge": 0.0,
+      "prob": 0.18296875,
+      "truth_ratio": 0.6497216709227723
+    },
+    {
+      "step": 36,
+      "split": "retain",
+      "rouge": 0.0,
+      "prob": 0.19302734375,
+      "truth_ratio": 0.7104500352056431
+    },
+    {
+      "step": 36,
+      "split": "real_authors",
+      "rouge": 0.0,
+      "prob": 0.40927414496672165,
+      "truth_ratio": 0.623510892427916
+    },
+    {
+      "step": 36,
+      "split": "world_facts",
+      "rouge": 0.0,
+      "prob": 0.5429782585791806,
+      "truth_ratio": 1.2530556907981987
+    },
+    {
+      "step": 40,
+      "split": "forget",
+      "rouge": 0.0,
+      "prob": 0.1785546875,
+      "truth_ratio": 0.6509128195011413
+    },
+    {
+      "step": 40,
+      "split": "retain",
+      "rouge": 0.0,
+      "prob": 0.18833984375,
+      "truth_ratio": 0.7095557899360067
+    },
+    {
+      "step": 40,
+      "split": "real_authors",
+      "rouge": 0.0,
+      "prob": 0.4040856554554282,
+      "truth_ratio": 0.6571342053285327
+    },
+    {
+      "step": 40,
+      "split": "world_facts",
+      "rouge": 0.0,
+      "prob": 0.5404035436897361,
+      "truth_ratio": 1.4059645529964655
+    },
+    {
+      "step": 44,
+      "split": "forget",
+      "rouge": 0.0,
+      "prob": 0.175673828125,
+      "truth_ratio": 0.6530167909395648
+    },
+    {
+      "step": 44,
+      "split": "retain",
+      "rouge": 0.0,
+      "prob": 0.18505859375,
+      "truth_ratio": 0.7107293239181445
+    },
+    {
+      "step": 44,
+      "split": "real_authors",
+      "rouge": 0.0,
+      "prob": 0.40287673630610965,
+      "truth_ratio": 0.6651863863541752
+    },
+    {
+      "step": 44,
+      "split": "world_facts",
+      "rouge": 0.0,
+      "prob": 0.5406232302726671,
+      "truth_ratio": 1.4365149205745453
+    },
+    {
+      "step": 48,
+      "split": "forget",
+      "rouge": 0.0,
+      "prob": 0.1748828125,
+      "truth_ratio": 0.65439070447051
+    },
+    {
+      "step": 48,
+      "split": "retain",
+      "rouge": 0.0,
+      "prob": 0.1840234375,
+      "truth_ratio": 0.7155367647024338
+    },
+    {
+      "step": 48,
+      "split": "real_authors",
+      "rouge": 0.0,
+      "prob": 0.4018590941798115,
+      "truth_ratio": 0.6882982120919786
+    },
+    {
+      "step": 48,
+      "split": "world_facts",
+      "rouge": 0.0,
+      "prob": 0.5387952406053163,
+      "truth_ratio": 1.513276062277298
+    },
+    {
+      "step": 52,
+      "split": "forget",
+      "rouge": 0.0,
+      "prob": 0.174150390625,
+      "truth_ratio": 0.6554246610110226
+    },
+    {
+      "step": 52,
+      "split": "retain",
+      "rouge": 0.0,
+      "prob": 0.183515625,
+      "truth_ratio": 0.7123568427681332
+    },
+    {
+      "step": 52,
+      "split": "real_authors",
+      "rouge": 0.0,
+      "prob": 0.40238662365812217,
+      "truth_ratio": 0.6733698689140408
+    },
+    {
+      "step": 52,
+      "split": "world_facts",
+      "rouge": 0.0,
+      "prob": 0.5380644083979595,
+      "truth_ratio": 1.5101830597807053
+    },
+    {
+      "step": 56,
+      "split": "forget",
+      "rouge": 0.0,
+      "prob": 0.173818359375,
+      "truth_ratio": 0.6552244903460692
+    },
+    {
+      "step": 56,
+      "split": "retain",
+      "rouge": 0.0,
+      "prob": 0.182890625,
+      "truth_ratio": 0.7124739839982687
+    },
+    {
+      "step": 56,
+      "split": "real_authors",
+      "rouge": 0.0,
+      "prob": 0.40032645005842754,
+      "truth_ratio": 0.6855276528533892
+    },
+    {
+      "step": 56,
+      "split": "world_facts",
+      "rouge": 0.0,
+      "prob": 0.5389976943149646,
+      "truth_ratio": 1.494033882515072
+    },
+    {
+      "step": 60,
+      "split": "forget",
+      "rouge": 0.0,
+      "prob": 0.173154296875,
+      "truth_ratio": 0.6567841307633756
+    },
+    {
+      "step": 60,
+      "split": "retain",
+      "rouge": 0.0,
+      "prob": 0.18298828125,
+      "truth_ratio": 0.7106953356219023
+    },
+    {
+      "step": 60,
+      "split": "real_authors",
+      "rouge": 0.0,
+      "prob": 0.40092038828345117,
+      "truth_ratio": 0.6808069625769572
+    },
+    {
+      "step": 60,
+      "split": "world_facts",
+      "rouge": 0.0,
+      "prob": 0.5391776245516225,
+      "truth_ratio": 1.5500864290817038
+    }
+  ]
+}
