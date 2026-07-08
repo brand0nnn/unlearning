@@ -10,7 +10,7 @@
 #       * the old trl that runs on 2.5.1 (0.14/0.15) hard-imports mergekit+vllm.
 #   - on torch>=2.6 the LATEST trl treats vllm/mergekit as OPTIONAL (guarded)
 #     imports, so `from trl import GRPOTrainer` loads with nothing extra and runs
-#     on standard HF generation. LoRA-GRPO needs no DeepSpeed -> this venv is lean.
+#     on standard HF generation. Includes DeepSpeed for FULL-PARAMETER GRPO (ZeRO-3).
 # The main venv (Full-FT / LoRA / self-distill / eval / spectral) is untouched.
 #
 # cu124 needs a CUDA 12.4+ driver — your H200 nodes have it. The GRPO sbatch
@@ -36,11 +36,12 @@ pip install --upgrade pip --quiet
 echo "=== [2/3] torch>=2.6 (cu124 wheel) ==="
 pip install "torch>=2.6" --index-url https://download.pytorch.org/whl/cu124
 
-echo "=== [3/3] GRPO deps (same HF stack as the main venv + latest trl; NO deepspeed) ==="
+echo "=== [3/3] GRPO deps (same HF stack as the main venv + latest trl + deepspeed) ==="
 # torch is installed FIRST (above), so these loose '>=' pins won't move it — same
 # trick as setup.sh. trl's vllm/mergekit stay optional and are NOT installed.
+# deepspeed is for FULL-PARAMETER GRPO (ZeRO-3); LoRA-GRPO wouldn't need it.
 pip install \
-  "transformers>=4.44" "datasets>=2.20" "accelerate>=0.33" "peft>=0.12" \
+  "transformers>=4.44" "datasets>=2.20" "accelerate>=0.33" "peft>=0.12" deepspeed \
   trl rouge_score pyyaml numpy scipy scikit-learn sentencepiece tiktoken
 
 echo ""

@@ -29,7 +29,7 @@ STRATEGY_CKPTS = [
     "tofu_unlearn_gradient_difference_forget10",         # Full-FT
     "tofu_unlearn_gradient_difference_forget10_lora",    # LoRA
     "tofu_unlearn_self_distill_forget10_self_distill",   # Self-Distillation
-    "tofu_unlearn_grpo_forget10_grpo_lora",              # GRPO (LoRA-GRPO checkpoint name)
+    "tofu_unlearn_grpo_forget10_grpo",                   # GRPO (full-parameter checkpoint name)
 ]
 
 
