@@ -60,12 +60,14 @@ training:
 
   grpo:
     num_generations: 4         # samples per prompt used to estimate advantage
-    kl_beta: 0.2               # KL leash to the reference. This is GRPO's ONLY retain
-                               # protection (no retain batch), so it must be STRONG:
-                               # at 0.04 the model reward-hacked into GLOBAL collapse
-                               # (ROUGE -> 0 on every split by ~20 steps). Raised 5x.
-                               # Tune UP (0.3-0.5) if it still over-forgets; DOWN
-                               # (~0.1) if it won't forget the forget set at all.
+    kl_beta: 0.1               # KL leash — GRPO's ONLY retain protection (no retain
+                               # batch). Empirical bisection on forget10:
+                               #   0.04 -> global COLLAPSE (ROUGE 0 on every split)
+                               #   0.2  -> retain preserved but UNDER-forgets
+                               #          (forget ROUGE plateaus ~0.48, prob/truth flat)
+                               #   0.1  -> midpoint: should forget more, still keep
+                               #          retain. Nudge UP if retain collapses, DOWN
+                               #          if forget still won't drop.
     learning_rate: 5.0e-6      # GRPO-only LR, gentler than the shared unlearn_lr
                                # (1e-5): RL updates are noisier, and too-high LR tips
                                # the policy into the collapse above.
