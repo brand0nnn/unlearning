@@ -60,7 +60,7 @@ training:
 
   grpo:
     num_generations: 4         # samples per prompt used to estimate advantage
-    kl_beta: 0.1               # KL leash — GRPO's ONLY retain protection (no retain
+    kl_beta: 0.07               # KL leash — GRPO's ONLY retain protection (no retain
                                # batch). Empirical bisection on forget10:
                                #   0.04 -> global COLLAPSE (ROUGE 0 on every split)
                                #   0.2  -> retain preserved but UNDER-forgets
