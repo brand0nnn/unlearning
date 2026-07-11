@@ -27,6 +27,7 @@ from src.data.load_tofu import load_all_eval_splits
 from src.evaluation.tofu_evaluate import _generate
 from src.evaluation.tofu_metrics import (
     probability_score, probability_score_mc, rouge_score_recall, truth_ratio_score,
+    truth_ratio_bounded,
 )
 from src.utils.logging_utils import get_logger
 
@@ -53,7 +54,7 @@ def evaluate_curve_point(model, tokenizer, splits, max_new_tokens) -> Dict[str, 
     out = {}
     for name, records in splits.items():
         mc = name in ("real_authors", "world_facts")
-        rouges, probs, trs = [], [], []
+        rouges, probs, trs, trs_raw = [], [], [], []
         for r in records:
             gen = _generate(model, tokenizer, r["question"], max_new_tokens)
             rouges.append(rouge_score_recall(gen, r["answer"]))
@@ -64,16 +65,20 @@ def evaluate_curve_point(model, tokenizer, splits, max_new_tokens) -> Dict[str, 
                                                   r["answer"], r["wrong_answers"]))
                 # no paraphrase for MC: use the correct answer as the stand-in
                 # (matches _eval_mc_split in tofu_evaluate).
-                trs.append(truth_ratio_score(model, tokenizer, r["question"],
-                                            r["answer"], r["wrong_answers"]))
+                tr = truth_ratio_score(model, tokenizer, r["question"],
+                                       r["answer"], r["wrong_answers"])
             else:
                 probs.append(probability_score(model, tokenizer, r["question"],
                                               r["answer"]))
-                trs.append(truth_ratio_score(model, tokenizer, r["question"],
-                                            r["paraphrased_answer"],
-                                            r["perturbed_answers"]))
+                tr = truth_ratio_score(model, tokenizer, r["question"],
+                                       r["paraphrased_answer"], r["perturbed_answers"])
+            # Store BOTH: the per-record-bounded min(R,1/R) (locuslab/tofu's
+            # 'Truth Ratio Forget', the default plotted value) AND the raw R, so a
+            # single re-run can be viewed either way without recomputing on GPU.
+            trs_raw.append(tr)
+            trs.append(truth_ratio_bounded(tr))
         out[name] = {"rouge": _mean(rouges), "prob": _mean(probs),
-                     "truth_ratio": _mean(trs)}
+                     "truth_ratio": _mean(trs), "truth_ratio_raw": _mean(trs_raw)}
     return out
 
 
@@ -144,10 +149,13 @@ def build_curve_callbacks(cfg: Dict, tokenizer, method: str, run_name: str):
     u = cfg["tofu"]
     if not u.get("track_curve"):
         return []
-    csplits = load_curve_splits(cfg, u.get("curve_subset", 40))
+    subset = u.get("curve_subset", 40)          # None/null -> full splits
+    csplits = load_curve_splits(cfg, subset)
     out_path = f"results/curves/unlearn_curve_{run_name}.json"
-    logger.info("Figure-8 curve tracking ON -> %s (every %d steps, subset %d)",
-                out_path, u.get("curve_eval_steps", 2), u.get("curve_subset", 40))
+    n_recs = sum(len(v) for v in csplits.values())
+    logger.info("Figure-8 curve tracking ON -> %s (every %d steps, subset=%s, %d records total)",
+                out_path, u.get("curve_eval_steps", 2),
+                "FULL" if subset is None else subset, n_recs)
     return [UnlearnCurveCallback(
         tokenizer, csplits, u.get("curve_eval_steps", 2),
         u.get("curve_max_new_tokens", 100), out_path, method,

@@ -72,6 +72,21 @@ def scale_truth_ratio_for_utility(r_truth: float) -> float:
     return max(0.0, 1.0 - r_truth)
 
 
+def truth_ratio_bounded(r_truth: float) -> float:
+    """min(R, 1/R): the TOFU-reported truth ratio, bounded to (0, 1].
+
+    The RAW R = geomean(perturbed)/para is unbounded — it explodes (to 1e8 in our
+    Full-FT run) once the model collapses to gibberish, because P(paraphrased) -> 0.
+    The official locuslab/tofu `aggregate_eval_stat.py` reports the forget-set truth
+    ratio as `np.minimum(curr_stat, 1/curr_stat)`, keeping it in (0, 1] so the
+    dynamics panels (paper Fig 8/17/18) stay readable. Symmetric, so it does not
+    depend on whether R is defined as P_perturb/P_para or its reciprocal
+    (min(R, 1/R) == min(1/R, R))."""
+    if r_truth <= 0:
+        return 0.0
+    return min(r_truth, 1.0 / r_truth)
+
+
 def model_utility(retain: dict, real_authors: dict, world_facts: dict) -> float:
     """Harmonic mean of the 9 sub-metrics.
 

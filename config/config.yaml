@@ -56,18 +56,23 @@ training:
 
   self_distillation:
     temperature: 2.0           # softens teacher logits
-    alpha: 0.5                 # weight on distillation loss vs. task loss
+    alpha: 1.0                 # weight on distillation loss vs. task loss.
+                               # Raised 0.5->1.0: at 0.5 retain collapsed to ROUGE
+                               # 0.33 (dip 0.01). Stronger teacher pull protects retain.
 
   grpo:
     num_generations: 4         # samples per prompt used to estimate advantage
-    kl_beta: 0.06               # KL leash — GRPO's ONLY retain protection (no retain
+    kl_beta: 0.10               # KL leash — GRPO's ONLY retain protection (no retain
                                # batch). Empirical bisection on forget10:
                                #   0.04 -> global COLLAPSE (ROUGE 0 on every split)
+                               #   0.06 -> retain collapsed to 0.22 AND forget stuck
+                               #          at 0.17 (loose leash, worst of both)
                                #   0.2  -> retain preserved but UNDER-forgets
                                #          (forget ROUGE plateaus ~0.48, prob/truth flat)
-                               #   0.1  -> midpoint: should forget more, still keep
-                               #          retain. Nudge UP if retain collapses, DOWN
-                               #          if forget still won't drop.
+                               #   0.1  -> midpoint (CURRENT): tighter leash to protect
+                               #          retain. Nudge UP if retain still collapses,
+                               #          DOWN if forget won't drop. GRPO can't separate
+                               #          forget vs retain authors -> expect a ceiling.
     learning_rate: 5.0e-6      # GRPO-only LR, gentler than the shared unlearn_lr
                                # (1e-5): RL updates are noisier, and too-high LR tips
                                # the policy into the collapse above.
@@ -89,8 +94,11 @@ tofu:
   # UNLEARN phase.
   unlearn_epochs: 5
   unlearn_lr: 1.0e-5
-  unlearn_lr_lora: 2.0e-4      # LoRA adapters need ~10-20x higher LR than full FT
-                               # (at 1e-5 the adapters barely move -> no forgetting)
+  unlearn_lr_lora: 1.0e-4      # LoRA adapters need ~10-20x higher LR than full FT
+                               # (at 1e-5 the adapters barely move -> no forgetting).
+                               # Lowered 2e-4->1e-4: at 2e-4 retain collapsed to ROUGE
+                               # 0.02. Go to 5e-5 if retain still tanks; back up if it
+                               # now under-forgets.
   # method is passed on the command line:
   #   gradient_ascent | gradient_difference | kl_minimization | idk
 
@@ -99,11 +107,13 @@ tofu:
   # the paper's forget05 + gradient_difference figure. Small subset keeps the
   # in-training eval cheap; raise curve_max_new_tokens for longer answers.
   track_curve: false
-  curve_eval_steps: 4          # eval every N optimizer steps (forget10 ~65 steps -> ~16 points)
-  curve_subset: 25             # records per split for the in-training eval
-  curve_max_new_tokens: 60     # generation length for the ROUGE part
-                               # (forget05 fig8 used 2/40/100 — heavier; these are
-                               #  lighter for the 3-strategy forget10 batch)
+  curve_eval_steps: 8          # eval every N optimizer steps (forget10 ~65 steps -> ~9 points).
+                               # Was 4; raised to 8 to offset the full-split eval cost below.
+  curve_subset: null           # null = FULL splits (400/400/100/117 = 1017 records) so the
+                               # per-record truth-ratio fold (min(R,1/R)) isn't hijacked by a
+                               # single blown-up record. Set an int (e.g. 25) for a cheap probe.
+  curve_max_new_tokens: 200    # match the paper's / main-eval generation length so the curve's
+                               # ROUGE isn't truncated (60 was clipping longer gold answers).
 
 # ============================================================================
 # Spectral trace detectability (recovery axis 3; Chen et al. ICLR 2026).
