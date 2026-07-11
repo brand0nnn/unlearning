@@ -45,6 +45,11 @@ def main():
     # 3. Final-layer spectral fingerprint, 4 strategies.
     run(["scripts/diagnostics/plot_spectral_strategies.py"])
 
+    # 3b. Forget-Quality vs Model-Utility plane (paper Fig 5/6), all strategies on
+    # one graph, if the eval has been run (results/forget_quality/).
+    if (ROOT / "results/forget_quality").is_dir():
+        run(["scripts/diagnostics/plot_forget_quality.py"])
+
     # 4. (kept) LoRA target-module ablation, if its data is present.
     if (ROOT / "results/relearn/lora_ablation").is_dir():
         run(["scripts/diagnostics/plot_relearn.py",

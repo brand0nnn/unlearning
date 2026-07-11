@@ -1,23 +1,22 @@
 """TOFU Step 2 — UNLEARN phase.
 
-Apply an unlearning algorithm to the learned model. The comparison has two axes:
-a training STRATEGY and, for the gradient strategies, a loss METHOD.
+Apply an unlearning algorithm to the learned model. The comparison axis is the
+training STRATEGY; Full-FT and LoRA both use the gradient_difference loss.
 
-    # Full-FT / LoRA (loss picked by --method):
+    # Full-FT / LoRA (gradient_difference loss):
     python scripts/pipeline/02_unlearn.py --checkpoint experiments/tofu_learn_full_full \
-        --strategy fullft --method gradient_difference
+        --strategy fullft
     python scripts/pipeline/02_unlearn.py --checkpoint experiments/tofu_learn_full_full \
-        --strategy lora   --method gradient_difference
+        --strategy lora
 
-    # Self-distillation / GRPO (their own loss; --method is only a run-name label):
+    # Self-distillation / GRPO (their own loss):
     python scripts/pipeline/02_unlearn.py --checkpoint experiments/tofu_learn_full_full \
         --strategy self_distill
     python scripts/pipeline/02_unlearn.py --checkpoint experiments/tofu_learn_full_full \
         --strategy grpo
 
 --strategy : fullft | lora | self_distill | grpo   (--lora is a back-compat alias)
---method   : gradient_ascent | gradient_difference | kl_minimization | idk
-             (only used by fullft/lora)
+--method   : gradient_difference (the only remaining loss; used for the run-name label)
 """
 import argparse
 import sys
@@ -39,7 +38,7 @@ logger = get_logger("tofu_unlearn")
 
 
 def _load_frozen(checkpoint, pad_id):
-    """Load a frozen bf16 reference model on GPU (KL oracle / distill teacher)."""
+    """Load a frozen bf16 reference model on GPU (the self-distillation teacher)."""
     m = AutoModelForCausalLM.from_pretrained(
         checkpoint, torch_dtype=torch.bfloat16).to("cuda").eval()
     m.config.pad_token_id = pad_id
@@ -69,9 +68,9 @@ def main():
                     choices=["fullft", "lora", "self_distill", "grpo"],
                     help="training strategy (the main comparison axis)")
     ap.add_argument("--method", default="gradient_difference",
-                    choices=["gradient_ascent", "gradient_difference",
-                             "kl_minimization", "idk"],
-                    help="forget loss (fullft/lora only; a label otherwise)")
+                    choices=["gradient_difference"],
+                    help="forget loss for fullft/lora (only gradient_difference "
+                         "remains); a run-name label for self_distill/grpo")
     ap.add_argument("--lora", action="store_true",
                     help="use LoRA. Bare --lora == --strategy lora (back-compat); "
                          "with --strategy grpo it means LoRA-GRPO.")
@@ -130,13 +129,8 @@ def main():
 
     if args.strategy in ("fullft", "lora"):
         use_lora = args.strategy == "lora"
-        # kl_minimization needs a frozen ORACLE (the learned model) as KL reference.
-        oracle_model = None
-        if args.method == "kl_minimization":
-            oracle_model = _load_frozen(args.checkpoint, tokenizer.pad_token_id)
         out = unlearn(model, tokenizer, forget, retain, cfg, args.method, run_name,
-                      checkpoint=args.checkpoint, oracle_model=oracle_model,
-                      use_lora=use_lora)
+                      checkpoint=args.checkpoint, use_lora=use_lora)
     elif args.strategy == "self_distill":
         # Teacher = a frozen copy of the learned model (the student's own self).
         teacher = _load_frozen(args.checkpoint, tokenizer.pad_token_id)

@@ -89,7 +89,9 @@ def forget_quality_vs_utility(results_by_method: Dict[str, Dict], out_dir: str,
 
     # --- your results (filled circles) --------------------------------------
     for name, r in results_by_method.items():
-        color = METHOD_COLORS.get(name, None)
+        # Prefer STRATEGY_COLORS (keyed by the 4 strategy labels) so this plane
+        # matches the relearn/spectral palette; fall back to method-name colours.
+        color = STRATEGY_COLORS.get(name) or METHOD_COLORS.get(name)
         if color is None:
             for key in METHOD_COLORS:
                 if key in name:

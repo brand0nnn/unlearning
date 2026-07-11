@@ -4,7 +4,7 @@
 #SBATCH --gres=gpu:a100-80:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=96G
-#SBATCH --time=06:00:00
+#SBATCH --time=12:00:00
 #SBATCH --output=/home/b/brandonk/unlearning/logs/unlearn_lora.out
 #SBATCH --error=/home/b/brandonk/unlearning/logs/unlearn_lora.err
 
@@ -25,9 +25,8 @@ echo "Node: $(hostname)"; nvidia-smi --query-gpu=name,memory.total --format=csv,
 
 LEARNED="$PROJECT_DIR/experiments/tofu_learn_full_full"
 
-for METHOD in gradient_difference; do
-    echo "=== LoRA unlearning: $METHOD ==="
-    python scripts/pipeline/02_unlearn.py --checkpoint "$LEARNED" --method "$METHOD" --lora
-done
+echo "=== LoRA unlearning: gradient_difference (+curve tracking) ==="
+python scripts/pipeline/02_unlearn.py --checkpoint "$LEARNED" \
+    --method gradient_difference --lora --track-curve
 
 echo "=== LoRA unlearn complete ==="
