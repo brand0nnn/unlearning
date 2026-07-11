@@ -43,7 +43,7 @@ DEFAULT_COLOR = "#6c757d"
 
 # For the STRATEGY comparison (axis 2), colour by training strategy — not by
 # unlearning method — so Full-FT and LoRA (both gradient_difference) get distinct
-# colours. Matches the relearn_recovery_curve palette.
+# colours. Matches the relearn_forget_curve palette.
 STRATEGY_COLORS = {
     "Full-FT (grad-diff)": "#1f77b4",   # blue
     "LoRA (grad-diff)":    "#ff7f0e",   # orange

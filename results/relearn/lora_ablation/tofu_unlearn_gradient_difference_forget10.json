@@ -1,0 +1,6 @@
+{
+  "tofu_unlearn_gradient_difference_forget10": 0.0069767441860465115,
+  "relearn_tofu_unlearn_gradient_difference_forget10_ep1": 0.2494642286843825,
+  "relearn_tofu_unlearn_gradient_difference_forget10_ep2": 0.3318083354813801,
+  "relearn_tofu_unlearn_gradient_difference_forget10_ep4": 0.3333196944198139
+}

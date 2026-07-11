@@ -27,7 +27,7 @@ source ~/.env_hf
 echo "Node: $(hostname)"; nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 MASTER_PORT=$((20000 + SLURM_JOB_ID % 10000))
 LAUNCH=0
-OUT="relearn_lora_ablation_rouge.json"
+GROUP="lora_ablation"                        # -> results/relearn/lora_ablation/ (per-variant)
 
 # The 4 ablation checkpoints + Full-FT as the "true deletion" reference.
 CKPTS=(
@@ -40,17 +40,17 @@ CKPTS=(
 
 for UNLEARNED in "${CKPTS[@]}"; do
     echo "=== relearn probe: $(basename $UNLEARNED) ==="
-    python scripts/recovery/relearn_measure.py --checkpoints "$UNLEARNED" --out "$OUT"
+    python scripts/recovery/relearn_measure.py --checkpoints "$UNLEARNED" --group "$GROUP"
     for EP in 1 2 4; do
         LAUNCH=$((LAUNCH + 1))
         deepspeed --num_gpus=1 --master_port=$((MASTER_PORT + LAUNCH)) scripts/recovery/relearn.py \
             --checkpoint "$UNLEARNED" --epochs $EP
         RELEARNED="$PROJECT_DIR/experiments/relearn_$(basename $UNLEARNED)_ep${EP}"
-        python scripts/recovery/relearn_measure.py --checkpoints "$RELEARNED" --out "$OUT"
+        python scripts/recovery/relearn_measure.py --checkpoints "$RELEARNED" --group "$GROUP"
         rm -rf "$RELEARNED"
     done
 done
 
-echo "=== done -> results/relearn/$OUT ==="
-echo "Plot: python scripts/diagnostics/plot_relearn.py --data results/relearn/$OUT --label-by lora_target \\"
+echo "=== done -> results/relearn/$GROUP/ ==="
+echo "Plot: python scripts/diagnostics/plot_relearn.py --data results/relearn/$GROUP --label-by lora_target \\"
 echo "   --out lora_ablation_recovery.png --title 'LoRA target-module ablation: recovery after unlearning'"

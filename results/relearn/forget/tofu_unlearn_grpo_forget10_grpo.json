@@ -1,0 +1,6 @@
+{
+  "tofu_unlearn_grpo_forget10_grpo": 0.1537961497820094,
+  "relearn_tofu_unlearn_grpo_forget10_grpo_ep1": 0.7542186137632824,
+  "relearn_tofu_unlearn_grpo_forget10_grpo_ep2": 0.9457014873971832,
+  "relearn_tofu_unlearn_grpo_forget10_grpo_ep4": 1.0
+}

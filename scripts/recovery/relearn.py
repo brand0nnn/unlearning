@@ -81,8 +81,8 @@ def main():
     # the epoch count (fewer than the 5-epoch LEARN).
     cfg = {**cfg, "tofu": {**cfg["tofu"], "finetune_epochs": args.epochs}}
     name = Path(args.checkpoint).name
-    # forget-relearn keeps the original run-name (no suffix) for back-compat; benign
-    # relearn tags the source so its checkpoints/keys stay distinct.
+    # relearn-forget keeps the original run-name (no suffix) for back-compat;
+    # relearn on a retain/world_facts source tags it so keys stay distinct.
     suffix = "" if args.relearn_data == "forget" else f"_via_{args.relearn_data}"
     run_name = f"relearn_{name}{suffix}_ep{args.epochs}"
     out = finetune_tofu(model, tok, data, cfg, run_name)

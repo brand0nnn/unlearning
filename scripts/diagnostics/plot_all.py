@@ -7,8 +7,8 @@ without recomputing anything.
 
 Deliverables (all -> results/figures/):
   1. Unlearning dynamics  — ROUGE / Truth-Ratio / Probability vs step, 4 strategies
-  2a. Relearning (forget) — forget-ROUGE recovery when re-fine-tuning on the FORGET set
-  2b. Relearning (benign) — forget-ROUGE recovery when re-fine-tuning on the RETAIN set
+  2a. Relearn forget      — forget-ROUGE recovery when re-fine-tuning on the FORGET set
+  2b. Relearn retain      — forget-ROUGE recovery when re-fine-tuning on the RETAIN set
   3. Spectral fingerprint — final-layer signature + detectability, 4 strategies
   4. (kept) LoRA target-module ablation recovery
 """
@@ -29,26 +29,26 @@ def main():
     # 1. Unlearning dynamics curves (all curves in results/curves/).
     run(["scripts/diagnostics/plot_unlearn_curve.py"])
 
-    # 2a. Relearning on the FORGET set (direct recovery).
+    # 2a. Relearn forget — re-fine-tune on the FORGET set (direct recovery).
     run(["scripts/diagnostics/plot_relearn.py",
-         "--data", "results/relearn/relearn_forget_rouge.json",
-         "--out", "relearn_recovery_curve.png"])
+         "--data", "results/relearn/forget",
+         "--out", "relearn_forget_curve.png"])
 
-    # 2b. Relearning on the RETAIN set (benign recovery — the suppression signal).
+    # 2b. Relearn retain — re-fine-tune on the RETAIN set (the suppression signal).
     run(["scripts/diagnostics/plot_relearn.py",
-         "--data", "results/relearn/relearn_benign_retain_rouge.json",
-         "--out", "benign_relearn_retain_curve.png",
-         "--xlabel", "Relearning epochs on retain (benign)",
-         "--title", "Benign relearning on retain: does unrelated fine-tuning "
+         "--data", "results/relearn/retain",
+         "--out", "relearn_retain_curve.png",
+         "--xlabel", "Relearning epochs on retain",
+         "--title", "Relearning on retain: does unrelated fine-tuning "
                     "jog forgotten knowledge?"])
 
     # 3. Final-layer spectral fingerprint, 4 strategies.
     run(["scripts/diagnostics/plot_spectral_strategies.py"])
 
     # 4. (kept) LoRA target-module ablation, if its data is present.
-    if (ROOT / "results/relearn/relearn_lora_ablation_rouge.json").exists():
+    if (ROOT / "results/relearn/lora_ablation").is_dir():
         run(["scripts/diagnostics/plot_relearn.py",
-             "--data", "results/relearn/relearn_lora_ablation_rouge.json",
+             "--data", "results/relearn/lora_ablation",
              "--label-by", "lora_target",
              "--out", "lora_ablation_recovery.png",
              "--title", "LoRA target-module ablation: recovery after unlearning"])

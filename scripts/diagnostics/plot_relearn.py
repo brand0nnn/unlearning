@@ -1,12 +1,12 @@
 """Plot the relearning-robustness recovery curves (recovery axis 1).
 
-Reads results/relearn_forget_rouge.json and plots forget-set ROUGE vs relearn
-epochs, one line per unlearning STRATEGY (Full-FT GD / LoRA GD / Self-Distillation
-/ GRPO — whichever have data). The baseline (the unlearned model, before any
-relearning) is epoch 0. A curve that climbs back fast => the knowledge was only
-suppressed, not erased.
+Globs a per-strategy relearn dir (results/relearn/forget or .../retain) and plots
+forget-set ROUGE vs relearn epochs, one line per unlearning STRATEGY (Full-FT GD /
+LoRA GD / Self-Distillation / GRPO — whichever have data). The baseline (the
+unlearned model, before any relearning) is epoch 0. A curve that climbs back fast
+=> the knowledge was only suppressed, not erased.
 
-    python scripts/diagnostics/plot_relearn.py      # -> results/relearn_recovery_curve.png
+    python scripts/diagnostics/plot_relearn.py      # -> results/figures/relearn_forget_curve.png
 """
 import json
 import re
@@ -27,9 +27,11 @@ logger = get_logger("plot_relearn")
 def main():
     import argparse
     ap = argparse.ArgumentParser()
-    ap.add_argument("--data", default="results/relearn/relearn_forget_rouge.json",
-                    help="the relearn JSON to plot (forget or a benign one)")
-    ap.add_argument("--out", default="relearn_recovery_curve.png",
+    ap.add_argument("--data", default="results/relearn/forget",
+                    help="a per-strategy relearn DIR to glob+merge (e.g. "
+                         "results/relearn/forget or .../retain), OR a single "
+                         "JSON file (legacy/one-off)")
+    ap.add_argument("--out", default="relearn_forget_curve.png",
                     help="output PNG name under results/figures/")
     ap.add_argument("--title", default="Relearning robustness: knowledge recovery "
                     "after unlearning\n(higher/faster = suppressed, not erased)")
@@ -39,8 +41,13 @@ def main():
                     help="group curves by training strategy, or by LoRA target "
                          "module (for the target-module ablation)")
     args = ap.parse_args()
-    path = Path(args.data)
-    data = json.load(open(path))
+    src = Path(args.data)
+    if src.is_dir():                       # per-strategy files -> merge them in memory
+        data = {}
+        for f in sorted(src.glob("*.json")):
+            data.update(json.load(open(f)))
+    else:                                  # single JSON (legacy / one-off)
+        data = json.load(open(src))
 
     # Group each key into (strategy -> {epoch: rouge}). "relearn_..._ep{N}" is a
     # relearned checkpoint; anything else is the unlearned baseline (epoch 0).

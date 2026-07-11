@@ -1,0 +1,71 @@
+#!/bin/bash
+#SBATCH --job-name=relearn_retain
+#SBATCH --partition=gpu-long
+#SBATCH --gres=gpu:h200-141:1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=128G
+#SBATCH --time=12:00:00
+#SBATCH --output=/home/b/brandonk/unlearning/logs/relearn_retain.out
+#SBATCH --error=/home/b/brandonk/unlearning/logs/relearn_retain.err
+
+# RELEARN RETAIN (Hu et al. §4): fine-tune each unlearned model on data that
+# contains NONE of the forgotten authors' facts — the RETAIN set by default — then
+# measure whether forget-set ROUGE returns anyway. If it does => the knowledge was
+# never deleted, only hidden (unambiguous "obfuscation, not deletion"). Compares that
+# susceptibility ACROSS unlearning strategies. Writes to a SEPARATE per-strategy dir
+# (results/relearn/retain/) so the direct relearn-forget results are untouched.
+#
+#   sbatch slurm/recovery/relearn_retain.sbatch            # default source = retain
+#   sbatch slurm/recovery/relearn_retain.sbatch world_facts
+PROJECT_DIR="/home/b/brandonk/unlearning"
+cd "$PROJECT_DIR"
+mkdir -p logs
+source "$PROJECT_DIR/.venv/bin/activate"
+SOURCE="${1:-retain}"                        # retain | world_facts | real_authors
+GROUP="$SOURCE"                              # -> results/relearn/<source>/ (per-strategy)
+# Per-source scratch dir so the retain and world_facts jobs can run CONCURRENTLY
+# without clobbering each other's TMPDIR. HF caches stay shared (read-only) and
+# DeepSpeed's op cache is already built, so concurrent jobs are safe.
+export TMPDIR="$PROJECT_DIR/.tmp/relearn_${SOURCE}"
+mkdir -p "$TMPDIR"
+export HF_HOME="$PROJECT_DIR/.cache/huggingface"
+export HF_DATASETS_CACHE="$PROJECT_DIR/.cache/datasets"
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+source ~/.env_hf
+
+echo "Node: $(hostname)"; nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
+
+# Unique DeepSpeed rendezvous port per launch (below the ephemeral range) so the
+# two concurrent retain/world_facts jobs — and their 9 sequential relearn launches
+# each — never clash on the default port 29500 (EADDRINUSE).
+MASTER_PORT=$((20000 + SLURM_JOB_ID % 10000))
+LAUNCH=0
+
+# The four training strategies. Relearn-retain RE-TRAINS each checkpoint (3 epochs ×
+# expensive), so by default we probe ONLY the new GRPO point; the other three already
+# have per-strategy files in results/relearn/retain/. Uncomment to recompute the set.
+CKPTS=(
+    "$PROJECT_DIR/experiments/tofu_unlearn_grpo_forget10_grpo"                    # NEW (full-param GRPO)
+    # "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10"        # done (Full-FT)
+    # "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_lora"   # done (LoRA)
+    # "$PROJECT_DIR/experiments/tofu_unlearn_self_distill_forget10_self_distill"  # done (Self-Distill)
+)
+
+for UNLEARNED in "${CKPTS[@]}"; do
+    echo "=== RELEARN retain-source ($SOURCE) probe: $(basename $UNLEARNED) ==="
+    # epoch-0 baseline: forget-ROUGE of the unlearned model, before any relearning
+    python scripts/recovery/relearn_measure.py --checkpoints "$UNLEARNED" --group "$GROUP"
+    for EP in 1 2 4; do
+        LAUNCH=$((LAUNCH + 1))
+        deepspeed --num_gpus=1 --master_port=$((MASTER_PORT + LAUNCH)) scripts/recovery/relearn.py \
+            --checkpoint "$UNLEARNED" --epochs $EP --relearn-data "$SOURCE"
+        RELEARNED="$PROJECT_DIR/experiments/relearn_$(basename $UNLEARNED)_via_${SOURCE}_ep${EP}"
+        python scripts/recovery/relearn_measure.py --checkpoints "$RELEARNED" --group "$GROUP"
+        rm -rf "$RELEARNED"        # keep only the forget-ROUGE number, not the ckpt
+    done
+done
+
+echo "=== Relearn-retain probe complete -> results/relearn/$GROUP/ (per-strategy JSON) ==="
+echo "Plot with: python scripts/diagnostics/plot_relearn.py --data results/relearn/$GROUP \\"
+echo "   --out relearn_${SOURCE}_curve.png --xlabel 'Relearning epochs on ${SOURCE}' \\"
+echo "   --title 'Relearning on ${SOURCE}: does unrelated fine-tuning jog forgotten knowledge?'"

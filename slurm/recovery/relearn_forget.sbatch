@@ -1,20 +1,20 @@
 #!/bin/bash
-#SBATCH --job-name=recover_relearn
+#SBATCH --job-name=relearn_forget
 #SBATCH --partition=gpu-long
 #SBATCH --gres=gpu:h200-141:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=128G
 #SBATCH --time=08:00:00
-#SBATCH --output=/home/b/brandonk/unlearning/logs/relearn.out
-#SBATCH --error=/home/b/brandonk/unlearning/logs/relearn.err
+#SBATCH --output=/home/b/brandonk/unlearning/logs/relearn_forget.out
+#SBATCH --error=/home/b/brandonk/unlearning/logs/relearn_forget.err
 
-# Relearning-robustness probe: how fast does the forgotten knowledge return when we
-# re-fine-tune the unlearned model on the forget set? Fast recovery => suppression,
-# not deletion. Traces forget-set ROUGE vs relearn epochs.
+# RELEARN FORGET: how fast does the forgotten knowledge return when we re-fine-tune
+# the unlearned model on the FORGET set? Fast recovery => suppression, not deletion.
+# Traces forget-set ROUGE vs relearn epochs.
 #
 # Point UNLEARNED at the checkpoint whose robustness you want to test — run it once
-# per strategy (Full-FT / LoRA / self-distill / GRPO). The forget-ROUGE JSON MERGES,
-# so each run just adds that strategy's point to results/relearn/relearn_forget_rouge.json.
+# per strategy (Full-FT / LoRA / self-distill / GRPO). Each strategy writes its own
+# per-strategy file under results/relearn/forget/, so runs never clobber each other.
 PROJECT_DIR="/home/b/brandonk/unlearning"
 cd "$PROJECT_DIR"
 mkdir -p logs
@@ -29,20 +29,20 @@ echo "Node: $(hostname)"; nvidia-smi --query-gpu=name,memory.total --format=csv,
 
 # Pass the unlearned checkpoint as the first sbatch arg; defaults to the NEW GRPO one
 # (Full-FT / LoRA / self-distill are already in the merged JSON).
-#   sbatch slurm/recovery/recover_relearn.sbatch experiments/tofu_unlearn_gradient_difference_forget10_lora
+#   sbatch slurm/recovery/relearn_forget.sbatch experiments/tofu_unlearn_gradient_difference_forget10_lora
 UNLEARNED="${1:-$PROJECT_DIR/experiments/tofu_unlearn_grpo_forget10_grpo}"
 
 echo "=== Forget-set ROUGE BEFORE relearning (baseline) ==="
-python scripts/recovery/relearn_measure.py --checkpoints "$UNLEARNED"
+python scripts/recovery/relearn_measure.py --checkpoints "$UNLEARNED" --group forget
 
 for EP in 1 2 4; do
     echo "=== Relearn $EP epoch(s) on the forget set ==="
     deepspeed --num_gpus=1 scripts/recovery/relearn.py --checkpoint "$UNLEARNED" --epochs $EP
     RELEARNED="$PROJECT_DIR/experiments/relearn_$(basename $UNLEARNED)_ep${EP}"
-    python scripts/recovery/relearn_measure.py --checkpoints "$RELEARNED"
+    python scripts/recovery/relearn_measure.py --checkpoints "$RELEARNED" --group forget
     # We only need the forget-ROUGE number, not the 13.5GB checkpoint -> delete it
     # so the probe doesn't pile up disk (each epoch's checkpoint is independent).
     rm -rf "$RELEARNED"
 done
 
-echo "=== Relearn probe complete. Recovery curve in results/relearn/relearn_forget_rouge.json ==="
+echo "=== Relearn-forget probe complete -> results/relearn/forget/ (per-strategy JSON) ==="
