@@ -99,19 +99,23 @@ tofu:
                                # Lowered 2e-4->1e-4: at 2e-4 retain collapsed to ROUGE
                                # 0.02. Go to 5e-5 if retain still tanks; back up if it
                                # now under-forgets.
-  # method is passed on the command line:
-  #   gradient_ascent | gradient_difference | kl_minimization | idk
+  # loss method is passed on the command line: only gradient_difference remains
+  # (gradient_ascent / kl_minimization / idk were removed).
 
   # TOFU Figure 8 — track metrics DURING unlearning (dynamics vs step). Off by
   # default; enable per-run with `--track-curve` (or set true here). Reproduces
   # the paper's forget05 + gradient_difference figure. Small subset keeps the
   # in-training eval cheap; raise curve_max_new_tokens for longer answers.
   track_curve: false
-  curve_eval_steps: 8          # eval every N optimizer steps (forget10 ~65 steps -> ~9 points).
-                               # Was 4; raised to 8 to offset the full-split eval cost below.
-  curve_subset: null           # null = FULL splits (400/400/100/117 = 1017 records) so the
-                               # per-record truth-ratio fold (min(R,1/R)) isn't hijacked by a
-                               # single blown-up record. Set an int (e.g. 25) for a cheap probe.
+  curve_eval_steps: 8          # eval every N optimizer steps (forget10 ~65 steps -> ~9 points)
+  curve_subset: 100            # records/split for the in-training curve eval. Was `null` (full
+                               # 1017 records), but full-split ROUGE generation (one question at
+                               # a time, every 8 steps) blew past the 12h SLURM wall (~78 min PER
+                               # eval point). 100/split -> ~400 records total (forget/retain
+                               # 400->100), ~2.5x fewer -> ~5h/job, safe under 12h. The per-record
+                               # min(R,1/R) fold already stops outliers hijacking the mean, so 100
+                               # is visually identical to full. Drop to 50 for more margin.
+                               # (The FINAL full-split eval lives in 03_evaluate.)
   curve_max_new_tokens: 200    # match the paper's / main-eval generation length so the curve's
                                # ROUGE isn't truncated (60 was clipping longer gold answers).
 
