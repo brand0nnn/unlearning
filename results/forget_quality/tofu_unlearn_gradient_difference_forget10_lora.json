@@ -1,0 +1,8 @@
+{
+  "name": "tofu_unlearn_gradient_difference_forget10_lora",
+  "strategy": "LoRA (grad-diff)",
+  "model_utility": 0.5586213273022752,
+  "forget_quality": 4.2615726229002236e-23,
+  "forget_quality_log10": -22.370430106199187,
+  "ks_statistic": 0.3575
+}

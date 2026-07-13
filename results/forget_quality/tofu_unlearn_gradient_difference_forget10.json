@@ -1,0 +1,8 @@
+{
+  "name": "tofu_unlearn_gradient_difference_forget10",
+  "strategy": "Full-FT (grad-diff)",
+  "model_utility": 0.6728063335514168,
+  "forget_quality": 6.531474262381856e-167,
+  "forget_quality_log10": -166.18498878017166,
+  "ks_statistic": 0.89
+}

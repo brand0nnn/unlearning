@@ -29,10 +29,12 @@ echo "Node: $(hostname)"; nvidia-smi --query-gpu=name,memory.total --format=csv,
 LEARNED="$PROJECT_DIR/experiments/tofu_learn_full_full"
 
 #   attn   = q/k/v/o  (attention, the current LoRA default)
+#   qv     = q/v      (the LoRA paper's best-per-budget config)
 #   updown = up/down  (MLP up+down — the "MLP up/down" condition)
 #   mlp    = gate/up/down  (full MLP)
+#   down   = down_proj only (ROME/MEMIT fact-writing matrix — the sharpest locus test)
 #   all    = attention + MLP
-for TGT in attn updown mlp all; do
+for TGT in attn qv updown mlp down all; do
     echo "=== LoRA gradient_difference forget10 -- target=$TGT ==="
     python scripts/pipeline/02_unlearn.py \
         --checkpoint "$LEARNED" --strategy lora --method gradient_difference \

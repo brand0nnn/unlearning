@@ -55,10 +55,18 @@ training:
     target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
 
   self_distillation:
-    temperature: 2.0           # softens teacher logits
-    alpha: 1.0                 # weight on distillation loss vs. task loss.
-                               # Raised 0.5->1.0: at 0.5 retain collapsed to ROUGE
-                               # 0.33 (dip 0.01). Stronger teacher pull protects retain.
+    temperature: 2.0           # softens teacher logits (Hinton distillation)
+    alpha: 1.0                 # weight on the RETAIN term (distil toward the RAW teacher).
+                               # Raised 0.5->1.0 historically: at 0.5 retain collapsed.
+    forget_alpha: 1.0          # weight on the FORGET term. Replaces the old unbounded
+                               # gradient-ascent forget loss (which drove forget prob->0 and
+                               # exploded the truth ratio -> Forget-Quality ~ -1e2). Now we
+                               # distil toward the teacher with the memorized answer SUPPRESSED
+                               # -> a valid softmax target -> bounded forgetting, utility kept.
+    forget_margin: 20.0        # logit penalty on the memorized next-token over the forget
+                               # answer span (exp(-20) ~ 2e-9 -> near-total suppression, mass
+                               # redistributed to the teacher's other fluent tokens). Drop to
+                               # 5-10 for softer/partial forgetting.
 
   grpo:
     num_generations: 4         # samples per prompt used to estimate advantage
@@ -93,12 +101,14 @@ tofu:
 
   # UNLEARN phase.
   unlearn_epochs: 5
-  unlearn_lr: 1.0e-5
-  unlearn_lr_lora: 1.0e-4      # LoRA adapters need ~10-20x higher LR than full FT
-                               # (at 1e-5 the adapters barely move -> no forgetting).
-                               # Lowered 2e-4->1e-4: at 2e-4 retain collapsed to ROUGE
-                               # 0.02. Go to 5e-5 if retain still tanks; back up if it
-                               # now under-forgets.
+  unlearn_lr: 5.0e-6           # Full-FT + self-distill (shared, full-parameter). Lowered
+                               # 1e-5->5e-6: at 1e-5 Full-FT over-suppressed (forget prob->0.000,
+                               # Forget-Quality -166). Gentler steps keep the forget distribution
+                               # near the never-trained reference instead of collapsing past it.
+  unlearn_lr_lora: 5.0e-5      # LoRA adapters need ~5-10x higher LR than full FT (at 1e-5 they
+                               # barely move -> no forgetting). Lowered 1e-4->5e-5: at 1e-4 retain
+                               # dropped to ROUGE 0.49 / utility 0.56 -> trade a little forgetting
+                               # for less collateral. Back up toward 1e-4 if it now under-forgets.
   # loss method is passed on the command line: only gradient_difference remains
   # (gradient_ascent / kl_minimization / idk were removed).
 

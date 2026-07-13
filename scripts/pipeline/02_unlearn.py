@@ -54,8 +54,10 @@ def _load_frozen(checkpoint, pad_id):
 LORA_TARGETS = {
     "attn":   ["q_proj", "k_proj", "v_proj", "o_proj"],   # attention (current default)
     "qkv":    ["q_proj", "k_proj", "v_proj"],             # QKV only
+    "qv":     ["q_proj", "v_proj"],                       # LoRA paper's best-per-budget config
     "mlp":    ["gate_proj", "up_proj", "down_proj"],      # full MLP (SwiGLU)
     "updown": ["up_proj", "down_proj"],                   # MLP up/down only
+    "down":   ["down_proj"],                              # ROME/MEMIT fact-writing matrix only
     "all":    ["q_proj", "k_proj", "v_proj", "o_proj",
                "gate_proj", "up_proj", "down_proj"],      # attention + MLP
 }

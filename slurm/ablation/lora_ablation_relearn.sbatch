@@ -32,8 +32,10 @@ GROUP="lora_ablation"                        # -> results/relearn/lora_ablation/
 # The 4 ablation checkpoints + Full-FT as the "true deletion" reference.
 CKPTS=(
     "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_lora_attn"
+    "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_lora_qv"
     "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_lora_updown"
     "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_lora_mlp"
+    "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_lora_down"
     "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_lora_all"
     "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10"          # Full-FT ref
 )

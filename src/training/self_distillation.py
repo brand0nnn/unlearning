@@ -1,20 +1,25 @@
 """Self-distillation UNLEARNING — the third training strategy (after Full-FT and
 LoRA), plugged into the same TOFU forget/retain machinery.
 
-The strategy in one line: erase the forget set with gradient ascent, but instead
-of a plain NLL retain term, PRESERVE the retain set by distilling from a frozen
-teacher — the learned model, i.e. the student's own earlier self.
+The strategy in one line: distil the student toward a frozen teacher (the learned
+model, i.e. the student's own earlier self) on BOTH sets — toward the raw teacher
+on retain (preserve), and toward the teacher-with-the-memorized-answer-SUPPRESSED
+on forget (erase). Both targets are valid softmax distributions, so forgetting is
+BOUNDED — unlike gradient ascent, which pushes NLL -> +inf, collapses forget prob
+to 0, and explodes the truth ratio (the old design's Forget-Quality ~ -1e2).
 
-    L = -NLL(forget)  +  alpha * T^2 * KL( student(retain)/T || teacher(retain)/T )
+    L = forget_alpha * T^2 * KL( student(forget)/T || suppress(teacher(forget))/T )
+      +      alpha   * T^2 * KL( student(retain)/T ||         teacher(retain)/T  )
+
+    where suppress(.) knocks the gold next-token's logit down by `forget_margin`
+    over the answer span, then renormalises — the teacher's fluent "dark
+    knowledge" is kept, only its preference for the memorized answer is removed.
 
 Contrast with the existing methods (all in unlearn.py):
-  - gradient_difference uses a hard NLL(retain) term to preserve;
+  - gradient_difference uses -NLL(forget) + NLL(retain) — an UNBOUNDED forget term;
   - kl_minimization uses KL(oracle || current) — the REVERSE KL, un-softened;
-  - self-distillation uses the classic Hinton distillation term: FORWARD KL with
-    a temperature that softens the teacher's whole distribution, so the student
-    is pulled to match the teacher's full "dark knowledge" on retain, not just
-    its top-1 answer. That softer, distribution-level anchor is the hypothesis:
-    it should hold utility better while still allowing the forget set to move.
+  - self-distillation replaces the ascent with a bounded, TARGETED distillation:
+    the forget target still speaks fluently, it just no longer prefers the answer.
 
 Everything downstream is unchanged: this emits a standard merged checkpoint +
 tokenizer via save_unlearned (CLAUDE.md §7), so relearn / evaluate / spectral all
@@ -38,7 +43,7 @@ class SelfDistillForgetTrainer(Trainer):
     retain. The teacher is a frozen copy of the learned model."""
 
     def __init__(self, *args, teacher_model, temperature: float, alpha: float,
-                 **kwargs):
+                 forget_alpha: float, forget_margin: float, **kwargs):
         super().__init__(*args, **kwargs)
         self.teacher = teacher_model
         self.teacher.eval()
@@ -46,32 +51,49 @@ class SelfDistillForgetTrainer(Trainer):
             p.requires_grad_(False)
         self.T = temperature
         self.alpha = alpha
+        self.forget_alpha = forget_alpha
+        self.forget_margin = forget_margin
+
+    def _distill(self, model, batch, suppress_gold: bool):
+        """Distil the student toward the frozen teacher on `batch`. When
+        suppress_gold=True the teacher's logit for the MEMORIZED next-token is
+        knocked down by `forget_margin` over the answer span, so the softened
+        target is still a valid distribution that simply no longer prefers the
+        gold answer — bounded forgetting. Returns (loss, student_outputs)."""
+        out = model(input_ids=batch["input_ids"],
+                    attention_mask=batch["attention_mask"])
+        with torch.no_grad():
+            t_logits = self.teacher(input_ids=batch["input_ids"],
+                                    attention_mask=batch["attention_mask"]).logits
+        # Position p predicts the token at p+1; supervise only where that next
+        # token is an answer token (labels != -100). Shift the answer mask left by
+        # one to get the PREDICTING positions, and drop the wrapped last column.
+        sup = batch["labels"] != -100
+        predict = torch.roll(sup, shifts=-1, dims=1)
+        predict[:, -1] = False
+        if suppress_gold:
+            # gold next-token at each predicting position = input_ids shifted left.
+            gold_next = torch.roll(batch["input_ids"], shifts=-1, dims=1).unsqueeze(-1)
+            penalty = torch.where(
+                predict.unsqueeze(-1),
+                torch.full_like(gold_next, -self.forget_margin, dtype=t_logits.dtype),
+                torch.zeros_like(gold_next, dtype=t_logits.dtype))
+            t_logits = t_logits.scatter_add(-1, gold_next, penalty)
+        T = self.T
+        s_lp = F.log_softmax(out.logits / T, dim=-1)
+        t_p = F.softmax(t_logits / T, dim=-1)
+        # per-token KL, then average over the supervised predicting positions.
+        kl_tok = F.kl_div(s_lp, t_p, reduction="none").sum(-1)      # (B, seq)
+        n = predict.sum().clamp(min=1)
+        return (kl_tok * predict).sum() / n * (T * T), out
 
     def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
         forget, retain = inputs["forget"], inputs["retain"]
-
-        # 1. Forget: push the model AWAY from the memorized answers (ascent).
-        f_out = model(**forget)
-        forget_loss = -f_out.loss
-
-        # 2. Retain: distill the frozen teacher's softened distribution.
-        r_out = model(**retain)
-        with torch.no_grad():
-            t_logits = self.teacher(
-                input_ids=retain["input_ids"],
-                attention_mask=retain["attention_mask"]).logits
-        # Only distill over real (non-pad, answer/prompt) positions; -100 in the
-        # labels marks question/pad tokens we don't supervise.
-        mask = (retain["labels"] != -100)
-        T = self.T
-        s_lp = F.log_softmax(r_out.logits / T, dim=-1)
-        t_p = F.softmax(t_logits / T, dim=-1)
-        # per-token KL, then average over supervised tokens (batchmean-style).
-        kl_tok = F.kl_div(s_lp, t_p, reduction="none").sum(-1)      # (B, seq)
-        n = mask.sum().clamp(min=1)
-        distill_loss = (kl_tok * mask).sum() / n * (T * T)
-
-        loss = forget_loss + self.alpha * distill_loss
+        # Forget: distil toward the gold-SUPPRESSED teacher (bounded erase).
+        forget_loss, f_out = self._distill(model, forget, suppress_gold=True)
+        # Retain: distil toward the RAW teacher (preserve).
+        retain_loss, _ = self._distill(model, retain, suppress_gold=False)
+        loss = self.forget_alpha * forget_loss + self.alpha * retain_loss
         return (loss, f_out) if return_outputs else loss
 
 
@@ -119,10 +141,12 @@ def unlearn_self_distillation(model, tokenizer, forget: List[Dict],
         data_collator=make_collator(pad_id),
         teacher_model=teacher_model,
         temperature=sd["temperature"], alpha=sd["alpha"],
+        forget_alpha=sd["forget_alpha"], forget_margin=sd["forget_margin"],
         callbacks=callbacks or None,
     )
-    logger.info("UNLEARN self-distillation (T=%.1f alpha=%.2f) -> %s",
-                sd["temperature"], sd["alpha"], args.output_dir)
+    logger.info("UNLEARN self-distillation (T=%.1f alpha=%.2f forget_alpha=%.2f "
+                "forget_margin=%.1f) -> %s", sd["temperature"], sd["alpha"],
+                sd["forget_alpha"], sd["forget_margin"], args.output_dir)
     trainer.train()
     save_unlearned(trainer, args.output_dir, tokenizer, use_lora=False)
     logger.info("UNLEARN self-distillation done -> %s", args.output_dir)

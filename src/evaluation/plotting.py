@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Dict
 
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
 import numpy as np
 
 from src.utils.logging_utils import get_logger
@@ -23,13 +22,6 @@ logger = get_logger(__name__)
 # Used as ghost markers so you can compare your run against the paper directly.
 # Keys must match the method names produced by your pipeline.
 # ---------------------------------------------------------------------------
-PAPER_REFS = {
-    "gradient_ascent":     {"model_utility": 0.2,   "forget_quality_log10": -0.05},
-    "gradient_difference": {"model_utility": 0.444,  "forget_quality_log10": -0.3},
-    "kl_minimization":     {"model_utility": 0.444,  "forget_quality_log10": -0.25},
-    "idk":                 {"model_utility": 0.283,  "forget_quality_log10": -0.15},
-}
-
 # One consistent colour per method — used in both figures so they cross-reference.
 METHOD_COLORS = {
     "gradient_ascent":     "#e63946",   # red   — aggressive, destroys utility
@@ -77,16 +69,6 @@ def forget_quality_vs_utility(results_by_method: Dict[str, Dict], out_dir: str,
     ax.axhspan(-0.5, 0.5, xmin=0.6, alpha=0.07, color="green",
                label="target region (forget well + preserve utility)")
 
-    # --- paper ghost markers (open circles) ----------------------------------
-    for name, ref in PAPER_REFS.items():
-        ax.scatter(ref["model_utility"], ref["forget_quality_log10"],
-                   s=180, facecolors="none",
-                   edgecolors=METHOD_COLORS.get(name, DEFAULT_COLOR),
-                   linewidths=1.5, zorder=2)
-    # single legend entry for all ghosts
-    ghost_patch = mpatches.Patch(facecolor="none", edgecolor="grey",
-                                 linewidth=1.5, label="paper reference (open)")
-
     # --- your results (filled circles) --------------------------------------
     for name, r in results_by_method.items():
         # Prefer STRATEGY_COLORS (keyed by the 4 strategy labels) so this plane
@@ -104,15 +86,6 @@ def forget_quality_vs_utility(results_by_method: Dict[str, Dict], out_dir: str,
                     (r["model_utility"], r["forget_quality_log10"]),
                     textcoords="offset points", xytext=(7, 4), fontsize=8.5,
                     color=color)
-
-        # draw arrow from ghost to your point so drift is immediately obvious
-        if name in PAPER_REFS:
-            ref = PAPER_REFS[name]
-            ax.annotate("",
-                xy=(r["model_utility"], r["forget_quality_log10"]),
-                xytext=(ref["model_utility"], ref["forget_quality_log10"]),
-                arrowprops=dict(arrowstyle="->", color=color,
-                                lw=1.0, alpha=0.5))
 
     # --- retain model gold star ---------------------------------------------
     if retain_result:
@@ -132,23 +105,26 @@ def forget_quality_vs_utility(results_by_method: Dict[str, Dict], out_dir: str,
     ax.set_xlabel("Model Utility  (↑ less collateral damage)", fontsize=11)
     ax.set_ylabel("Forget Quality  (log10 p-value, ↑ better forgetting)", fontsize=11)
     ax.set_title("TOFU: Forget Quality vs Model Utility\n"
-                 "filled = your run   open = paper reference   ★ = retain model",
+                 "one point per fine-tuning strategy   ★ = retain model (gold)",
                  fontsize=10)
 
+    # Legend: only the 4 strategy points + the retain star. Drop the target-region
+    # patch, the p<0.1 threshold line, and the paper-reference ghost so it stays
+    # compact (those are all still drawn/annotated on the axes, just not listed).
     handles, labels = ax.get_legend_handles_labels()
-    # add the ghost patch manually since ax.add_patch doesn't auto-register it
-    handles.append(mpatches.Patch(facecolor="none", edgecolor="grey",
-                                  linewidth=1.5))
-    labels.append("paper reference (open circle)")
-    ax.legend(handles, labels, fontsize=8, loc="lower left",
-              framealpha=0.85, ncol=1)
+    keep = set(results_by_method.keys()) | {"retain model (gold reference)"}
+    pairs = [(h, l) for h, l in zip(handles, labels) if l in keep]
+    if pairs:
+        ax.legend([h for h, _ in pairs], [l for _, l in pairs],
+                  fontsize=6.5, loc="lower left", framealpha=0.85, ncol=1,
+                  handletextpad=0.4, labelspacing=0.3, borderpad=0.35,
+                  handlelength=1.2)
 
     # Auto-fit the y-axis to EVERY plotted point. Forget-quality log10 p spans a
-    # huge range (e.g. gradient_ascent ~ -7 but gradient_difference ~ -166), so a
-    # hard-coded floor silently clips the worst method off the chart. Include the
-    # paper ghosts and the retain star too so nothing ever falls outside the axes.
+    # huge range (Full-FT ~ -166 vs the others ~ -20), so a hard-coded floor would
+    # silently clip the worst method off the chart. Include the retain star too so
+    # nothing ever falls outside the axes.
     yvals = [r["forget_quality_log10"] for r in results_by_method.values()]
-    yvals += [ref["forget_quality_log10"] for ref in PAPER_REFS.values()]
     if retain_result and retain_result.get("forget_quality_log10") is not None:
         yvals.append(retain_result["forget_quality_log10"])
     ylo, yhi = min(yvals), max(yvals)
