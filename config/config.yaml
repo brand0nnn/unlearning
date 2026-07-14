@@ -112,6 +112,13 @@ tofu:
                                # under-forgets. For more utility raise CAPACITY (rank/target) instead.
   # loss method is passed on the command line: only gradient_difference remains
   # (gradient_ascent / kl_minimization / idk were removed).
+  forget_floor: 4.0            # cap on the forget ascent (tau, in nats of NLL). Once
+                               # NLL(forget) hits tau the term goes constant -> gradient 0
+                               # -> forget prob stops at ~exp(-tau) instead of collapsing to 0
+                               # (which explodes the truth ratio -> Full-FT's Forget-Quality
+                               # -166). exp(-4)=0.018 prob floor. Raise for gentler bounding,
+                               # lower to forget harder. null = unbounded (old behaviour).
+                               # Shared by Full-FT + LoRA; no-op for LoRA (never reaches tau).
 
   # TOFU Figure 8 — track metrics DURING unlearning (dynamics vs step). Off by
   # default; enable per-run with `--track-curve` (or set true here). Reproduces

@@ -1,8 +1,8 @@
 {
   "name": "tofu_unlearn_grpo_forget10_grpo",
   "strategy": "GRPO",
-  "model_utility": 0.6718547969080603,
-  "forget_quality": 6.916893189690245e-21,
-  "forget_quality_log10": -20.16008893062265,
-  "ks_statistic": 0.34
+  "model_utility": 0.6727636254384735,
+  "forget_quality": 1.3990395281788573e-20,
+  "forget_quality_log10": -19.854170014866686,
+  "ks_statistic": 0.3375
 }

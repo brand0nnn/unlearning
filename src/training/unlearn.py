@@ -74,13 +74,27 @@ def save_unlearned(trainer, output_dir: str, tokenizer, use_lora: bool):
 
 
 class ForgetTrainer(Trainer):
-    """gradient_difference: L = -NLL(forget) + NLL(retain), computed in one step
-    from a paired forget/retain batch."""
+    """gradient_difference: L = -min(NLL(forget), forget_floor) + NLL(retain),
+    computed in one step from a paired forget/retain batch.
+
+    forget_floor (tau) caps the forget ascent: once NLL(forget) reaches tau, that
+    term becomes constant so its gradient vanishes and forget prob stops dropping
+    at ~exp(-tau) instead of collapsing to 0 (which explodes the truth ratio ->
+    Forget-Quality ~ -1e2). None = unbounded ascent (original behaviour). Lives on
+    the shared loss, so Full-FT and LoRA both inherit it; it only bites when a
+    method can actually drive prob -> 0 (Full-FT), and is a no-op for LoRA."""
+
+    def __init__(self, *args, forget_floor=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.forget_floor = forget_floor
 
     def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
         forget, retain = inputs["forget"], inputs["retain"]
         f_out = model(**forget)
-        loss = -f_out.loss + model(**retain).loss
+        forget_nll = f_out.loss
+        if self.forget_floor is not None:
+            forget_nll = forget_nll.clamp(max=self.forget_floor)
+        loss = -forget_nll + model(**retain).loss
         return (loss, f_out) if return_outputs else loss
 
 
@@ -148,6 +162,7 @@ def unlearn(model, tokenizer, forget: List[Dict], retain: List[Dict],
         model=model, args=args, train_dataset=ds,
         data_collator=make_collator(pad_id),
         callbacks=callbacks or None,
+        forget_floor=u.get("forget_floor"),
     )
     logger.info("UNLEARN (%s, lora=%s) -> %s", method, use_lora, args.output_dir)
     trainer.train()

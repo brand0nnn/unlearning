@@ -43,11 +43,13 @@ LOG10_FLOOR = -50.0   # p can underflow to 0.0 (log10 -> -inf); floor it for JSO
 
 def _eval_one(ckpt, tok_name, splits, max_new, raw_dir):
     """Run evaluate_tofu on one checkpoint; cache the raw result (with the forget
-    truth-ratio distribution) and return it. Cache hit -> skip the GPU work."""
+    truth-ratio distribution) and return it. The cache is reused ONLY if it is
+    newer than the checkpoint — so a rebuilt checkpoint auto-invalidates it and you
+    never have to rm raw/ by hand; an unchanged checkpoint still skips the GPU work."""
     name = Path(ckpt).name
     cache = raw_dir / f"{name}.json"
-    if cache.exists():
-        logger.info("raw cache hit, skipping GPU eval -> %s", cache.name)
+    if cache.exists() and cache.stat().st_mtime >= Path(ckpt).stat().st_mtime:
+        logger.info("raw cache up-to-date, skipping GPU eval -> %s", cache.name)
         return name, json.load(open(cache))
     # §7: load the tokenizer from the BASE model name, NOT the checkpoint, so a
     # checkpoint that saved weights-only doesn't yield an all-zeros eval.

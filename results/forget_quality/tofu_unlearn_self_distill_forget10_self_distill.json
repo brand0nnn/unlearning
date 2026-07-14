@@ -1,8 +1,8 @@
 {
   "name": "tofu_unlearn_self_distill_forget10_self_distill",
   "strategy": "Self-Distillation",
-  "model_utility": 0.3502131474915133,
-  "forget_quality": 1.3150137716657251e-11,
-  "forget_quality_log10": -10.881069698940678,
-  "ks_statistic": 0.25250000000000006
+  "model_utility": 0.7393390707783646,
+  "forget_quality": 4.2615726229002236e-23,
+  "forget_quality_log10": -22.370430106199187,
+  "ks_statistic": 0.3575
 }

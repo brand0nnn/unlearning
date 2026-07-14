@@ -68,6 +68,8 @@ def main():
         if "lora_mlp" in k:    return "LoRA-MLP (gate/up/down)"
         if "lora_updown" in k: return "LoRA-MLP (up/down)"
         if "lora_qkv" in k:    return "LoRA-QKV"
+        if "lora_qv" in k:     return "LoRA-qv (q/v, paper)"
+        if "lora_down" in k:   return "LoRA-down (MLP down)"
         if "lora" in k:        return "LoRA-attn (q/k/v/o)"   # _lora or _lora_attn
         return "Full-FT (reference)"
 

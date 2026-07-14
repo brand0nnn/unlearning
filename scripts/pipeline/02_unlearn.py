@@ -85,6 +85,10 @@ def main():
                     help="LoRA target-module ablation: attn|qkv|mlp|updown|all "
                          "(or a comma-separated custom list). Overrides config + "
                          "tags the run name (LoRA strategy only).")
+    ap.add_argument("--lora-r", type=int, default=None,
+                    help="LoRA rank ablation: override rank r (alpha auto-scaled to "
+                         "2r to keep the alpha/r ratio fixed) + tag the run _r{N} "
+                         "(LoRA strategy only).")
     # The `deepspeed` launcher passes --local_rank; absorb it (HF reads env vars).
     ap.add_argument("--local_rank", type=int, default=-1)
     args = ap.parse_args()
@@ -108,6 +112,13 @@ def main():
         cfg["training"]["lora"] = {**cfg["training"]["lora"], "target_modules": mods}
         lora_tag = f"_{args.lora_target if args.lora_target in LORA_TARGETS else 'custom'}"
         logger.info("LoRA target modules -> %s (tag %s)", mods, lora_tag)
+    # LoRA rank ablation: override r and scale alpha=2r so the alpha/r ratio (hence
+    # the per-step update magnitude) is held fixed -> isolates CAPACITY, not scaling.
+    if args.lora_r and args.strategy == "lora":
+        cfg["training"]["lora"] = {**cfg["training"]["lora"],
+                                   "r": args.lora_r, "alpha": 2 * args.lora_r}
+        lora_tag += f"_r{args.lora_r}"
+        logger.info("LoRA rank -> %d (alpha=%d, tag %s)", args.lora_r, 2 * args.lora_r, lora_tag)
     forget_level = cfg["tofu"]["forget_level"]
     retain_level = {"forget01": "retain99", "forget05": "retain95",
                     "forget10": "retain90"}[forget_level]

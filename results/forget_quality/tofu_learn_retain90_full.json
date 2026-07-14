@@ -1,7 +1,7 @@
 {
   "name": "tofu_learn_retain90_full",
   "strategy": "retain (gold reference)",
-  "model_utility": 0.7226626099383812,
+  "model_utility": 0.723434284669538,
   "forget_quality": 1.0,
   "forget_quality_log10": 0.0,
   "is_reference": true
