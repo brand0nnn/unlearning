@@ -11,6 +11,14 @@ papers.md
 # SLURM job logs (regenerable artifacts; scp'd locally only for plotting)
 logs/
 
+# Model checkpoints — large, generated on the cluster, never committed (a stray
+# `git add -A` on the cluster would otherwise try to stage ~260 GB).
+experiments/
+
+# LoRA-locality experiment outputs — generated on the cluster, synced via rsync
+# (like results/), so cluster and laptop never fight over the same JSON.
+lora_locality/out/
+
 # OS / editor
 .DS_Store
 .idea/
