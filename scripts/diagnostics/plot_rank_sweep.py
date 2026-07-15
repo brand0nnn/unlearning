@@ -40,29 +40,38 @@ def main():
     # Darker = higher rank, so the capacity gradient reads at a glance.
     cmap = plt.get_cmap("viridis")
     rmax = max(r for r, _ in ranks)
-    fig, (axf, axr) = plt.subplots(1, 2, figsize=(12, 4.5), sharey=True)
-    for r, f in ranks:
-        d = json.load(open(f))
-        color = cmap(0.15 + 0.7 * (r / rmax))
-        for ax, split in [(axf, "forget"), (axr, "retain")]:
-            pts = sorted((h["step"], h["rouge"]) for h in d["history"] if h["split"] == split)
-            xs = [p[0] for p in pts]
-            ys = [p[1] for p in pts]
-            ax.plot(xs, ys, marker="o", ms=4, lw=2, color=color,
-                    label=f"rank {r} (α={2 * r})")
+    # Rows = metric (ROUGE / Probability / Truth Ratio), cols = split (forget / retain).
+    metrics = [("rouge", "ROUGE-L"), ("prob", "Probability"), ("truth_ratio", "Truth Ratio")]
+    splits = [("forget", "FORGET — lower = more forgetting"),
+              ("retain", "RETAIN — higher = less collateral")]
+    curves = [(r, json.load(open(f))) for r, f in ranks]
 
-    axf.set_title("FORGET set — lower = more forgetting", fontsize=11)
-    axr.set_title("RETAIN set — higher = less collateral", fontsize=11)
-    for ax in (axf, axr):
+    fig, axes = plt.subplots(len(metrics), len(splits), figsize=(11, 11), sharex=True)
+    for row, (key, mlabel) in enumerate(metrics):
+        for col, (split, slabel) in enumerate(splits):
+            ax = axes[row][col]
+            for r, d in curves:
+                pts = sorted((h["step"], h[key]) for h in d["history"] if h["split"] == split)
+                xs = [p[0] for p in pts]
+                # Truth Ratio: bound to (0,1] as locuslab/tofu plots it (min(R,1/R));
+                # idempotent for the already-bounded stored value.
+                ys = [(min(p[1], 1.0 / p[1]) if key == "truth_ratio" and p[1] else p[1])
+                      for p in pts]
+                ax.plot(xs, ys, marker="o", ms=3.5, lw=1.8,
+                        color=cmap(0.15 + 0.7 * (r / rmax)), label=f"rank {r} (α={2 * r})")
+            ax.set_ylim(-0.02, 1.02)
+            ax.grid(True, alpha=0.25, ls="--")
+            ax.set_axisbelow(True)
+            if row == 0:
+                ax.set_title(slabel, fontsize=10)
+            if col == 0:
+                ax.set_ylabel(mlabel, fontsize=11)
+    for ax in axes[-1]:
         ax.set_xlabel("Unlearning steps")
-        ax.set_ylim(-0.02, 1.02)
-        ax.grid(True, alpha=0.25, ls="--")
-        ax.set_axisbelow(True)
-        ax.legend(fontsize=9, title="LoRA rank")
-    axf.set_ylabel("ROUGE-L recall")
-    fig.suptitle("LoRA rank sweep (forget10, gradient_difference) — "
-                 "capacity vs forgetting / collateral", fontsize=12)
-    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    axes[0][0].legend(fontsize=8, title="LoRA rank")
+    fig.suptitle("LoRA rank sweep (forget10, gradient_difference) — capacity vs "
+                 "forgetting / collateral (ROUGE · Probability · Truth Ratio)", fontsize=12)
+    fig.tight_layout(rect=(0, 0, 1, 0.96))
     out = Path("results/figures/lora_rank_forgetting.png")
     fig.savefig(out, dpi=110)
     logger.info("Rank sweep (%s) -> %s", ", ".join(str(r) for r, _ in ranks), out)
