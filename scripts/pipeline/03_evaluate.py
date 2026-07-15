@@ -48,7 +48,14 @@ def _eval_one(ckpt, tok_name, splits, max_new, raw_dir):
     never have to rm raw/ by hand; an unchanged checkpoint still skips the GPU work."""
     name = Path(ckpt).name
     cache = raw_dir / f"{name}.json"
-    if cache.exists() and cache.stat().st_mtime >= Path(ckpt).stat().st_mtime:
+    # Compare against the newest FILE inside the checkpoint, NOT the directory
+    # mtime: save_pretrained overwrites weights in place (same filenames), which
+    # updates the files but NOT the dir mtime on Linux -> a dir-mtime check would
+    # wrongly treat a rebuilt checkpoint as unchanged and serve a stale eval.
+    ckpt_files = [f for f in Path(ckpt).rglob("*") if f.is_file()]
+    ckpt_mtime = max((f.stat().st_mtime for f in ckpt_files),
+                     default=Path(ckpt).stat().st_mtime)
+    if cache.exists() and cache.stat().st_mtime >= ckpt_mtime:
         logger.info("raw cache up-to-date, skipping GPU eval -> %s", cache.name)
         return name, json.load(open(cache))
     # §7: load the tokenizer from the BASE model name, NOT the checkpoint, so a
