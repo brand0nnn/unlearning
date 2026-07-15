@@ -28,7 +28,7 @@ echo "Node: $(hostname)"; nvidia-smi --query-gpu=name,memory.total --format=csv,
 python scripts/pipeline/03_evaluate.py \
     --reference "$PROJECT_DIR/experiments/tofu_learn_retain90_full" \
     --checkpoints \
-        "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10" \
+        "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_fullft" \
         "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_lora" \
         "$PROJECT_DIR/experiments/tofu_unlearn_self_distill_forget10_self_distill" \
         "$PROJECT_DIR/experiments/tofu_unlearn_grpo_forget10_grpo"

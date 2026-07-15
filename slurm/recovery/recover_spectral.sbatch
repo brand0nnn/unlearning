@@ -33,7 +33,7 @@ ORIGINAL="$PROJECT_DIR/experiments/tofu_learn_full_full"
 python scripts/recovery/spectral.py \
     --original "$ORIGINAL" \
     --checkpoints \
-        experiments/tofu_unlearn_gradient_difference_forget10 \
+        experiments/tofu_unlearn_gradient_difference_forget10_fullft \
         experiments/tofu_unlearn_gradient_difference_forget10_lora \
         experiments/tofu_unlearn_self_distill_forget10_self_distill \
         experiments/tofu_unlearn_grpo_forget10_grpo

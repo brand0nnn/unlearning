@@ -37,7 +37,7 @@ CKPTS=(
     "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_lora_mlp"
     "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_lora_down"
     "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_lora_all"
-    "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10"          # Full-FT ref
+    "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_fullft"   # Full-FT ref
 )
 
 for UNLEARNED in "${CKPTS[@]}"; do
