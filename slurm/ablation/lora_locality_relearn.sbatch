@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=loc_relearn
-#SBATCH --partition=gpu-long
-#SBATCH --gres=gpu:h200-141:1
+#SBATCH --partition=gpu
+#SBATCH --gres=gpu:a100-80:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=128G
 #SBATCH --time=12:00:00
@@ -15,7 +15,10 @@
 # identical across locations — only the unlearning LOCATION differed.
 # Metrics -> lora_locality/out/<scheme>/recovery/ (NOT the main results/ folder).
 #
-#   Usage:  sbatch slurm/ablation/lora_locality_relearn.sbatch <scheme>
+#   Usage:  sbatch slurm/ablation/lora_locality_relearn.sbatch <scheme> [locs]
+#     <locs> = optional space-separated subset (default: all 7). This stage is HEAVY
+#              (full-FT relearn at ep 1/2/4 per location); on a100-80 all 7 may not
+#              fit 12h, so split it, e.g.  sbatch ... fixedbudget "attn mlp down".
 #   Requires the matching lora_locality_unlearn.sbatch <scheme> to have finished.
 PROJECT_DIR="/home/b/brandonk/unlearning"
 cd "$PROJECT_DIR"
@@ -29,12 +32,13 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 source ~/.env_hf
 
 SCHEME="${1:-fixedbudget}"
-echo "Node: $(hostname)  scheme=$SCHEME"
+LOCS="${2:-attn qkv qv mlp updown down all}"
+echo "Node: $(hostname)  scheme=$SCHEME  locations=$LOCS"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 MASTER_PORT=$((20000 + SLURM_JOB_ID % 10000))
 LAUNCH=0
 
-for LOC in attn qkv qv mlp updown down all; do
+for LOC in $LOCS; do
     CKPT="$PROJECT_DIR/experiments/loc_${SCHEME}_${LOC}"
     if [ ! -d "$CKPT" ]; then
         echo "SKIP $LOC — no matched checkpoint at $CKPT"; continue

@@ -1,10 +1,10 @@
 #!/bin/bash
 #SBATCH --job-name=loc_unlearn
 #SBATCH --partition=gpu
-#SBATCH --gres=gpu:a100-80:1
+#SBATCH --gres=gpu:a100-40:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=96G
-#SBATCH --time=10:00:00
+#SBATCH --time=07:00:00
 #SBATCH --output=/home/b/brandonk/unlearning/logs/loc_unlearn.out
 #SBATCH --error=/home/b/brandonk/unlearning/logs/loc_unlearn.err
 
@@ -18,6 +18,9 @@
 #     <scheme> = samerank | fixedbudget            (default fixedbudget)
 #     <target> = forget ROUGE to stop at; use 0 to CALIBRATE (train full, read
 #                each location's floor from the metrics record)  (default 0.4)
+#     <locs>   = optional space-separated subset of locations (default: all 7).
+#                Split into a few small jobs for faster backfill under low fairshare,
+#                e.g.  sbatch ... fixedbudget 0.4 "attn mlp down"
 #   Run twice: once per scheme, to disentangle location from capacity.
 PROJECT_DIR="/home/b/brandonk/unlearning"
 cd "$PROJECT_DIR"
@@ -32,12 +35,13 @@ source ~/.env_hf
 
 SCHEME="${1:-fixedbudget}"
 TARGET="${2:-0.4}"
-echo "Node: $(hostname)  scheme=$SCHEME  target=$TARGET"
+LOCS="${3:-attn qkv qv mlp updown down all}"
+echo "Node: $(hostname)  scheme=$SCHEME  target=$TARGET  locations=$LOCS"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 
 LEARNED="$PROJECT_DIR/experiments/tofu_learn_full_full"
 
-for LOC in attn qkv qv mlp updown down all; do
+for LOC in $LOCS; do
     echo "=== LOCALITY unlearn [$SCHEME] location=$LOC (target $TARGET) ==="
     python lora_locality/unlearn.py \
         --learned "$LEARNED" --scheme "$SCHEME" --location "$LOC" --target "$TARGET"
