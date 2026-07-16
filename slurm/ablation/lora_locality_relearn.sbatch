@@ -5,8 +5,8 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=128G
 #SBATCH --time=12:00:00
-#SBATCH --output=/home/b/brandonk/unlearning/logs/loc_relearn.out
-#SBATCH --error=/home/b/brandonk/unlearning/logs/loc_relearn.err
+#SBATCH --output=/home/b/brandonk/unlearning/logs/loc_relearn_%j.out
+#SBATCH --error=/home/b/brandonk/unlearning/logs/loc_relearn_%j.err
 
 # LoRA-LOCALITY ablation, RELEARN stage. For each matched-unlearned location:
 # measure the epoch-0 (unlearned) forget metrics, then run the SAME Full-FT

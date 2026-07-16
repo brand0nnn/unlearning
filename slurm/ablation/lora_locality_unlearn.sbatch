@@ -5,8 +5,8 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=96G
 #SBATCH --time=07:00:00
-#SBATCH --output=/home/b/brandonk/unlearning/logs/loc_unlearn.out
-#SBATCH --error=/home/b/brandonk/unlearning/logs/loc_unlearn.err
+#SBATCH --output=/home/b/brandonk/unlearning/logs/loc_unlearn_%j.out
+#SBATCH --error=/home/b/brandonk/unlearning/logs/loc_unlearn_%j.err
 
 # LoRA-LOCALITY ablation, UNLEARN stage. Unlearn each module-group location with
 # LoRA and EARLY-STOP at a matched forget level, so every location starts the
