@@ -52,7 +52,45 @@ class StopAtForgetTarget(TrainerCallback):
         self.every, self.max_new, self.retain_floor = max(1, every), max_new, retain_floor
         self.last = None
 
-    def _eval(self, model, step):
+    def _mean_prob(self, model, records):
+        from src.evaluation.tofu_metrics import probability_score
+        ps = [probability_score(model, self.tok, r["question"], r["answer"]) for r in records]
+        return sum(ps) / len(ps) if ps else 0.0
+
+    def _step_eval(self, model):
+        """CHEAP per-step check. metric='prob' -> a forward pass only (no generation),
+        so --every 1 is affordable; metric='rouge' -> the full (slower) eval. Wrapped
+        in no_grad so the per-step eval never builds/holds a graph (memory-safe)."""
+        was_training = model.training
+        model.eval()
+        try:
+            with torch.no_grad():
+                if self.metric == "prob":
+                    return {"forget": {"prob": self._mean_prob(model, self.splits["forget"])},
+                            "retain": {"prob": self._mean_prob(model, self.splits["retain"])}}
+                return evaluate_curve_point(model, self.tok, self.splits, self.max_new)
+        finally:
+            if was_training:
+                model.train()
+
+    def on_step_end(self, args, state, control, model=None, **kwargs):
+        if model is None or state.global_step % self.every:
+            return control
+        pt = self._step_eval(model)
+        f = pt["forget"][self.metric]
+        retain = pt.get("retain", {}).get(self.metric, 1.0)   # guard in the SAME metric
+        logger.info("step %d  forget %s=%.3f  retain %s=%.3f  (target %.3f)",
+                    state.global_step, self.metric, f, self.metric, retain, self.target)
+        if f <= self.target or retain < self.retain_floor:
+            reason = "reached target" if f <= self.target else "retain floor hit"
+            logger.info("EARLY STOP (%s) at step %d", reason, state.global_step)
+            control.should_training_stop = True
+        return control
+
+    def on_train_end(self, args, state, control, model=None, **kwargs):
+        # One FULL three-metric eval at the stopping point, for the record.
+        if model is None:
+            return
         was_training = model.training
         model.eval()
         try:
@@ -60,27 +98,7 @@ class StopAtForgetTarget(TrainerCallback):
         finally:
             if was_training:
                 model.train()
-        self.last = {"step": int(step), **pt}
-        return pt
-
-    def on_step_end(self, args, state, control, model=None, **kwargs):
-        if model is None or state.global_step % self.every:
-            return control
-        pt = self._eval(model, state.global_step)
-        f = pt["forget"][self.metric]
-        retain_ok = pt.get("retain", {}).get("rouge", 1.0) >= self.retain_floor
-        logger.info("step %d  forget %s=%.3f  retain rouge=%.3f  (target %.3f)",
-                    state.global_step, self.metric, f,
-                    pt.get("retain", {}).get("rouge", -1), self.target)
-        if f <= self.target or not retain_ok:
-            reason = "reached target" if f <= self.target else "retain floor hit"
-            logger.info("EARLY STOP (%s) at step %d", reason, state.global_step)
-            control.should_training_stop = True
-        return control
-
-    def on_train_end(self, args, state, control, model=None, **kwargs):
-        if self.last is None and model is not None:      # never hit the eval cadence
-            self._eval(model, state.global_step)
+        self.last = {"step": int(state.global_step), **pt}
 
 
 def main():
@@ -90,12 +108,15 @@ def main():
     ap.add_argument("--location", required=True, choices=list(LOCATIONS))
     ap.add_argument("--target", type=float, required=True,
                     help="stop when forget <metric> <= target (use 0 to calibrate = train full)")
-    ap.add_argument("--metric", default="rouge", choices=["rouge", "prob"],
-                    help="which forget metric the target is on (prob = deeper signal)")
+    ap.add_argument("--metric", default="prob", choices=["rouge", "prob"],
+                    help="forget metric the target is on. prob (default) = the deeper "
+                         "signal AND a forward-pass-only stop, so --every 1 is cheap; "
+                         "rouge needs generation (keep --every larger).")
     ap.add_argument("--retain-floor", type=float, default=0.6,
-                    help="abort if retain ROUGE drops below this (protect the model)")
+                    help="abort if retain <metric> drops below this (protect the model)")
     ap.add_argument("--eval-subset", type=int, default=60, help="records/split for the stop-eval")
-    ap.add_argument("--every", type=int, default=4, help="eval every N optimiser steps")
+    ap.add_argument("--every", type=int, default=1,
+                    help="eval every N optimiser steps (1 = most exact; cheap with prob)")
     args = ap.parse_args()
 
     cfg = load_config()

@@ -15,13 +15,45 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
+import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+from src.evaluation.plotting import _final_layer_direction, _signature_panel
 from src.utils.logging_utils import get_logger
 
 logger = get_logger("locality_plot_spectral")
+
+
+def _signature_grid(data, scheme, out):
+    """Overlaid original-vs-unlearned projection densities (the spectral SIGNATURE),
+    one panel per location — the distribution view, not just the distance."""
+    ncol = 2
+    nrow = (len(data) + ncol - 1) // ncol
+    fig, axes = plt.subplots(nrow, ncol, figsize=(11, 2.4 * nrow))
+    axes = np.atleast_1d(axes).ravel()
+    cmap = plt.get_cmap("viridis")
+    for i, (ax, d) in enumerate(zip(axes, data)):
+        lay, direction = _final_layer_direction(d)
+        L = d["per_layer"][lay]
+        po = np.array(L.get("proj_orig", []))
+        pu = np.array(L.get("proj_unlearned", []))
+        if po.ndim != 2 or po.shape[0] == 0:
+            ax.set_visible(False)
+            continue
+        label = f"{d['location']} (r{d['rank']}, {d['params'] // 10**6}M)"
+        color = cmap(0.1 + 0.8 * i / max(len(data) - 1, 1))
+        _signature_panel(ax, d["location"], L, po, pu, lay, direction,
+                         legend=(ax is axes[0]), color=color, title_label=label)
+    for ax in axes[len(data):]:
+        ax.set_visible(False)
+    fig.suptitle(f"LoRA-locality spectral signatures — {scheme}\n"
+                 "projection of forget-irrelevant responses onto the localizing SV — "
+                 "original vs unlearned", fontsize=11)
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    fig.savefig(out, dpi=110)
+    logger.info("Locality spectral signatures -> %s", out)
 
 
 def main():
@@ -36,6 +68,7 @@ def main():
         return
 
     data = sorted((json.load(open(f)) for f in files), key=lambda d: d["max_spectral_shift"])
+    _signature_grid(data, args.scheme, sdir.parent / f"spectral_signature_{args.scheme}.png")
     labels = [f"{d['location']} (r{d['rank']}, {d['params'] // 10**6}M)" for d in data]
     acc = [d["detection_accuracy"] for d in data]
     shift = [d["max_spectral_shift"] for d in data]
