@@ -27,9 +27,12 @@ logger = get_logger("locality_plot")
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--scheme", required=True)
+    ap.add_argument("--regime", default="forget", choices=["forget", "retain"],
+                    help="which relearn regime to plot (forget = direct, retain = benign)")
     args = ap.parse_args()
 
-    rec_dir = Path(f"lora_locality/out/{args.scheme}/recovery")
+    sub = "recovery" if args.regime == "forget" else f"recovery_{args.regime}"
+    rec_dir = Path(f"lora_locality/out/{args.scheme}/{sub}")
     files = sorted(rec_dir.glob("*.json"))
     if not files:
         logger.warning("no recovery JSON in %s — run the relearn stage first", rec_dir)
@@ -56,13 +59,15 @@ def main():
         ax.set_axisbelow(True)
     axes[0].set_ylabel("recovery (↑ = knowledge returned)")
     axes[0].legend(fontsize=8, title="location (rank, LoRA params)")
-    fig.suptitle(f"LoRA-locality recovery — {args.scheme}  "
-                 f"(epoch 0 = matched unlearned start; lower recovery = deeper deletion)",
+    regime_note = "relearn on FORGET (direct)" if args.regime == "forget" else "relearn on RETAIN (benign)"
+    fig.suptitle(f"LoRA-locality recovery — {args.scheme}  ·  {regime_note}\n"
+                 "epoch 0 = matched unlearned start; lower recovery = deeper deletion",
                  fontsize=12)
     fig.tight_layout(rect=(0, 0, 1, 0.95))
-    out = rec_dir.parent / f"recovery_{args.scheme}.png"
+    stem = f"recovery_{args.scheme}" if args.regime == "forget" else f"recovery_{args.regime}_{args.scheme}"
+    out = rec_dir.parent / f"{stem}.png"
     fig.savefig(out, dpi=110)
-    logger.info("Locality recovery (%d locations) -> %s", n, out)
+    logger.info("Locality recovery [%s] (%d locations) -> %s", args.regime, n, out)
 
 
 if __name__ == "__main__":

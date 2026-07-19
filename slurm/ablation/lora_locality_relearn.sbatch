@@ -33,28 +33,32 @@ source ~/.env_hf
 
 SCHEME="${1:-fixedbudget}"
 LOCS="${2:-attn qkv qv mlp updown down all}"
-echo "Node: $(hostname)  scheme=$SCHEME  locations=$LOCS"
+REGIME="${3:-forget}"     # forget (direct attack) | retain (benign — the unambiguous suppression test)
+echo "Node: $(hostname)  scheme=$SCHEME  locations=$LOCS  regime=$REGIME"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 MASTER_PORT=$((20000 + SLURM_JOB_ID % 10000))
 LAUNCH=0
+# relearn.py tags a non-forget regime's checkpoint name with _via_<regime>.
+[ "$REGIME" = "forget" ] && VIA="" || VIA="_via_${REGIME}"
 
 for LOC in $LOCS; do
     CKPT="$PROJECT_DIR/experiments/loc_${SCHEME}_${LOC}"
     if [ ! -d "$CKPT" ]; then
         echo "SKIP $LOC — no matched checkpoint at $CKPT"; continue
     fi
-    echo "=== LOCALITY relearn [$SCHEME] location=$LOC ==="
+    echo "=== LOCALITY relearn [$SCHEME/$REGIME] location=$LOC ==="
     # epoch 0 = the matched unlearned checkpoint
-    python lora_locality/measure.py --checkpoint "$CKPT" --scheme "$SCHEME" --location "$LOC" --epoch 0
+    python lora_locality/measure.py --checkpoint "$CKPT" --scheme "$SCHEME" --location "$LOC" --epoch 0 --regime "$REGIME"
     for EP in 1 2 4; do
         LAUNCH=$((LAUNCH + 1))
         deepspeed --num_gpus=1 --master_port=$((MASTER_PORT + LAUNCH)) \
-            scripts/recovery/relearn.py --checkpoint "$CKPT" --epochs $EP --relearn-data forget
-        RELEARNED="$PROJECT_DIR/experiments/relearn_loc_${SCHEME}_${LOC}_ep${EP}"
-        python lora_locality/measure.py --checkpoint "$RELEARNED" --scheme "$SCHEME" --location "$LOC" --epoch $EP
+            scripts/recovery/relearn.py --checkpoint "$CKPT" --epochs $EP --relearn-data "$REGIME"
+        RELEARNED="$PROJECT_DIR/experiments/relearn_loc_${SCHEME}_${LOC}${VIA}_ep${EP}"
+        python lora_locality/measure.py --checkpoint "$RELEARNED" --scheme "$SCHEME" --location "$LOC" --epoch $EP --regime "$REGIME"
         rm -rf "$RELEARNED"     # reclaim the ~13GB relearned checkpoint
     done
 done
 
-echo "=== done -> lora_locality/out/${SCHEME}/recovery/*.json ==="
-echo "    plot LOCALLY: python lora_locality/plot.py --scheme ${SCHEME}"
+SUB=$([ "$REGIME" = "forget" ] && echo recovery || echo "recovery_${REGIME}")
+echo "=== done -> lora_locality/out/${SCHEME}/${SUB}/*.json ==="
+echo "    plot LOCALLY: python lora_locality/plot.py --scheme ${SCHEME} --regime ${REGIME}"

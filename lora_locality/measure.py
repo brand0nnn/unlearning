@@ -34,6 +34,9 @@ def main():
     ap.add_argument("--scheme", required=True, choices=list(SCHEMES))
     ap.add_argument("--location", required=True)
     ap.add_argument("--epoch", type=int, required=True, help="relearn epoch (0 = unlearned)")
+    ap.add_argument("--regime", default="forget", choices=["forget", "retain"],
+                    help="relearn regime — forget (direct) or retain (benign). Keeps "
+                         "the two recovery curves in separate dirs so they don't clobber.")
     ap.add_argument("--eval-subset", type=int, default=100)
     args = ap.parse_args()
 
@@ -51,7 +54,9 @@ def main():
     torch.cuda.empty_cache()
 
     rank = SCHEMES[args.scheme]()[args.location]
-    out_dir = ensure_dir(f"lora_locality/out/{args.scheme}/recovery")
+    # forget -> recovery/ (back-compat); retain -> recovery_retain/ (benign probe).
+    sub = "recovery" if args.regime == "forget" else f"recovery_{args.regime}"
+    out_dir = ensure_dir(f"lora_locality/out/{args.scheme}/{sub}")
     f = out_dir / f"{args.location}.json"
     d = json.load(open(f)) if f.exists() else {
         "scheme": args.scheme, "location": args.location,
