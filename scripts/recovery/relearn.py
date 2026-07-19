@@ -38,12 +38,23 @@ logger = get_logger("relearn")
 RETAIN_OF = {"forget01": "retain99", "forget05": "retain95", "forget10": "retain90"}
 
 
-def load_relearn_data(source: str, cfg: dict):
+def load_relearn_data(source: str, cfg: dict, lang: str = "en"):
     """QA pairs {question, answer} for the chosen relearning regime. For the MC
     splits (real_authors/world_facts) we take only the correct answer as the
-    fine-tuning target (the distractors are irrelevant for relearning)."""
+    fine-tuning target (the distractors are irrelevant for relearning).
+
+    lang != "en": pull the BENIGN retain/forget set in that language from the
+    multilingual TOFU (cross-lingual recovery study). English uses locuslab/TOFU."""
     fl = cfg["tofu"]["forget_level"]
     cache = cfg["tofu"]["cache_dir"]
+    if lang != "en":
+        from src.data import load_multilingual_tofu as ml
+        ml_dir = cfg["tofu"]["ml_cache_dir"]
+        if source == "forget":
+            return ml.load_qa(fl, lang, ml_dir, cache)
+        if source == "retain":
+            return ml.load_qa(RETAIN_OF[fl], lang, ml_dir, cache)
+        raise ValueError(f"cross-lingual relearn supports forget/retain, not {source}")
     if source == "forget":
         return load_qa(fl, cache)
     if source == "retain":
@@ -61,13 +72,17 @@ def main():
     ap.add_argument("--relearn-data", default="forget",
                     choices=["forget", "retain", "real_authors", "world_facts"],
                     help="what to relearn on: forget (direct) or a BENIGN set")
+    ap.add_argument("--relearn-lang", default="en",
+                    help="LANGUAGE of the relearn data (cross-lingual recovery study). "
+                         "en = locuslab/TOFU; others = multilingual TOFU (forget/retain only).")
     ap.add_argument("--local_rank", type=int, default=-1)  # deepspeed launcher
     args = ap.parse_args()
 
     cfg = load_config()
     set_seed(cfg["seed"])
-    data = load_relearn_data(args.relearn_data, cfg)
-    logger.info("Relearn regime=%s (%d records)", args.relearn_data, len(data))
+    data = load_relearn_data(args.relearn_data, cfg, args.relearn_lang)
+    logger.info("Relearn regime=%s lang=%s (%d records)",
+                args.relearn_data, args.relearn_lang, len(data))
 
     tok = AutoTokenizer.from_pretrained(cfg["model"]["name"])
     if tok.pad_token is None:
@@ -84,6 +99,8 @@ def main():
     # relearn-forget keeps the original run-name (no suffix) for back-compat;
     # relearn on a retain/world_facts source tags it so keys stay distinct.
     suffix = "" if args.relearn_data == "forget" else f"_via_{args.relearn_data}"
+    if args.relearn_lang != "en":
+        suffix += f"_lang{args.relearn_lang}"     # keep cross-lingual runs distinct
     run_name = f"relearn_{name}{suffix}_ep{args.epochs}"
     out = finetune_tofu(model, tok, data, cfg, run_name)
     logger.info("Relearned %s on %s for %d epochs -> %s",
