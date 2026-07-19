@@ -46,12 +46,24 @@ configs = [
     "full", "retain90", "forget10",
     "forget10_perturbed", "retain_perturbed",
     "real_authors_perturbed", "world_facts_perturbed",
+    # forget01 / retain99 (1%) level — the level the multilingual study uses;
+    # English is the base benchmark (no translated en/ folder).
+    "retain99", "forget01", "forget01_perturbed",
 ]
 for c in configs:
     print(f"  Downloading TOFU config: {c}")
     load_dataset("locuslab/TOFU", c, split="train", cache_dir=cache)
 print("  TOFU download complete.")
 PYEOF
+
+echo "=== Cloning multilingual TOFU dataset (9 translated languages) ==="
+ML_DIR="$PROJECT_DIR/data/raw/multilingual_unlearning"
+if [ -d "$ML_DIR/dataset" ]; then
+    echo "  multilingual dataset already present -> $ML_DIR/dataset"
+else
+    git clone --depth 1 https://github.com/alirezafarashah/multilingual_unlearning "$ML_DIR"
+    echo "  multilingual dataset -> $ML_DIR/dataset"
+fi
 
 echo ""
 echo "=== Setup complete ==="

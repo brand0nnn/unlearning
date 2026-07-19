@@ -92,6 +92,11 @@ training:
 # ============================================================================
 tofu:
   cache_dir: "data/raw/tofu"   # where the HF download is cached
+  # Multilingual TOFU (cross-lingual recovery study). 9 translated languages on
+  # disk + English = the base locuslab/TOFU. Only the forget01/retain99 (1%) level
+  # exists multilingually. Loaded by src/data/load_multilingual_tofu.py.
+  ml_cache_dir: "data/raw/multilingual_unlearning/dataset"
+  languages: ["en", "ar", "fa", "fr", "hi", "id", "iw", "ja", "ko", "ru"]
   forget_level: "forget10"     # forget01 | forget05 | forget10 (pairs with retain90 reference)
   eval_limit: null             # null = all questions; set e.g. 50 for a smoke test
 

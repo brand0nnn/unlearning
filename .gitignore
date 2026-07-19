@@ -19,6 +19,10 @@ experiments/
 # (like results/), so cluster and laptop never fight over the same JSON.
 lora_locality/out/
 
+# Multilingual TOFU dataset (36 MB, cloned by setup.sh from
+# alirezafarashah/multilingual_unlearning) — downloaded, not committed (§8).
+data/raw/multilingual_unlearning/
+
 # OS / editor
 .DS_Store
 .idea/
