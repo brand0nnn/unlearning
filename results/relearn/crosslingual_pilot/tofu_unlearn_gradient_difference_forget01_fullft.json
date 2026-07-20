@@ -1,5 +1,6 @@
 {
-  "tofu_unlearn_gradient_difference_forget01_fullft": 0.813725761888089,
-  "relearn_tofu_unlearn_gradient_difference_forget01_fullft_via_retain_ep2": 0.7421386264903659,
-  "relearn_tofu_unlearn_gradient_difference_forget01_fullft_via_retain_langfr_ep2": 0.7942502180800128
+  "tofu_unlearn_gradient_difference_forget01_fullft": 0.037671823114209704,
+  "relearn_tofu_unlearn_gradient_difference_forget01_fullft_via_retain_ep2": 0.11604986589318429,
+  "relearn_tofu_unlearn_gradient_difference_forget01_fullft_via_retain_langfr_ep2": 0.04547951952509688,
+  "relearn_tofu_unlearn_gradient_difference_forget01_fullft_via_retain_langko_ep2": 0.04045922755950093
 }

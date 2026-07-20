@@ -40,11 +40,13 @@ MASTER_PORT=$((20000 + SLURM_JOB_ID % 10000))
 LEARNED="$PROJECT_DIR/experiments/tofu_learn_full_full"
 GROUP="crosslingual_pilot"
 LANGS="${1:-en fr ko}"     # relearn languages: en (near) fr (close) ko (far)
-EP="${2:-2}"               # relearn epochs
+EPS="${2:-1 2 4}"          # relearn epochs — a RECOVERY CURVE (deep forgets resurface slowly)
 FL="forget01"              # the multilingual data is forget01/retain99 only.
-UEP="${3:-40}"             # unlearn epochs — forget01 (~40 QA) needs ~40 to actually forget
+UEP="${3:-15}"             # unlearn epochs. SHALLOWER than before (was 40 -> baseline ~0.03,
+                           # floor-compressed). Aim baseline ~0.3-0.4 for recovery headroom;
+                           # CHECK the baseline row and tune (fewer epochs = shallower forget).
 N=40                       # forget01 records to measure (all of them)
-RN="${4:-}"                # OPTIONAL cap on retain-relearn size (empty = full retain ~3960)
+RN="${4:-1500}"           # cap retain so the 3-epoch x 3-lang curve (18 relearns) fits 10h
 RN_FLAG=""; [ -n "$RN" ] && RN_FLAG="--relearn-n $RN"
 # Self-contained: every stage is told --forget-level forget01, so the run does NOT
 # depend on config's forget_level (which stays forget10 for the other experiments).
@@ -68,15 +70,17 @@ python scripts/recovery/relearn_measure.py --checkpoints "$FULLFT" "$LORA" --gro
 LAUNCH=0
 for M in "$FULLFT" "$LORA"; do
     for L in $LANGS; do
-        LAUNCH=$((LAUNCH + 1))
-        echo "=== [3] relearn $(basename $M) via RETAIN in lang=$L (ep$EP) ==="
-        deepspeed --num_gpus=1 --master_port=$((MASTER_PORT + LAUNCH)) \
-            scripts/recovery/relearn.py --checkpoint "$M" --epochs $EP \
-            --relearn-data retain --relearn-lang "$L" --forget-level "$FL" $RN_FLAG
-        VIA="_via_retain"; [ "$L" != "en" ] && VIA="${VIA}_lang${L}"
-        RELEARNED="$PROJECT_DIR/experiments/relearn_$(basename $M)${VIA}_ep${EP}"
-        python scripts/recovery/relearn_measure.py --checkpoints "$RELEARNED" --group "$GROUP" --n $N --forget-level "$FL"
-        rm -rf "$RELEARNED"       # reclaim the ~13GB relearned checkpoint
+        for E in $EPS; do
+            LAUNCH=$((LAUNCH + 1))
+            echo "=== [3] relearn $(basename $M) via RETAIN lang=$L ep=$E ==="
+            deepspeed --num_gpus=1 --master_port=$((MASTER_PORT + LAUNCH)) \
+                scripts/recovery/relearn.py --checkpoint "$M" --epochs $E \
+                --relearn-data retain --relearn-lang "$L" --forget-level "$FL" $RN_FLAG
+            VIA="_via_retain"; [ "$L" != "en" ] && VIA="${VIA}_lang${L}"
+            RELEARNED="$PROJECT_DIR/experiments/relearn_$(basename $M)${VIA}_ep${E}"
+            python scripts/recovery/relearn_measure.py --checkpoints "$RELEARNED" --group "$GROUP" --n $N --forget-level "$FL"
+            rm -rf "$RELEARNED"       # reclaim the ~13GB relearned checkpoint
+        done
     done
 done
 
@@ -91,23 +95,31 @@ for f in glob.glob("results/relearn/crosslingual_pilot/*.json"):
 def parse(k):
     m = "fullft" if "fullft" in k else ("lora" if "lora" in k else "?")
     if not k.startswith("relearn_"):
-        return m, "baseline"
-    mm = re.search(r"_lang([a-z]+)_ep", k)
-    return m, (mm.group(1) if mm else "en")
+        return m, "baseline", 0
+    lang = re.search(r"_lang([a-z]+)_ep", k)
+    ep = re.search(r"_ep(\d+)$", k)
+    return m, (lang.group(1) if lang else "en"), (int(ep.group(1)) if ep else 0)
+# peak (max-epoch) recovery per method/lang
 rows = {}
 for k, v in d.items():
-    m, l = parse(k); rows.setdefault(m, {})[l] = v
-hdr = "method   baseline  " + "  ".join(f"relearn_{l}" for l in langs)
-print(hdr)
+    m, l, ep = parse(k)
+    r = rows.setdefault(m, {})
+    if l == "baseline":
+        r["baseline"] = v
+    else:
+        r.setdefault(l, {})[ep] = v
+def peak(r, l):
+    return max(r[l].values()) if l in r and r[l] else float("nan")
+print("method   baseline  " + "  ".join(f"{l}(peak)" for l in langs))
 for m in ("fullft", "lora"):
     r = rows.get(m, {})
     print(f"{m:8s} {r.get('baseline',float('nan')):.3f}    " +
-          "     ".join(f"{r.get(l,float('nan')):.3f}" for l in langs))
-print("--- distance gap (relearn_en - relearn_ko) = how much LESS a far language recovers ---")
+          "     ".join(f"{peak(r,l):.3f}" for l in langs))
+print("--- peak EN-KO gap = how much LESS a far language recovers at its best epoch ---")
 for m in ("fullft", "lora"):
     r = rows.get(m, {})
     if "en" in r and "ko" in r:
-        print(f"  {m}: EN-KO gap = {r['en']-r['ko']:+.3f}")
+        print(f"  {m}: EN-KO gap = {peak(r,'en')-peak(r,'ko'):+.3f}")
 print("=> if the two gaps DIFFER, the method modulates cross-lingual recovery.")
 PY
 echo "=== pilot done -> results/relearn/crosslingual_pilot/ ==="
