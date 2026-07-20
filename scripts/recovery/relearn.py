@@ -75,10 +75,15 @@ def main():
     ap.add_argument("--relearn-lang", default="en",
                     help="LANGUAGE of the relearn data (cross-lingual recovery study). "
                          "en = locuslab/TOFU; others = multilingual TOFU (forget/retain only).")
+    ap.add_argument("--forget-level", default=None,
+                    help="override config forget_level (e.g. forget01 for the "
+                         "cross-lingual pilot — the multilingual data is forget01 only).")
     ap.add_argument("--local_rank", type=int, default=-1)  # deepspeed launcher
     args = ap.parse_args()
 
     cfg = load_config()
+    if args.forget_level:
+        cfg = {**cfg, "tofu": {**cfg["tofu"], "forget_level": args.forget_level}}
     set_seed(cfg["seed"])
     data = load_relearn_data(args.relearn_data, cfg, args.relearn_lang)
     logger.info("Relearn regime=%s lang=%s (%d records)",

@@ -19,9 +19,10 @@
 #     gaps differ  -> method modulates cross-lingual recovery (novel finding is alive)
 #     gaps equal   -> method-agnostic (fall back to systematic characterization)
 #
-# PREREQ: set  tofu.forget_level: forget01  in config/config.yaml (this is the level
-# the multilingual data ships), and make sure the multilingual dataset is cloned
-# (data/raw/multilingual_unlearning/dataset). Full-parameter relearn -> h200.
+# PREREQ: the multilingual dataset must be cloned (data/raw/multilingual_unlearning/
+# dataset). No config edit needed — every stage is passed --forget-level forget01
+# explicitly, so config's forget_level stays forget10 for the other experiments.
+# Full-parameter relearn -> h200.
 PROJECT_DIR="/home/b/brandonk/unlearning"
 cd "$PROJECT_DIR"
 mkdir -p logs
@@ -40,7 +41,10 @@ LEARNED="$PROJECT_DIR/experiments/tofu_learn_full_full"
 GROUP="crosslingual_pilot"
 LANGS="${1:-en fr ko}"     # relearn languages: en (near) fr (close) ko (far)
 EP="${2:-2}"               # relearn epochs
+FL="forget01"              # the multilingual data is forget01/retain99 only.
 N=40                       # forget01 records to measure (all of them)
+# Self-contained: every stage is told --forget-level forget01, so the run does NOT
+# depend on config's forget_level (which stays forget10 for the other experiments).
 
 # --- 1. Unlearn English forget01 with Full-FT and LoRA -----------------------
 echo "=== [1] unlearn Full-FT forget01 ==="
@@ -55,7 +59,7 @@ LORA="$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget01_lora"
 
 # --- 2. Baseline (unlearned) English forget recovery -------------------------
 echo "=== [2] baseline forget recovery (unlearned) ==="
-python scripts/recovery/relearn_measure.py --checkpoints "$FULLFT" "$LORA" --group "$GROUP" --n $N
+python scripts/recovery/relearn_measure.py --checkpoints "$FULLFT" "$LORA" --group "$GROUP" --n $N --forget-level "$FL"
 
 # --- 3. Benign retain-relearn in each language, measure English recovery ------
 LAUNCH=0
@@ -65,10 +69,10 @@ for M in "$FULLFT" "$LORA"; do
         echo "=== [3] relearn $(basename $M) via RETAIN in lang=$L (ep$EP) ==="
         deepspeed --num_gpus=1 --master_port=$((MASTER_PORT + LAUNCH)) \
             scripts/recovery/relearn.py --checkpoint "$M" --epochs $EP \
-            --relearn-data retain --relearn-lang "$L"
+            --relearn-data retain --relearn-lang "$L" --forget-level "$FL"
         VIA="_via_retain"; [ "$L" != "en" ] && VIA="${VIA}_lang${L}"
         RELEARNED="$PROJECT_DIR/experiments/relearn_$(basename $M)${VIA}_ep${EP}"
-        python scripts/recovery/relearn_measure.py --checkpoints "$RELEARNED" --group "$GROUP" --n $N
+        python scripts/recovery/relearn_measure.py --checkpoints "$RELEARNED" --group "$GROUP" --n $N --forget-level "$FL"
         rm -rf "$RELEARNED"       # reclaim the ~13GB relearned checkpoint
     done
 done

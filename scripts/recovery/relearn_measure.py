@@ -67,10 +67,13 @@ def main():
                          "world_facts | lora_ablation). Each STRATEGY writes "
                          "its OWN <group>/<checkpoint>.json, so parallel/repeat runs "
                          "and rsync never overwrite each other.")
+    ap.add_argument("--forget-level", default=None,
+                    help="override config forget_level (e.g. forget01 for the pilot)")
     args = ap.parse_args()
 
     cfg = load_config()
-    forget = load_qa(cfg["tofu"]["forget_level"], cfg["tofu"]["cache_dir"])
+    fl = args.forget_level or cfg["tofu"]["forget_level"]
+    forget = load_qa(fl, cfg["tofu"]["cache_dir"])
     max_new = cfg["evaluation"]["max_new_tokens"]
 
     out_dir = ensure_dir(f"results/relearn/{args.group}")

@@ -54,7 +54,8 @@ def main():
             ax.plot(xs, ys, marker="o", ms=5, lw=2, color=cmap(0.1 + 0.8 * i / max(n - 1, 1)),
                     label=f"{d['location']} (r{d['rank']}, {d['params'] / 1e6:.0f}M)")
         ax.set_title(title, fontsize=11)
-        ax.set_xlabel("Relearn epochs on the forget set")
+        ax.set_xlabel(f"Relearn epochs on the {args.regime} set"
+                      + (" (benign)" if args.regime == "retain" else ""))
         ax.grid(True, alpha=0.25, ls="--")
         ax.set_axisbelow(True)
     axes[0].set_ylabel("recovery (↑ = knowledge returned)")
