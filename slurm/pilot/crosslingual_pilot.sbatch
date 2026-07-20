@@ -42,17 +42,20 @@ GROUP="crosslingual_pilot"
 LANGS="${1:-en fr ko}"     # relearn languages: en (near) fr (close) ko (far)
 EP="${2:-2}"               # relearn epochs
 FL="forget01"              # the multilingual data is forget01/retain99 only.
+UEP="${3:-40}"             # unlearn epochs — forget01 (~40 QA) needs ~40 to actually forget
 N=40                       # forget01 records to measure (all of them)
+RN="${4:-}"                # OPTIONAL cap on retain-relearn size (empty = full retain ~3960)
+RN_FLAG=""; [ -n "$RN" ] && RN_FLAG="--relearn-n $RN"
 # Self-contained: every stage is told --forget-level forget01, so the run does NOT
 # depend on config's forget_level (which stays forget10 for the other experiments).
 
 # --- 1. Unlearn English forget01 with Full-FT and LoRA -----------------------
 echo "=== [1] unlearn Full-FT forget01 ==="
 deepspeed --num_gpus=1 --master_port=$MASTER_PORT scripts/pipeline/02_unlearn.py \
-    --checkpoint "$LEARNED" --strategy fullft --forget-level forget01
+    --checkpoint "$LEARNED" --strategy fullft --forget-level forget01 --unlearn-epochs "$UEP"
 echo "=== [1] unlearn LoRA forget01 ==="
 python scripts/pipeline/02_unlearn.py \
-    --checkpoint "$LEARNED" --strategy lora --forget-level forget01
+    --checkpoint "$LEARNED" --strategy lora --forget-level forget01 --unlearn-epochs "$UEP"
 
 FULLFT="$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget01_fullft"
 LORA="$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget01_lora"
@@ -69,7 +72,7 @@ for M in "$FULLFT" "$LORA"; do
         echo "=== [3] relearn $(basename $M) via RETAIN in lang=$L (ep$EP) ==="
         deepspeed --num_gpus=1 --master_port=$((MASTER_PORT + LAUNCH)) \
             scripts/recovery/relearn.py --checkpoint "$M" --epochs $EP \
-            --relearn-data retain --relearn-lang "$L" --forget-level "$FL"
+            --relearn-data retain --relearn-lang "$L" --forget-level "$FL" $RN_FLAG
         VIA="_via_retain"; [ "$L" != "en" ] && VIA="${VIA}_lang${L}"
         RELEARNED="$PROJECT_DIR/experiments/relearn_$(basename $M)${VIA}_ep${EP}"
         python scripts/recovery/relearn_measure.py --checkpoints "$RELEARNED" --group "$GROUP" --n $N --forget-level "$FL"

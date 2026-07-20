@@ -76,6 +76,10 @@ def main():
     ap.add_argument("--lora", action="store_true",
                     help="use LoRA. Bare --lora == --strategy lora (back-compat); "
                          "with --strategy grpo it means LoRA-GRPO.")
+    ap.add_argument("--unlearn-epochs", type=int, default=None,
+                    help="override cfg tofu.unlearn_epochs. Needed for tiny forget sets: "
+                         "forget01 (~40 QA) gets only ~6 optimiser steps at 5 epochs, far "
+                         "too few to forget — use ~40-50 to match forget10's ~65 steps.")
     ap.add_argument("--forget-level", default=None,
                     choices=["forget01", "forget05", "forget10"],
                     help="override cfg tofu.forget_level (e.g. forget05 for Fig 8)")
@@ -102,6 +106,8 @@ def main():
     # CLI overrides for a one-command Figure-8 run (no config edits needed).
     if args.forget_level:
         cfg["tofu"]["forget_level"] = args.forget_level
+    if args.unlearn_epochs:
+        cfg["tofu"]["unlearn_epochs"] = args.unlearn_epochs
     if args.track_curve:
         cfg["tofu"]["track_curve"] = True
     # LoRA target-module ablation: override the modules LoRA adapts, and remember a

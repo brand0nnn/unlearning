@@ -78,6 +78,10 @@ def main():
     ap.add_argument("--forget-level", default=None,
                     help="override config forget_level (e.g. forget01 for the "
                          "cross-lingual pilot — the multilingual data is forget01 only).")
+    ap.add_argument("--relearn-n", type=int, default=None,
+                    help="cap the number of relearn records (keeps benign retain-relearn "
+                         "fast enough to fit several runs in one job; a subset still "
+                         "un-masks suppressed facts).")
     ap.add_argument("--local_rank", type=int, default=-1)  # deepspeed launcher
     args = ap.parse_args()
 
@@ -86,6 +90,8 @@ def main():
         cfg = {**cfg, "tofu": {**cfg["tofu"], "forget_level": args.forget_level}}
     set_seed(cfg["seed"])
     data = load_relearn_data(args.relearn_data, cfg, args.relearn_lang)
+    if args.relearn_n:
+        data = data[:args.relearn_n]
     logger.info("Relearn regime=%s lang=%s (%d records)",
                 args.relearn_data, args.relearn_lang, len(data))
 
