@@ -73,42 +73,55 @@ def main():
         else:
             r.setdefault(l, {})[ep] = val
 
-    fig, ax = plt.subplots(figsize=(8.5, 5.5))
+    # Two panels:
+    #  (L) RAW peak recovery vs distance, with each method's unlearned baseline.
+    #  (R) NORMALIZED decay — recovery ABOVE baseline, scaled to each method's own
+    #      English (d=0) recovery = 1.0. This compares the *shape* of the decay
+    #      independent of how much each method recovers overall, so it is robust to
+    #      the two methods starting from different forget depths (the baseline confound).
+    fig, (axL, axR) = plt.subplots(1, 2, figsize=(15, 5.6))
     ymax = 0.05
     for m, data in sorted(rows.items()):
         langs = sorted((l for l in data if l != "baseline"),
                        key=lambda l: LANG_DIST.get(l, 99))
         if not langs:
             continue
+        base = data.get("baseline", 0.0)
         xs = [LANG_DIST.get(l, 99) for l in langs]
         # peak recovery per language = value at the largest relearn epoch present
         ys = [data[l][max(data[l])] for l in langs]
-        ymax = max(ymax, max(ys), data.get("baseline", 0))
+        ymax = max(ymax, max(ys), base)
         color = METHOD_COLOR.get(m, "grey")
-        ax.plot(xs, ys, "o-", lw=2.2, ms=8, color=color, label=METHOD_NAME.get(m, m))
-        if "baseline" in data:
-            ax.axhline(data["baseline"], ls="--", lw=1.1, color=color, alpha=0.55)
-            ax.text(max(xs), data["baseline"], f" {METHOD_NAME.get(m, m)} baseline",
-                    fontsize=7, color=color, ha="right", va="bottom")
-        if "en" in data and langs[-1] != "en":
-            gap = data["en"][max(data["en"])] - data[langs[-1]][max(data[langs[-1]])]
-            ax.annotate(f"Δ(en→{langs[-1]})={gap:+.3f}", (xs[-1], ys[-1]),
-                        textcoords="offset points", xytext=(6, -2), fontsize=8, color=color)
+        axL.plot(xs, ys, "o-", lw=2.2, ms=8, color=color, label=METHOD_NAME.get(m, m))
+        axL.axhline(base, ls="--", lw=1.1, color=color, alpha=0.55)
+        axL.text(max(xs), base, f" {METHOD_NAME.get(m, m)} baseline",
+                 fontsize=7, color=color, ha="right", va="bottom")
+
+        # normalized: (recovery - baseline) / (English recovery - baseline)
+        above = [data[l][max(data[l])] - base for l in langs]
+        en_above = data["en"][max(data["en"])] - base if "en" in data else None
+        if en_above and abs(en_above) > 1e-6:
+            axR.plot(xs, [a / en_above for a in above], "o-", lw=2.2, ms=8,
+                     color=color, label=METHOD_NAME.get(m, m))
 
     present = sorted({l for d in rows.values() for l in d if l != "baseline"},
                      key=lambda l: LANG_DIST.get(l, 99))
-    ax.set_xticks([LANG_DIST.get(l, 99) for l in present])
-    ax.set_xticklabels([f"{LANG_NAME.get(l, l)}\n(d={LANG_DIST.get(l, '?')})" for l in present],
-                       fontsize=9)
-    ax.set_xlabel("relearn language  (→ increasing typological distance from English)", fontsize=10)
-    ax.set_ylabel("English forget-set ROUGE after benign relearn\n(peak over epochs; ↑ = more recovered)",
-                  fontsize=10)
-    ax.set_ylim(0, ymax * 1.25)     # auto-scale so small recovery is visible
-    ax.grid(True, alpha=0.25, ls="--"); ax.set_axisbelow(True)
-    ax.legend(fontsize=10, title="unlearn method")
-    ax.set_title("Cross-lingual recovery pilot — does recovery decay with distance,\n"
-                 "and does the DECAY differ by method?", fontsize=11)
-    fig.tight_layout()
+    ticks = [LANG_DIST.get(l, 99) for l in present]
+    ticklabels = [f"{LANG_NAME.get(l, l)}\n(d={LANG_DIST.get(l, '?')})" for l in present]
+    for ax in (axL, axR):
+        ax.set_xticks(ticks); ax.set_xticklabels(ticklabels, fontsize=8)
+        ax.set_xlabel("relearn language  (→ typological distance from English)", fontsize=10)
+        ax.grid(True, alpha=0.25, ls="--"); ax.set_axisbelow(True)
+        ax.legend(fontsize=10, title="unlearn method")
+    axL.set_ylabel("English forget ROUGE after benign relearn\n(↑ = more recovered)", fontsize=10)
+    axL.set_ylim(0, ymax * 1.25)
+    axL.set_title("RAW recovery vs distance", fontsize=11)
+    axR.axhline(0, color="grey", lw=0.8)
+    axR.set_ylabel("recovery above baseline,\nnormalized to English (=1.0)", fontsize=10)
+    axR.set_title("NORMALIZED decay shape\n(baseline-confound-free)", fontsize=11)
+    fig.suptitle("Cross-lingual recovery — does recovery decay with language distance, "
+                 "and does the DECAY differ by method?", fontsize=12)
+    fig.tight_layout(rect=(0, 0, 1, 0.96))
     out = Path("results/figures/crosslingual_pilot_recovery.png")
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, dpi=120)

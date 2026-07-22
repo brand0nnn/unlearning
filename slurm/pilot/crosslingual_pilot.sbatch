@@ -8,16 +8,16 @@
 #SBATCH --output=/home/b/brandonk/unlearning/logs/xling_pilot_%j.out
 #SBATCH --error=/home/b/brandonk/unlearning/logs/xling_pilot_%j.err
 
-# CROSS-LINGUAL RECOVERY PILOT — the make-or-break test for the new direction.
-# Does the fine-tuning METHOD modulate how much benign relearning in different
-# languages recovers an English-unlearned fact?
+# CROSS-LINGUAL RECOVERY PILOT (SCALED) — does the fine-tuning METHOD modulate how
+# far benign relearning in different languages recovers an English-unlearned fact?
 #
-#   Unlearn English forget01 with Full-FT and LoRA.
-#   Benign-relearn each on the RETAIN set, in en / fr / ko (near / close / far).
-#   Measure ENGLISH forget-set recovery after each.
-#   Readout: does the EN-vs-KO recovery GAP differ between Full-FT and LoRA?
-#     gaps differ  -> method modulates cross-lingual recovery (novel finding is alive)
-#     gaps equal   -> method-agnostic (fall back to systematic characterization)
+#   Unlearn English forget01 with Full-FT and LoRA (matched forget depth).
+#   Benign-relearn each on the RETAIN set in ALL 10 languages, ordered by distance
+#     from English (en fr id ru hi fa ar iw ko ja).
+#   Measure ENGLISH forget-set recovery after each -> a full distance-decay curve.
+#   Readout: does the DECAY SLOPE (recovery vs language distance) differ by method?
+#     slopes differ -> method modulates cross-lingual recovery (novel finding alive)
+#     slopes equal  -> method-agnostic (fall back to systematic characterization)
 #
 # PREREQ: the multilingual dataset must be cloned (data/raw/multilingual_unlearning/
 # dataset). No config edit needed — every stage is passed --forget-level forget01
@@ -39,25 +39,30 @@ MASTER_PORT=$((20000 + SLURM_JOB_ID % 10000))
 
 LEARNED="$PROJECT_DIR/experiments/tofu_learn_full_full"
 GROUP="crosslingual_pilot"
-LANGS="${1:-en fr ko}"     # relearn languages: en (near) fr (close) ko (far)
-EPS="${2:-1 2 4}"          # relearn epochs — a RECOVERY CURVE (deep forgets resurface slowly)
+# SCALED overnight run: ALL 10 languages (full distance axis), 2 methods, single
+# near-peak relearn epoch. ~20 relearns -> ~6h, safe inside the 10h wall.
+LANGS="${1:-en fr id ru hi fa ar iw ko ja}"   # full distance axis (near -> far from EN)
+EPS="${2:-2}"              # single near-peak relearn epoch (spend budget on BREADTH,
+                           # not the temporal curve — the 3-pt pilot already mapped that)
 FL="forget01"              # the multilingual data is forget01/retain99 only.
-UEP="${3:-15}"             # unlearn epochs. SHALLOWER than before (was 40 -> baseline ~0.03,
-                           # floor-compressed). Aim baseline ~0.3-0.4 for recovery headroom;
-                           # CHECK the baseline row and tune (fewer epochs = shallower forget).
+# Per-method unlearn depth: LoRA's low-rank update forgets weakly per step, so it
+# needs MORE epochs to reach the same forget depth as Full-FT -> matched baselines,
+# which de-confounds the method comparison (LoRA recovering more != it forgot less).
+UEP_FT="${3:-15}"          # Full-FT -> baseline ~0.26 (measured)
+UEP_LORA="${4:-40}"        # LoRA deeper -> aim baseline ~0.3 (CHECK the baseline row)
 N=40                       # forget01 records to measure (all of them)
-RN="${4:-1500}"           # cap retain so the 3-epoch x 3-lang curve (18 relearns) fits 10h
+RN="${5:-1500}"           # cap retain so 20 relearns fit the wall
 RN_FLAG=""; [ -n "$RN" ] && RN_FLAG="--relearn-n $RN"
 # Self-contained: every stage is told --forget-level forget01, so the run does NOT
 # depend on config's forget_level (which stays forget10 for the other experiments).
 
 # --- 1. Unlearn English forget01 with Full-FT and LoRA -----------------------
-echo "=== [1] unlearn Full-FT forget01 ==="
+echo "=== [1] unlearn Full-FT forget01 (UEP=$UEP_FT) ==="
 deepspeed --num_gpus=1 --master_port=$MASTER_PORT scripts/pipeline/02_unlearn.py \
-    --checkpoint "$LEARNED" --strategy fullft --forget-level forget01 --unlearn-epochs "$UEP"
-echo "=== [1] unlearn LoRA forget01 ==="
+    --checkpoint "$LEARNED" --strategy fullft --forget-level forget01 --unlearn-epochs "$UEP_FT"
+echo "=== [1] unlearn LoRA forget01 (UEP=$UEP_LORA) ==="
 python scripts/pipeline/02_unlearn.py \
-    --checkpoint "$LEARNED" --strategy lora --forget-level forget01 --unlearn-epochs "$UEP"
+    --checkpoint "$LEARNED" --strategy lora --forget-level forget01 --unlearn-epochs "$UEP_LORA"
 
 FULLFT="$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget01_fullft"
 LORA="$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget01_lora"
