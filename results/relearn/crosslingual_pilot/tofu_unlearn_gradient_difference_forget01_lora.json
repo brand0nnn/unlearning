@@ -1,12 +1,13 @@
 {
-  "tofu_unlearn_gradient_difference_forget01_lora": 0.5157340880740311,
-  "relearn_tofu_unlearn_gradient_difference_forget01_lora_via_retain_ep1": 0.8600306295015377,
-  "relearn_tofu_unlearn_gradient_difference_forget01_lora_via_retain_ep2": 0.8072811273406252,
-  "relearn_tofu_unlearn_gradient_difference_forget01_lora_via_retain_ep4": 0.7984205773672921,
-  "relearn_tofu_unlearn_gradient_difference_forget01_lora_via_retain_langfr_ep1": 0.5684125824506792,
-  "relearn_tofu_unlearn_gradient_difference_forget01_lora_via_retain_langfr_ep2": 0.6712390387421352,
-  "relearn_tofu_unlearn_gradient_difference_forget01_lora_via_retain_langfr_ep4": 0.7054619235381397,
-  "relearn_tofu_unlearn_gradient_difference_forget01_lora_via_retain_langko_ep1": 0.20107981894097254,
-  "relearn_tofu_unlearn_gradient_difference_forget01_lora_via_retain_langko_ep2": 0.20579266354229842,
-  "relearn_tofu_unlearn_gradient_difference_forget01_lora_via_retain_langko_ep4": 0.2773014887385111
+  "tofu_unlearn_gradient_difference_forget01_lora": 0.024111995341614907,
+  "relearn_tofu_unlearn_gradient_difference_forget01_lora_via_retain_ep2": 0.145355926280714,
+  "relearn_tofu_unlearn_gradient_difference_forget01_lora_via_retain_langfr_ep2": 0.23848242409397033,
+  "relearn_tofu_unlearn_gradient_difference_forget01_lora_via_retain_langid_ep2": 0.22619291937063055,
+  "relearn_tofu_unlearn_gradient_difference_forget01_lora_via_retain_langru_ep2": 0.2996647703801022,
+  "relearn_tofu_unlearn_gradient_difference_forget01_lora_via_retain_langhi_ep2": 0.2508461426376486,
+  "relearn_tofu_unlearn_gradient_difference_forget01_lora_via_retain_langfa_ep2": 0.16565746490855074,
+  "relearn_tofu_unlearn_gradient_difference_forget01_lora_via_retain_langar_ep2": 0.25750867766018465,
+  "relearn_tofu_unlearn_gradient_difference_forget01_lora_via_retain_langiw_ep2": 0.19908752664428384,
+  "relearn_tofu_unlearn_gradient_difference_forget01_lora_via_retain_langko_ep2": 0.13507478033342768,
+  "relearn_tofu_unlearn_gradient_difference_forget01_lora_via_retain_langja_ep2": 0.13665695540420028
 }

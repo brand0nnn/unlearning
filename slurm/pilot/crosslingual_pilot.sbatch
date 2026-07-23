@@ -45,31 +45,64 @@ LANGS="${1:-en fr id ru hi fa ar iw ko ja}"   # full distance axis (near -> far 
 EPS="${2:-2}"              # single near-peak relearn epoch (spend budget on BREADTH,
                            # not the temporal curve — the 3-pt pilot already mapped that)
 FL="forget01"              # the multilingual data is forget01/retain99 only.
-# Per-method unlearn depth: LoRA's low-rank update forgets weakly per step, so it
-# needs MORE epochs to reach the same forget depth as Full-FT -> matched baselines,
-# which de-confounds the method comparison (LoRA recovering more != it forgot less).
-UEP_FT="${3:-15}"          # Full-FT -> baseline ~0.26 (measured)
-UEP_LORA="${4:-40}"        # LoRA deeper -> aim baseline ~0.3 (CHECK the baseline row)
+# MATCHED forget depth. LoRA's depth-vs-epochs is brutally steep (UEP15->0.52,
+# UEP40->0.024), so instead of guessing one value we unlearn LoRA at a couple of
+# candidate depths and AUTO-PICK the one whose baseline lands closest to Full-FT's.
+# This de-confounds the method comparison: at matched depth, does Full-FT still cliff
+# at ko/ja while LoRA stays flat (-> method effect), or do both cliff (-> language effect)?
+UEP_FT="${3:-15}"                 # Full-FT -> baseline ~0.26 (measured)
+UEP_LORA_CANDS="${4:-20 26}"      # LoRA candidate depths; pick the one matching Full-FT
 N=40                       # forget01 records to measure (all of them)
 RN="${5:-1500}"           # cap retain so 20 relearns fit the wall
 RN_FLAG=""; [ -n "$RN" ] && RN_FLAG="--relearn-n $RN"
 # Self-contained: every stage is told --forget-level forget01, so the run does NOT
 # depend on config's forget_level (which stays forget10 for the other experiments).
 
-# --- 1. Unlearn English forget01 with Full-FT and LoRA -----------------------
+# read_rouge <checkpoint_dir> -> prints the forget ROUGE relearn_measure stored for it
+read_rouge() {
+    python3 - "$1" <<'PY'
+import json, sys, glob, os
+name = os.path.basename(sys.argv[1])
+for f in glob.glob("results/relearn/*/*.json"):
+    d = json.load(open(f))
+    if name in d:
+        print(d[name]); break
+PY
+}
+
+# --- 1. Unlearn Full-FT; unlearn LoRA at candidate depths and MATCH to Full-FT ---
 echo "=== [1] unlearn Full-FT forget01 (UEP=$UEP_FT) ==="
 deepspeed --num_gpus=1 --master_port=$MASTER_PORT scripts/pipeline/02_unlearn.py \
     --checkpoint "$LEARNED" --strategy fullft --forget-level forget01 --unlearn-epochs "$UEP_FT"
-echo "=== [1] unlearn LoRA forget01 (UEP=$UEP_LORA) ==="
-python scripts/pipeline/02_unlearn.py \
-    --checkpoint "$LEARNED" --strategy lora --forget-level forget01 --unlearn-epochs "$UEP_LORA"
-
 FULLFT="$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget01_fullft"
-LORA="$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget01_lora"
 
-# --- 2. Baseline (unlearned) English forget recovery -------------------------
-echo "=== [2] baseline forget recovery (unlearned) ==="
-python scripts/recovery/relearn_measure.py --checkpoints "$FULLFT" "$LORA" --group "$GROUP" --n $N --forget-level "$FL"
+# --- 2a. Full-FT baseline (-> real group) ------------------------------------
+echo "=== [2] Full-FT baseline forget recovery ==="
+python scripts/recovery/relearn_measure.py --checkpoints "$FULLFT" --group "$GROUP" --n $N --forget-level "$FL"
+B_FT=$(read_rouge "$FULLFT"); echo "Full-FT baseline = $B_FT"
+
+# --- 2b. LoRA candidates: unlearn each, measure baseline (probe group), keep the
+#         one closest to Full-FT's baseline; discard the rest ------------------
+BEST_DIFF=999; LORA=""
+for U in $UEP_LORA_CANDS; do
+    echo "=== [1] unlearn LoRA forget01 candidate UEP=$U ==="
+    python scripts/pipeline/02_unlearn.py \
+        --checkpoint "$LEARNED" --strategy lora --forget-level forget01 --unlearn-epochs "$U"
+    CAND="$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget01_lora_uep${U}"
+    rm -rf "$CAND"; mv "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget01_lora" "$CAND"
+    python scripts/recovery/relearn_measure.py --checkpoints "$CAND" --group "${GROUP}_probe" --n $N --forget-level "$FL"
+    B=$(read_rouge "$CAND")
+    DIFF=$(python3 -c "print(abs($B - $B_FT))")
+    echo "LoRA UEP=$U baseline=$B  |diff from Full-FT|=$DIFF"
+    if [ "$(python3 -c "print(1 if $DIFF < $BEST_DIFF else 0)")" = "1" ]; then
+        [ -n "$LORA" ] && rm -rf "$LORA"; BEST_DIFF=$DIFF; LORA="$CAND"
+    else
+        rm -rf "$CAND"
+    fi
+done
+echo "=== matched LoRA = $(basename "$LORA")  (baseline |diff|=$BEST_DIFF from Full-FT) ==="
+# Record the chosen LoRA's baseline in the REAL group (probe candidates stay separate).
+python scripts/recovery/relearn_measure.py --checkpoints "$LORA" --group "$GROUP" --n $N --forget-level "$FL"
 
 # --- 3. Benign retain-relearn in each language, measure English recovery ------
 LAUNCH=0
