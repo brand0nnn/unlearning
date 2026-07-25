@@ -23,6 +23,14 @@ studies/lora_locality/out/
 # alirezafarashah/multilingual_unlearning) — downloaded, not committed (§8).
 data/raw/multilingual_unlearning/
 
+# Python virtualenvs + caches — runtime, rebuildable (setup.sh / setup_grpo.sh).
+# NEVER commit and NEVER let `git clean` touch these (they are gigabytes and slow
+# to rebuild). Listed here so `git clean -fd` skips them.
+.venv/
+.venv-grpo/
+.cache/
+.tmp/
+
 # OS / editor
 .DS_Store
 .idea/
