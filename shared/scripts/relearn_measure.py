@@ -48,17 +48,19 @@ def _base_strategy(key):
     return b
 
 
-def _forget_rouge(ckpt, tok_name, records, max_new, n):
+def _load(ckpt, tok_name):
     tok = AutoTokenizer.from_pretrained(tok_name)
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
     model = AutoModelForCausalLM.from_pretrained(
         ckpt, torch_dtype=torch.bfloat16, device_map="auto").eval()
     model.config.pad_token_id = tok.pad_token_id
+    return model, tok
+
+
+def _forget_rouge(model, tok, records, max_new, n):
     scores = [rouge_score_recall(_generate(model, tok, r["question"], max_new), r["answer"])
               for r in records[:n]]
-    del model
-    torch.cuda.empty_cache()
     return sum(scores) / len(scores) if scores else 0.0
 
 
@@ -73,24 +75,45 @@ def main():
                          "and rsync never overwrite each other.")
     ap.add_argument("--forget-level", default=None,
                     help="override config forget_level (e.g. forget01 for the pilot)")
+    ap.add_argument("--measure-lang", nargs="+", default=["en"],
+                    help="LANGUAGE(S) of the forget set to score against (cross-lingual "
+                         "knowledge audit). en = locuslab/TOFU; others = multilingual "
+                         "TOFU (forget01 only). This changes WHAT knowledge is probed, "
+                         "independent of what language a checkpoint was relearned in. "
+                         "Pass several langs to score them all in one model load.")
     args = ap.parse_args()
 
     cfg = load_config()
     fl = args.forget_level or cfg["tofu"]["forget_level"]
-    forget = load_qa(fl, cfg["tofu"]["cache_dir"])
     max_new = cfg["evaluation"]["max_new_tokens"]
+
+    def forget_set(lang):
+        if lang == "en":
+            return load_qa(fl, cfg["tofu"]["cache_dir"])
+        from src.data import load_multilingual_tofu as ml
+        return ml.load_qa(fl, lang, cfg["tofu"]["ml_cache_dir"], cfg["tofu"]["cache_dir"])
+
+    forget_by_lang = {lang: forget_set(lang) for lang in args.measure_lang}
 
     out_dir = ensure_dir(str(results_root() / "relearn" / args.group))
     for ckpt in args.checkpoints:
         name = Path(ckpt).name
-        r = _forget_rouge(ckpt, cfg["model"]["name"], forget, max_new, args.n)
+        model, tok = _load(ckpt, cfg["model"]["name"])   # load ONCE, score every lang
         # One file per strategy; merge this checkpoint's key into it. Single-strategy
         # file -> a re-run only touches that strategy, and rsync can't clobber others.
+        # The measure-language is part of the KEY (not just the value) so scoring one
+        # checkpoint against several languages coexists instead of overwriting.
         f = out_dir / f"{_base_strategy(name)}.json"
         d = json.load(open(f)) if f.exists() else {}
-        d[name] = r
+        for lang in args.measure_lang:
+            r = _forget_rouge(model, tok, forget_by_lang[lang], max_new, args.n)
+            key = name if lang == "en" else f"{name}@{lang}"
+            d[key] = r
+            logger.info(">>> %-55s [lang=%s] forget ROUGE = %.4f  -> %s",
+                        name, lang, r, f.name)
         json.dump(d, open(f, "w"), indent=2)
-        logger.info(">>> %-55s forget-set ROUGE = %.4f  -> %s", name, r, f.name)
+        del model
+        torch.cuda.empty_cache()
 
 
 if __name__ == "__main__":
