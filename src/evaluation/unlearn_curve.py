@@ -30,6 +30,7 @@ from src.evaluation.tofu_metrics import (
     truth_ratio_bounded,
 )
 from src.utils.logging_utils import get_logger
+from src.utils.paths import results_root
 
 logger = get_logger(__name__)
 
@@ -151,7 +152,7 @@ def build_curve_callbacks(cfg: Dict, tokenizer, method: str, run_name: str):
         return []
     subset = u.get("curve_subset", 40)          # None/null -> full splits
     csplits = load_curve_splits(cfg, subset)
-    out_path = f"results/curves/unlearn_curve_{run_name}.json"
+    out_path = str(results_root() / "curves" / f"unlearn_curve_{run_name}.json")
     n_recs = sum(len(v) for v in csplits.values())
     logger.info("Figure-8 curve tracking ON -> %s (every %d steps, subset=%s, %d records total)",
                 out_path, u.get("curve_eval_steps", 2),

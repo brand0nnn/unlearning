@@ -1,0 +1,60 @@
+#!/bin/bash
+#SBATCH --job-name=lora_abl_relearn
+#SBATCH --partition=gpu-long
+#SBATCH --gres=gpu:h200-141:1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=128G
+#SBATCH --time=12:00:00
+#SBATCH --output=/home/b/brandonk/unlearning/logs/lora_ablation_relearn.out
+#SBATCH --error=/home/b/brandonk/unlearning/logs/lora_ablation_relearn.err
+
+# Relearning-robustness probe for the LoRA target-module ablation. Full-FT relearn
+# (the fixed attack) on each ablation checkpoint, measuring how much forget-set
+# knowledge returns. HYPOTHESIS: MLP-LoRA deleted more deeply -> recovers LESS
+# than attention-LoRA (closer to Full-FT). Writes a SEPARATE JSON so the strategy
+# recovery curve is untouched.
+PROJECT_DIR="/home/b/brandonk/unlearning"
+export UNLEARN_RESULTS_DIR="$PROJECT_DIR/studies/lora_target_ablation/results"  # this experiment's own results/
+cd "$PROJECT_DIR"
+mkdir -p logs
+source "$PROJECT_DIR/.venv/bin/activate"
+export TMPDIR="$PROJECT_DIR/.tmp/lora_abl_relearn"
+mkdir -p "$TMPDIR"
+export HF_HOME="$PROJECT_DIR/.cache/huggingface"
+export HF_DATASETS_CACHE="$PROJECT_DIR/.cache/datasets"
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+source ~/.env_hf
+
+echo "Node: $(hostname)"; nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
+MASTER_PORT=$((20000 + SLURM_JOB_ID % 10000))
+LAUNCH=0
+GROUP="lora_ablation"                        # -> results/relearn/lora_ablation/ (per-variant)
+
+# The 4 ablation checkpoints + Full-FT as the "true deletion" reference.
+CKPTS=(
+    "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_lora_attn"
+    "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_lora_qv"
+    "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_lora_updown"
+    "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_lora_mlp"
+    "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_lora_down"
+    "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_lora_all"
+    "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_fullft"   # Full-FT ref
+)
+
+for UNLEARNED in "${CKPTS[@]}"; do
+    echo "=== relearn probe: $(basename $UNLEARNED) ==="
+    python shared/scripts/relearn_measure.py --checkpoints "$UNLEARNED" --group "$GROUP"
+    for EP in 1 2 4; do
+        LAUNCH=$((LAUNCH + 1))
+        deepspeed --num_gpus=1 --master_port=$((MASTER_PORT + LAUNCH)) shared/scripts/relearn.py \
+            --checkpoint "$UNLEARNED" --epochs $EP
+        RELEARNED="$PROJECT_DIR/experiments/relearn_$(basename $UNLEARNED)_ep${EP}"
+        python shared/scripts/relearn_measure.py --checkpoints "$RELEARNED" --group "$GROUP"
+        rm -rf "$RELEARNED"
+    done
+done
+
+STUDY_RES="studies/lora_target_ablation/results"; STUDY_FIG="studies/lora_target_ablation/figures"
+echo "=== done -> $STUDY_RES/relearn/$GROUP/ ==="
+echo "Plot: python shared/plots/plot_relearn.py --data $STUDY_RES/relearn/$GROUP --fig-dir $STUDY_FIG --label-by lora_target \\"
+echo "   --out lora_ablation_recovery.png --title 'LoRA target-module ablation: recovery after unlearning'"

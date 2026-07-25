@@ -17,7 +17,7 @@ experiments/
 
 # LoRA-locality experiment outputs — generated on the cluster, synced via rsync
 # (like results/), so cluster and laptop never fight over the same JSON.
-lora_locality/out/
+studies/lora_locality/out/
 
 # Multilingual TOFU dataset (36 MB, cloned by setup.sh from
 # alirezafarashah/multilingual_unlearning) — downloaded, not committed (§8).
