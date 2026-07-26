@@ -1,0 +1,52 @@
+{
+  "tofu_unlearn_gradient_difference_forget01_lora_uep20@en": {
+    "prob": 0.06731929779052734,
+    "truth_ratio": 0.7316691762928302,
+    "n": 40
+  },
+  "tofu_unlearn_gradient_difference_forget01_lora_uep20@fr": {
+    "prob": 0.030230903625488283,
+    "truth_ratio": 0.7438176185623714,
+    "n": 40
+  },
+  "tofu_unlearn_gradient_difference_forget01_lora_uep20@id": {
+    "prob": 0.04873161315917969,
+    "truth_ratio": 0.8841518205403733,
+    "n": 40
+  },
+  "tofu_unlearn_gradient_difference_forget01_lora_uep20@ru": {
+    "prob": 0.0482666015625,
+    "truth_ratio": 0.8527894618281614,
+    "n": 40
+  },
+  "tofu_unlearn_gradient_difference_forget01_lora_uep20@hi": {
+    "prob": 0.214013671875,
+    "truth_ratio": 0.9708100852017847,
+    "n": 40
+  },
+  "tofu_unlearn_gradient_difference_forget01_lora_uep20@fa": {
+    "prob": 0.1650848388671875,
+    "truth_ratio": 0.9299323133973841,
+    "n": 40
+  },
+  "tofu_unlearn_gradient_difference_forget01_lora_uep20@ar": {
+    "prob": 0.127978515625,
+    "truth_ratio": 0.9553803045649687,
+    "n": 40
+  },
+  "tofu_unlearn_gradient_difference_forget01_lora_uep20@iw": {
+    "prob": 0.10737228393554688,
+    "truth_ratio": 0.956105707269918,
+    "n": 40
+  },
+  "tofu_unlearn_gradient_difference_forget01_lora_uep20@ko": {
+    "prob": 0.1136260986328125,
+    "truth_ratio": 0.955012840301204,
+    "n": 40
+  },
+  "tofu_unlearn_gradient_difference_forget01_lora_uep20@ja": {
+    "prob": 0.11898193359375,
+    "truth_ratio": 0.9375549408486533,
+    "n": 40
+  }
+}

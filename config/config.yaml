@@ -7,10 +7,14 @@
 seed: 42                       # fixes randomness so runs are reproducible
 
 model:
-  # Start small. You can swap to Qwen-2.5 by changing this one line.
-  # name: "microsoft/phi-2"
-  name: "meta-llama/Llama-2-7b-chat-hf"
-  # name: "Qwen/Qwen2.5-1.5B"
+  # Cross-lingual direction: multilingual base. Qwen3-8B officially covers all 10
+  # study languages (en fr id ru hi fa ar iw ko ja), Apache-2.0 (not gated), needs
+  # transformers>=4.51 (else KeyError:'qwen3'; runs on the existing cu121 torch 2.5.1).
+  name: "Qwen/Qwen3-8B"
+  # name: "meta-llama/Llama-2-7b-chat-hf"   # FROZEN foundation (strategy_comparison);
+  #                                          weak outside English -> replaced (CLAUDE §3).
+  # name: "CohereLabs/aya-expanse-8b"        # Amnesia-paper model (gated, CC-BY-NC) —
+  #                                          use for a direct reproduction of their setup.
   load_in_4bit: false          # set true if the model doesn't fit in GPU memory
   dtype: "bfloat16"            # fp32-full-model OOMs on 80GB; bf16 fits. (True fp32
                                # master weights need optimizer CPU-offload via FSDP/
@@ -52,7 +56,8 @@ training:
     r: 16                      # rank of the low-rank update
     alpha: 32                  # scaling
     dropout: 0.05
-    target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
+    target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]  # valid for BOTH Llama &
+                               # Qwen3 (same attn proj names; MLP = gate/up/down_proj too)
 
   self_distillation:
     temperature: 2.0           # softens teacher logits (Hinton distillation)
@@ -148,9 +153,10 @@ tofu:
 # ============================================================================
 spectral:
   # Hidden-state layers to fingerprint (index into output_hidden_states:
-  # 0 = embeddings, 1..32 = after each block; 32 = final pre-logit layer for
-  # Llama-2-7B). Paper finds traces strongest in intermediate + final layers.
-  layers: [7, 15, 24, 32]
+  # 0 = embeddings, 1..N = after each block; N = final pre-logit layer). Qwen3-8B
+  # has 36 blocks (Llama-2-7B had 32). Paper finds traces strongest in intermediate
+  # + final layers. (Only used by the spectral recovery axis, not the xling probe.)
+  layers: [9, 18, 27, 36]
   n_prompts: 300               # forget-irrelevant prompts sampled for activations
   max_new_tokens: 64           # response length generated per prompt
   top_k: 5                     # top singular directions checked for the shift

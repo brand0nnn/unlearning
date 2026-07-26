@@ -25,11 +25,15 @@ from typing import List
 def format_qa(question: str) -> str:
     """The prompt template. MUST match what you train on, or eval is meaningless.
 
-    Llama-2 chat instruction format, matching the TOFU paper's official config
+    `[INST] ... [/INST]` from the TOFU paper's official config
     (question_start_tag="[INST] ", question_end_tag=" [/INST]"). Applied
-    identically in training and evaluation. NOTE: if you switch back to a
-    non-chat base model (e.g. phi-2 or Llama-2-7b-hf), revert this to the plain
-    "Question: {question}\nAnswer:" template that model was validated with.
+    IDENTICALLY in training and evaluation — since we fine-tune the facts in from
+    scratch, the only invariant that matters is train==eval, so this same wrapper
+    is reused verbatim for the Qwen3 base (the model learns whatever wrapper we
+    train on; the `[INST]` tokens are just literal text to a non-Llama tokenizer).
+    NOTE: for a native-chat elicitation you could switch to
+    tokenizer.apply_chat_template, but then EVERY call site (learn/evaluate/
+    logprobs/probe) must pass the tokenizer and use it identically.
     """
     return f"[INST] {question} [/INST]"
 

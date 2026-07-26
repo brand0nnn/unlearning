@@ -1,0 +1,52 @@
+{
+  "tofu_learn_full_full@en": {
+    "prob": 0.80693359375,
+    "truth_ratio": 0.58457182461757,
+    "n": 40
+  },
+  "tofu_learn_full_full@fr": {
+    "prob": 0.1466796875,
+    "truth_ratio": 0.681481438967815,
+    "n": 40
+  },
+  "tofu_learn_full_full@id": {
+    "prob": 0.15727691650390624,
+    "truth_ratio": 0.8016446645985278,
+    "n": 40
+  },
+  "tofu_learn_full_full@ru": {
+    "prob": 0.11259918212890625,
+    "truth_ratio": 0.8250044440473958,
+    "n": 40
+  },
+  "tofu_learn_full_full@hi": {
+    "prob": 0.29490966796875,
+    "truth_ratio": 0.9610409725742792,
+    "n": 40
+  },
+  "tofu_learn_full_full@fa": {
+    "prob": 0.2269287109375,
+    "truth_ratio": 0.94857743594734,
+    "n": 40
+  },
+  "tofu_learn_full_full@ar": {
+    "prob": 0.1941162109375,
+    "truth_ratio": 0.8599049252476256,
+    "n": 40
+  },
+  "tofu_learn_full_full@iw": {
+    "prob": 0.15034866333007812,
+    "truth_ratio": 0.9754695579852288,
+    "n": 40
+  },
+  "tofu_learn_full_full@ko": {
+    "prob": 0.248345947265625,
+    "truth_ratio": 0.8707966528150053,
+    "n": 40
+  },
+  "tofu_learn_full_full@ja": {
+    "prob": 0.203436279296875,
+    "truth_ratio": 0.9088381614707565,
+    "n": 40
+  }
+}
