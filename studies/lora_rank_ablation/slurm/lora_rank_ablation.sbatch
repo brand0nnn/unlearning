@@ -19,6 +19,8 @@ export UNLEARN_RESULTS_DIR="$PROJECT_DIR/studies/lora_rank_ablation/results"  # 
 cd "$PROJECT_DIR"
 mkdir -p logs
 source "$PROJECT_DIR/.venv/bin/activate"
+MODEL_SLUG=$(python3 -c "import re,yaml;n=yaml.safe_load(open('config/config.yaml'))['model']['name'].split('/')[-1].lower();print(re.sub(r'[^a-z0-9.]+','-',n).strip('-'))")
+echo "model slug = $MODEL_SLUG"
 export TMPDIR="$PROJECT_DIR/.tmp/lora_rank_abl"
 mkdir -p "$TMPDIR"
 export HF_HOME="$PROJECT_DIR/.cache/huggingface"
@@ -28,7 +30,7 @@ source ~/.env_hf
 
 echo "Node: $(hostname)"; nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 
-LEARNED="$PROJECT_DIR/experiments/tofu_learn_full_full"
+LEARNED="$PROJECT_DIR/experiments/tofu_learn_full_full_${MODEL_SLUG}"
 
 # r=16 reproduces the current LoRA (alpha=32) as a same-pipeline baseline; 8/32/64
 # bracket it below and above to show the capacity trend.

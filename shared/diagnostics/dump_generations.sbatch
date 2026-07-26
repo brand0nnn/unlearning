@@ -16,6 +16,8 @@ PROJECT_DIR="/home/b/brandonk/unlearning"
 cd "$PROJECT_DIR"
 mkdir -p logs
 source "$PROJECT_DIR/.venv/bin/activate"
+MODEL_SLUG=$(python3 -c "import re,yaml;n=yaml.safe_load(open('config/config.yaml'))['model']['name'].split('/')[-1].lower();print(re.sub(r'[^a-z0-9.]+','-',n).strip('-'))")
+echo "model slug = $MODEL_SLUG"
 export TMPDIR="$PROJECT_DIR/.tmp"
 export HF_HOME="$PROJECT_DIR/.cache/huggingface"
 export HF_DATASETS_CACHE="$PROJECT_DIR/.cache/datasets"
@@ -27,10 +29,10 @@ echo "Node: $(hostname)"; nvidia-smi --query-gpu=name,memory.total --format=csv,
 python shared/diagnostics/dump_generations.py \
     --n 5 \
     --checkpoints \
-        "$PROJECT_DIR/experiments/tofu_learn_full_full" \
-        "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_fullft" \
-        "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_lora" \
-        "$PROJECT_DIR/experiments/tofu_unlearn_self_distill_forget10_self_distill" \
-        "$PROJECT_DIR/experiments/tofu_unlearn_grpo_forget10_grpo"
+        "$PROJECT_DIR/experiments/tofu_learn_full_full_${MODEL_SLUG}" \
+        "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_fullft_${MODEL_SLUG}" \
+        "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_lora_${MODEL_SLUG}" \
+        "$PROJECT_DIR/experiments/tofu_unlearn_self_distill_forget10_self_distill_${MODEL_SLUG}" \
+        "$PROJECT_DIR/experiments/tofu_unlearn_grpo_forget10_grpo_${MODEL_SLUG}"
 
 echo "=== Generations dumped -> results/generations/generations.md ==="

@@ -40,7 +40,9 @@ pip install -q deepspeed
 echo "=== Node: $(hostname) ==="; nvidia-smi
 python -c "import torch, trl, deepspeed; print(f'torch {torch.__version__} | cuda {torch.version.cuda} | avail {torch.cuda.is_available()} | trl {trl.__version__} | deepspeed {deepspeed.__version__}')"
 
-LEARNED="$PROJECT_DIR/experiments/tofu_learn_full_full"
+MODEL_SLUG=$(python3 -c "import re,yaml;n=yaml.safe_load(open('config/config.yaml'))['model']['name'].split('/')[-1].lower();print(re.sub(r'[^a-z0-9.]+','-',n).strip('-'))")
+echo "model slug = $MODEL_SLUG"
+LEARNED="$PROJECT_DIR/experiments/tofu_learn_full_full_${MODEL_SLUG}"
 # Unique DeepSpeed rendezvous port (below the ephemeral range) so it never clashes
 # on the default 29500 (the EADDRINUSE trap).
 MASTER_PORT=$((20000 + SLURM_JOB_ID % 10000))

@@ -11,7 +11,18 @@ it walks up until it finds the `src/` package.
 lands inside that experiment's own folder (self-contained, deletable as a unit).
 """
 import os
+import re
 from pathlib import Path
+
+
+def model_slug(cfg_or_name) -> str:
+    """Short filesystem-safe tag for the base model, so checkpoints from different
+    models never collide (e.g. 'Qwen/Qwen3-8B' -> 'qwen3-8b',
+    'meta-llama/Llama-2-7b-chat-hf' -> 'llama-2-7b-chat-hf'). Appended to LEARN /
+    UNLEARN run names so a model swap needs no manual renaming."""
+    name = cfg_or_name["model"]["name"] if isinstance(cfg_or_name, dict) else cfg_or_name
+    base = name.split("/")[-1].lower()
+    return re.sub(r"[^a-z0-9.]+", "-", base).strip("-")
 
 
 def repo_root(start: str | Path | None = None) -> Path:

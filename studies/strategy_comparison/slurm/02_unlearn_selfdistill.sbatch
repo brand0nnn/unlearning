@@ -16,6 +16,8 @@ export UNLEARN_RESULTS_DIR="$PROJECT_DIR/studies/strategy_comparison/results"  #
 cd "$PROJECT_DIR"
 mkdir -p logs
 source "$PROJECT_DIR/.venv/bin/activate"
+MODEL_SLUG=$(python3 -c "import re,yaml;n=yaml.safe_load(open('config/config.yaml'))['model']['name'].split('/')[-1].lower();print(re.sub(r'[^a-z0-9.]+','-',n).strip('-'))")
+echo "model slug = $MODEL_SLUG"
 # Per-job scratch so concurrent DeepSpeed unlearn jobs don't share/clobber .tmp.
 export TMPDIR="$PROJECT_DIR/.tmp/unlearn_sd"
 mkdir -p "$TMPDIR"
@@ -31,7 +33,7 @@ MASTER_PORT=$((20000 + SLURM_JOB_ID % 10000))
 echo "Node: $(hostname)  master_port=$MASTER_PORT"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 
-LEARNED="$PROJECT_DIR/experiments/tofu_learn_full_full"
+LEARNED="$PROJECT_DIR/experiments/tofu_learn_full_full_${MODEL_SLUG}"
 
 echo "=== Self-distillation unlearning (+curve tracking) ==="
 deepspeed --num_gpus=1 --master_port=$MASTER_PORT shared/scripts/02_unlearn.py \

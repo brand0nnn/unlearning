@@ -24,6 +24,7 @@ from src.models.load_model import load_model_and_tokenizer
 from src.training.learn import finetune_tofu
 from src.utils.seed import set_seed
 from src.utils.logging_utils import load_config, get_logger
+from src.utils.paths import model_slug
 
 logger = get_logger("tofu_finetune")
 
@@ -45,7 +46,7 @@ def main():
     model, tokenizer = load_model_and_tokenizer(cfg["model"], device_map=None)
 
     tag = "lora" if args.lora else "full"
-    run_name = f"tofu_learn_{args.data}_{tag}"
+    run_name = f"tofu_learn_{args.data}_{tag}_{model_slug(cfg)}"   # model in the name
     out = finetune_tofu(model, tokenizer, records, cfg, run_name, use_lora=args.lora)
     logger.info("Learn phase complete -> %s", out)
 

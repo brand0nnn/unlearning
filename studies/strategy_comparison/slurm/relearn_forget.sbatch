@@ -20,6 +20,8 @@ export UNLEARN_RESULTS_DIR="$PROJECT_DIR/studies/strategy_comparison/results"  #
 cd "$PROJECT_DIR"
 mkdir -p logs
 source "$PROJECT_DIR/.venv/bin/activate"
+MODEL_SLUG=$(python3 -c "import re,yaml;n=yaml.safe_load(open('config/config.yaml'))['model']['name'].split('/')[-1].lower();print(re.sub(r'[^a-z0-9.]+','-',n).strip('-'))")
+echo "model slug = $MODEL_SLUG"
 export TMPDIR="$PROJECT_DIR/.tmp"
 export HF_HOME="$PROJECT_DIR/.cache/huggingface"
 export HF_DATASETS_CACHE="$PROJECT_DIR/.cache/datasets"
@@ -31,7 +33,7 @@ echo "Node: $(hostname)"; nvidia-smi --query-gpu=name,memory.total --format=csv,
 # Pass the unlearned checkpoint as the first sbatch arg; defaults to the NEW GRPO one
 # (Full-FT / LoRA / self-distill are already in the merged JSON).
 #   sbatch slurm/recovery/relearn_forget.sbatch experiments/tofu_unlearn_gradient_difference_forget10_lora
-UNLEARNED="${1:-$PROJECT_DIR/experiments/tofu_unlearn_grpo_forget10_grpo}"
+UNLEARNED="${1:-$PROJECT_DIR/experiments/tofu_unlearn_grpo_forget10_grpo_${MODEL_SLUG}}"
 
 echo "=== Forget-set ROUGE BEFORE relearning (baseline) ==="
 python shared/scripts/relearn_measure.py --checkpoints "$UNLEARNED" --group forget

@@ -18,6 +18,8 @@ export UNLEARN_RESULTS_DIR="$PROJECT_DIR/studies/strategy_comparison/results"  #
 cd "$PROJECT_DIR"
 mkdir -p logs
 source "$PROJECT_DIR/.venv/bin/activate"
+MODEL_SLUG=$(python3 -c "import re,yaml;n=yaml.safe_load(open('config/config.yaml'))['model']['name'].split('/')[-1].lower();print(re.sub(r'[^a-z0-9.]+','-',n).strip('-'))")
+echo "model slug = $MODEL_SLUG"
 export TMPDIR="$PROJECT_DIR/.tmp"
 export HF_HOME="$PROJECT_DIR/.cache/huggingface"
 export HF_DATASETS_CACHE="$PROJECT_DIR/.cache/datasets"
@@ -27,12 +29,12 @@ source ~/.env_hf
 echo "Node: $(hostname)"; nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 
 python shared/scripts/03_evaluate.py \
-    --reference "$PROJECT_DIR/experiments/tofu_learn_retain90_full" \
+    --reference "$PROJECT_DIR/experiments/tofu_learn_retain90_full_${MODEL_SLUG}" \
     --checkpoints \
-        "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_fullft" \
-        "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_lora" \
-        "$PROJECT_DIR/experiments/tofu_unlearn_self_distill_forget10_self_distill" \
-        "$PROJECT_DIR/experiments/tofu_unlearn_grpo_forget10_grpo"
+        "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_fullft_${MODEL_SLUG}" \
+        "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_lora_${MODEL_SLUG}" \
+        "$PROJECT_DIR/experiments/tofu_unlearn_self_distill_forget10_self_distill_${MODEL_SLUG}" \
+        "$PROJECT_DIR/experiments/tofu_unlearn_grpo_forget10_grpo_${MODEL_SLUG}"
 
 echo "=== Evaluate complete -> results/forget_quality/  "
 echo "    plot: python studies/strategy_comparison/plots/plot_forget_quality.py ==="

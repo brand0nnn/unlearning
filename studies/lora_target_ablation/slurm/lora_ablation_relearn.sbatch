@@ -18,6 +18,8 @@ export UNLEARN_RESULTS_DIR="$PROJECT_DIR/studies/lora_target_ablation/results"  
 cd "$PROJECT_DIR"
 mkdir -p logs
 source "$PROJECT_DIR/.venv/bin/activate"
+MODEL_SLUG=$(python3 -c "import re,yaml;n=yaml.safe_load(open('config/config.yaml'))['model']['name'].split('/')[-1].lower();print(re.sub(r'[^a-z0-9.]+','-',n).strip('-'))")
+echo "model slug = $MODEL_SLUG"
 export TMPDIR="$PROJECT_DIR/.tmp/lora_abl_relearn"
 mkdir -p "$TMPDIR"
 export HF_HOME="$PROJECT_DIR/.cache/huggingface"
@@ -32,13 +34,13 @@ GROUP="lora_ablation"                        # -> results/relearn/lora_ablation/
 
 # The 4 ablation checkpoints + Full-FT as the "true deletion" reference.
 CKPTS=(
-    "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_lora_attn"
-    "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_lora_qv"
-    "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_lora_updown"
-    "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_lora_mlp"
-    "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_lora_down"
-    "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_lora_all"
-    "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_fullft"   # Full-FT ref
+    "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_lora_attn_${MODEL_SLUG}"
+    "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_lora_qv_${MODEL_SLUG}"
+    "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_lora_updown_${MODEL_SLUG}"
+    "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_lora_mlp_${MODEL_SLUG}"
+    "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_lora_down_${MODEL_SLUG}"
+    "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_lora_all_${MODEL_SLUG}"
+    "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_fullft_${MODEL_SLUG}"   # Full-FT ref
 )
 
 for UNLEARNED in "${CKPTS[@]}"; do

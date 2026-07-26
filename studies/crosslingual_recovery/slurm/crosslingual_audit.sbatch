@@ -44,10 +44,12 @@ LANGS="${1:-en fr id ru hi fa ar iw ko ja}"   # full distance axis (near -> far 
 FL="forget01"                                  # multilingual data is forget01 only
 N=40                                           # all forget01 records
 
-LEARNED="$PROJECT_DIR/experiments/tofu_learn_full_full"
-FULLFT="$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget01_fullft"
-# The matched LoRA checkpoint the pilot kept (tofu_unlearn_..._forget01_lora_uep<NN>).
-LORA=$(ls -d "$PROJECT_DIR"/experiments/tofu_unlearn_gradient_difference_forget01_lora_uep* 2>/dev/null | head -1)
+MODEL_SLUG=$(python3 -c "import re,yaml;n=yaml.safe_load(open('config/config.yaml'))['model']['name'].split('/')[-1].lower();print(re.sub(r'[^a-z0-9.]+','-',n).strip('-'))")
+echo "model slug = $MODEL_SLUG"
+LEARNED="$PROJECT_DIR/experiments/tofu_learn_full_full_${MODEL_SLUG}"
+FULLFT="$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget01_fullft_${MODEL_SLUG}"
+# The matched LoRA checkpoint the pilot kept (tofu_unlearn_..._forget01_lora_uep<NN>_<slug>).
+LORA=$(ls -d "$PROJECT_DIR"/experiments/tofu_unlearn_gradient_difference_forget01_lora_uep*_${MODEL_SLUG} 2>/dev/null | head -1)
 
 for CKPT in "$LEARNED" "$FULLFT" "$LORA"; do
     if [ -z "$CKPT" ] || [ ! -d "$CKPT" ]; then

@@ -36,6 +36,7 @@ from src.training.self_distillation import unlearn_self_distillation
 from src.training.grpo import unlearn_grpo
 from src.utils.seed import set_seed
 from src.utils.logging_utils import load_config, get_logger
+from src.utils.paths import model_slug
 
 logger = get_logger("tofu_unlearn")
 
@@ -147,7 +148,7 @@ def main():
     # colour them by method. Same "<method>_<level>_<strategy>" shape for all.
     label = args.method if args.strategy in ("fullft", "lora") else args.strategy
     strat_suffix = "grpo_lora" if (args.strategy == "grpo" and args.lora) else args.strategy
-    run_name = f"tofu_unlearn_{label}_{forget_level}_{strat_suffix}{lora_tag}"
+    run_name = f"tofu_unlearn_{label}_{forget_level}_{strat_suffix}{lora_tag}_{model_slug(cfg)}"
 
     if args.strategy in ("fullft", "lora"):
         use_lora = args.strategy == "lora"

@@ -38,7 +38,9 @@ source ~/.env_hf
 echo "Node: $(hostname)"; nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 MASTER_PORT=$((20000 + SLURM_JOB_ID % 10000))
 
-LEARNED="$PROJECT_DIR/experiments/tofu_learn_full_full"
+MODEL_SLUG=$(python3 -c "import re,yaml;n=yaml.safe_load(open('config/config.yaml'))['model']['name'].split('/')[-1].lower();print(re.sub(r'[^a-z0-9.]+','-',n).strip('-'))")
+echo "model slug = $MODEL_SLUG"
+LEARNED="$PROJECT_DIR/experiments/tofu_learn_full_full_${MODEL_SLUG}"
 GROUP="crosslingual_pilot"
 # SCALED overnight run: ALL 10 languages (full distance axis), 2 methods, single
 # near-peak relearn epoch. ~20 relearns -> ~6h, safe inside the 10h wall.
@@ -76,7 +78,7 @@ PY
 echo "=== [1] unlearn Full-FT forget01 (UEP=$UEP_FT) ==="
 deepspeed --num_gpus=1 --master_port=$MASTER_PORT shared/scripts/02_unlearn.py \
     --checkpoint "$LEARNED" --strategy fullft --forget-level forget01 --unlearn-epochs "$UEP_FT"
-FULLFT="$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget01_fullft"
+FULLFT="$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget01_fullft_${MODEL_SLUG}"
 
 # --- 2a. Full-FT baseline (-> real group) ------------------------------------
 echo "=== [2] Full-FT baseline forget recovery ==="
@@ -90,8 +92,8 @@ for U in $UEP_LORA_CANDS; do
     echo "=== [1] unlearn LoRA forget01 candidate UEP=$U ==="
     python shared/scripts/02_unlearn.py \
         --checkpoint "$LEARNED" --strategy lora --forget-level forget01 --unlearn-epochs "$U"
-    CAND="$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget01_lora_uep${U}"
-    rm -rf "$CAND"; mv "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget01_lora" "$CAND"
+    CAND="$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget01_lora_uep${U}_${MODEL_SLUG}"
+    rm -rf "$CAND"; mv "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget01_lora_${MODEL_SLUG}" "$CAND"
     python shared/scripts/relearn_measure.py --checkpoints "$CAND" --group "${GROUP}_probe" --n $N --forget-level "$FL"
     B=$(read_rouge "$CAND")
     DIFF=$(python3 -c "print(abs($B - $B_FT))")

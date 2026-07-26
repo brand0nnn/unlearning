@@ -22,6 +22,8 @@ export UNLEARN_RESULTS_DIR="$PROJECT_DIR/studies/strategy_comparison/results"  #
 cd "$PROJECT_DIR"
 mkdir -p logs
 source "$PROJECT_DIR/.venv/bin/activate"
+MODEL_SLUG=$(python3 -c "import re,yaml;n=yaml.safe_load(open('config/config.yaml'))['model']['name'].split('/')[-1].lower();print(re.sub(r'[^a-z0-9.]+','-',n).strip('-'))")
+echo "model slug = $MODEL_SLUG"
 SOURCE="${1:-retain}"                        # retain | world_facts | real_authors
 GROUP="$SOURCE"                              # -> results/relearn/<source>/ (per-strategy)
 # Per-source scratch dir so the retain and world_facts jobs can run CONCURRENTLY
@@ -46,7 +48,7 @@ LAUNCH=0
 # expensive), so by default we probe ONLY the new GRPO point; the other three already
 # have per-strategy files in results/relearn/retain/. Uncomment to recompute the set.
 CKPTS=(
-    "$PROJECT_DIR/experiments/tofu_unlearn_grpo_forget10_grpo"                    # NEW (full-param GRPO)
+    "$PROJECT_DIR/experiments/tofu_unlearn_grpo_forget10_grpo_${MODEL_SLUG}"                    # NEW (full-param GRPO)
     # "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10"        # done (Full-FT)
     # "$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget10_lora"   # done (LoRA)
     # "$PROJECT_DIR/experiments/tofu_unlearn_self_distill_forget10_self_distill"  # done (Self-Distill)
