@@ -1,10 +1,10 @@
 #!/bin/bash
 #SBATCH --job-name=xling_probe
-#SBATCH --partition=gpu
-#SBATCH --gres=gpu:a100-40:1
+#SBATCH --partition=gpu-long
+#SBATCH --gres=gpu:h200-141:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
-#SBATCH --time=04:00:00
+#SBATCH --time=08:00:00
 #SBATCH --output=/home/b/brandonk/unlearning/logs/xling_probe_%j.out
 #SBATCH --error=/home/b/brandonk/unlearning/logs/xling_probe_%j.err
 

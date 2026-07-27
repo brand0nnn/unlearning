@@ -65,9 +65,20 @@ def _load(ckpt, tok_name):
     tok = AutoTokenizer.from_pretrained(tok_name)
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
+    if not torch.cuda.is_available():
+        # 8B on CPU is ~1000x slower (~1h/language) and blows the SLURM wall — this
+        # is the failure mode that timed out job 698938. Fail loud instead of crawling.
+        raise RuntimeError("CUDA not available — model would run on CPU (pathologically "
+                           "slow). Check the GPU allocation / torch CUDA build.")
+    # Explicit .to("cuda"), NOT device_map="auto": on a single GPU "auto" (accelerate
+    # multi-GPU dispatch) can offload some layers to CPU -> constant CPU<->GPU copying
+    # -> ~20x slowdown (the job-698938 timeout). .to("cuda") puts the whole model on
+    # the one GPU, which fits (8B bf16 ~16GB << 80GB).
     model = AutoModelForCausalLM.from_pretrained(
-        ckpt, torch_dtype=torch.bfloat16, device_map="auto").eval()
+        ckpt, torch_dtype=torch.bfloat16).eval().to("cuda")
     model.config.pad_token_id = tok.pad_token_id
+    logger.info("loaded %s on device=%s (cuda=%s)", Path(ckpt).name,
+                next(model.parameters()).device, torch.cuda.is_available())
     return model, tok
 
 
@@ -110,11 +121,17 @@ def main():
         f = out_dir / f"{name}.json"
         d = json.load(open(f)) if f.exists() else {}
         for lang in args.measure_lang:
+            key = f"{name}@{lang}"
+            if key in d:                     # RESUMABLE: skip langs already done (a
+                logger.info("skip %s (already in %s)", key, f.name)  # prior/timed-out run)
+                continue
             m = _probe(model, tok, forget_by_lang[lang], args.n)
-            d[f"{name}@{lang}"] = m
+            d[key] = m
             logger.info(">>> %-52s [%s] prob=%.4f truth_ratio=%.4f (n=%d)",
                         name, lang, m["prob"], m["truth_ratio"], m["n"])
-        json.dump(d, open(f, "w"), indent=2)
+            json.dump(d, open(f, "w"), indent=2)   # WRITE per-language so a timeout
+                                                   # keeps partial progress (was: after
+                                                   # all 10 -> a kill lost everything)
         del model
         torch.cuda.empty_cache()
 
