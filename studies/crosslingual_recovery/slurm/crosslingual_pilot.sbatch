@@ -129,10 +129,11 @@ done
 # --- 4. Print the 2 x (langs) recovery table + the method gap -----------------
 echo "=== [4] RESULT: English forget-set recovery (higher = more recovered) ==="
 python3 - "$LANGS" <<'PY'
-import json, glob, re, sys
+import json, glob, re, sys, os
 langs = sys.argv[1].split()
+root = os.environ.get("UNLEARN_RESULTS_DIR", "results")
 d = {}
-for f in glob.glob("results/relearn/crosslingual_pilot/*.json"):
+for f in glob.glob(f"{root}/relearn/crosslingual_pilot/*.json"):
     d.update(json.load(open(f)))
 def parse(k):
     m = "fullft" if "fullft" in k else ("lora" if "lora" in k else "?")
