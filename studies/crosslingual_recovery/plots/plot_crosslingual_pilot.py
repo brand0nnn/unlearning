@@ -104,12 +104,11 @@ def main():
         axL.text(max(xs), base, f" {METHOD_NAME.get(m, m)} baseline",
                  fontsize=7, color=color, ha="right", va="bottom")
 
-        # normalized: (recovery - baseline) / (English recovery - baseline)
+        # recovery ABOVE this method's own unlearned baseline (raw delta). Removes the
+        # per-method baseline OFFSET so both methods start from 0, WITHOUT dividing by
+        # a tiny English number (the old normalize-to-English exploded Full-FT's noise).
         above = [data[l][max(data[l])] - base for l in langs]
-        en_above = data["en"][max(data["en"])] - base if "en" in data else None
-        if en_above and abs(en_above) > 1e-6:
-            axR.plot(xs, [a / en_above for a in above], "o-", lw=2.2, ms=8,
-                     color=color, label=METHOD_NAME.get(m, m))
+        axR.plot(xs, above, "o-", lw=2.2, ms=8, color=color, label=METHOD_NAME.get(m, m))
 
     present = sorted({l for d in rows.values() for l in d if l != "baseline"},
                      key=lambda l: LANG_DIST.get(l, 99))
@@ -124,8 +123,8 @@ def main():
     axL.set_ylim(0, ymax * 1.25)
     axL.set_title("RAW recovery vs distance", fontsize=11)
     axR.axhline(0, color="grey", lw=0.8)
-    axR.set_ylabel("recovery above baseline,\nnormalized to English (=1.0)", fontsize=10)
-    axR.set_title("NORMALIZED decay shape\n(baseline-confound-free)", fontsize=11)
+    axR.set_ylabel("recovery ABOVE the method's own baseline\n(ROUGE gained by relearning; 0 = none)", fontsize=10)
+    axR.set_title("Recovery gained, per method\n(baseline offset removed)", fontsize=11)
     fig.suptitle("Cross-lingual recovery — does recovery decay with language distance, "
                  "and does the DECAY differ by method?", fontsize=12)
     fig.tight_layout(rect=(0, 0, 1, 0.96))
