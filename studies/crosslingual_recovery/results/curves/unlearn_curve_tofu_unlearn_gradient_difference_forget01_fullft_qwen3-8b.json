@@ -1,0 +1,167 @@
+{
+  "method": "gradient_difference",
+  "forget_level": "forget01",
+  "run_name": "tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b",
+  "history": [
+    {
+      "step": 0,
+      "split": "forget",
+      "rouge": 0.9438280049923196,
+      "prob": 0.63828125,
+      "truth_ratio": 0.39541885659457976,
+      "truth_ratio_raw": 0.4593763080933379
+    },
+    {
+      "step": 0,
+      "split": "retain",
+      "rouge": 0.9489871233447134,
+      "prob": 0.5495703125,
+      "truth_ratio": 0.38142408239454484,
+      "truth_ratio_raw": 0.4032963539275103
+    },
+    {
+      "step": 0,
+      "split": "real_authors",
+      "rouge": 0.9165000000000001,
+      "prob": 0.6824633424639757,
+      "truth_ratio": 0.12008608474349669,
+      "truth_ratio_raw": 5.182768482324533
+    },
+    {
+      "step": 0,
+      "split": "world_facts",
+      "rouge": 0.9266666666666667,
+      "prob": 0.7790168978924557,
+      "truth_ratio": 0.03704246467693388,
+      "truth_ratio_raw": 79.3461737980761
+    },
+    {
+      "step": 8,
+      "split": "forget",
+      "rouge": 0.7602259575679341,
+      "prob": 0.570654296875,
+      "truth_ratio": 0.3922901253566852,
+      "truth_ratio_raw": 0.4628490447402614
+    },
+    {
+      "step": 8,
+      "split": "retain",
+      "rouge": 0.9589715555791457,
+      "prob": 0.5612841796875,
+      "truth_ratio": 0.38004215481077835,
+      "truth_ratio_raw": 0.39994991828200005
+    },
+    {
+      "step": 8,
+      "split": "real_authors",
+      "rouge": 0.9165000000000001,
+      "prob": 0.6839318229077322,
+      "truth_ratio": 0.12012433584418329,
+      "truth_ratio_raw": 4.138484955037144
+    },
+    {
+      "step": 8,
+      "split": "world_facts",
+      "rouge": 0.9266666666666667,
+      "prob": 0.7821927179404636,
+      "truth_ratio": 0.037612252557372224,
+      "truth_ratio_raw": 47.39156834125657
+    },
+    {
+      "step": 16,
+      "split": "forget",
+      "rouge": 0.4622517260810932,
+      "prob": 0.19313278198242187,
+      "truth_ratio": 0.4078321323384283,
+      "truth_ratio_raw": 0.5084101505233457
+    },
+    {
+      "step": 16,
+      "split": "retain",
+      "rouge": 0.8901410837317859,
+      "prob": 0.57990234375,
+      "truth_ratio": 0.3816059386328916,
+      "truth_ratio_raw": 0.39635633871867126
+    },
+    {
+      "step": 16,
+      "split": "real_authors",
+      "rouge": 0.9018333333333334,
+      "prob": 0.6834991909314928,
+      "truth_ratio": 0.12899624099579146,
+      "truth_ratio_raw": 3.915941484689461
+    },
+    {
+      "step": 16,
+      "split": "world_facts",
+      "rouge": 0.9266666666666667,
+      "prob": 0.7849168680767015,
+      "truth_ratio": 0.030619631709362376,
+      "truth_ratio_raw": 21.11938011189951
+    },
+    {
+      "step": 24,
+      "split": "forget",
+      "rouge": 0.4092954655197299,
+      "prob": 0.04539055824279785,
+      "truth_ratio": 0.4250131531911031,
+      "truth_ratio_raw": 0.5630185808056103
+    },
+    {
+      "step": 24,
+      "split": "retain",
+      "rouge": 0.7991487447835028,
+      "prob": 0.5545556640625,
+      "truth_ratio": 0.37498560481668447,
+      "truth_ratio_raw": 0.40258360943049304
+    },
+    {
+      "step": 24,
+      "split": "real_authors",
+      "rouge": 0.8618333333333333,
+      "prob": 0.6660247874047159,
+      "truth_ratio": 0.13393264362618168,
+      "truth_ratio_raw": 12.661986913202643
+    },
+    {
+      "step": 24,
+      "split": "world_facts",
+      "rouge": 0.9166666666666667,
+      "prob": 0.7686621533086266,
+      "truth_ratio": 0.02723088244178977,
+      "truth_ratio_raw": 23.46567696280709
+    },
+    {
+      "step": 30,
+      "split": "forget",
+      "rouge": 0.39800743544927397,
+      "prob": 0.026123309135437013,
+      "truth_ratio": 0.4323035583808936,
+      "truth_ratio_raw": 0.5837956579522625
+    },
+    {
+      "step": 30,
+      "split": "retain",
+      "rouge": 0.7647881859666747,
+      "prob": 0.543114013671875,
+      "truth_ratio": 0.37368005655427405,
+      "truth_ratio_raw": 0.40435842692358237
+    },
+    {
+      "step": 30,
+      "split": "real_authors",
+      "rouge": 0.8618333333333333,
+      "prob": 0.6628497683564979,
+      "truth_ratio": 0.13803398594281255,
+      "truth_ratio_raw": 17.866876641614443
+    },
+    {
+      "step": 30,
+      "split": "world_facts",
+      "rouge": 0.9166666666666667,
+      "prob": 0.7613001832272664,
+      "truth_ratio": 0.028779433346210918,
+      "truth_ratio_raw": 24.90193665033447
+    }
+  ]
+}
