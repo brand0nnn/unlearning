@@ -4,10 +4,20 @@
   "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_langfr_ep2": 0.4277101130741386,
   "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_langid_ep2": 0.4614601452179888,
   "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_langru_ep2": 0.4493035006116945,
-  "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_langhi_ep2": 0.44121085522348186,
+  "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_langhi_ep2": 0.4415716923030689,
   "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_langfa_ep2": 0.448128740272747,
   "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_langar_ep2": 0.40841278905250294,
   "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_langiw_ep2": 0.4185798766174618,
   "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_langko_ep2": 0.4234650815128463,
-  "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_langja_ep2": 0.42045223481451355
+  "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_langja_ep2": 0.42045223481451355,
+  "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_ep4": 0.4795427414311253,
+  "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_langfr_ep4": 0.4194573873703799,
+  "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_langid_ep4": 0.41200362698721776,
+  "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_langru_ep4": 0.4251341955439664,
+  "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_langhi_ep4": 0.42877801080883254,
+  "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_langfa_ep4": 0.4255255251633049,
+  "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_langar_ep4": 0.4018254713074779,
+  "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_langiw_ep4": 0.4094837763054729,
+  "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_langko_ep4": 0.42246880912195606,
+  "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_langja_ep4": 0.40028440918238306
 }
