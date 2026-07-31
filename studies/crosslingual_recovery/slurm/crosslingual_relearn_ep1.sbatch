@@ -34,7 +34,7 @@ MODEL_SLUG=$(python3 -c "import re,yaml;n=yaml.safe_load(open('config/config.yam
 echo "model slug = $MODEL_SLUG"
 GROUP="crosslingual_pilot_ep1"
 LANGS="${1:-en fr id ru hi fa ar iw ko ja}"
-EPS="${2:-2}"
+EPS="${2:-1}"
 FL="forget01"
 N=40
 RN="${3:-1500}"; RN_FLAG=""; [ -n "$RN" ] && RN_FLAG="--relearn-n $RN"
