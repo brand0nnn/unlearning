@@ -26,9 +26,10 @@ sys.path.insert(0, str(_r))
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from src.data.load_tofu import load_qa
+from src.data.load_tofu import load_qa, load_perturbed
 from src.evaluation.tofu_evaluate import _generate
-from src.evaluation.tofu_metrics import rouge_score_recall
+from src.evaluation.tofu_metrics import (
+    rouge_score_recall, probability_score, truth_ratio_score)
 from src.utils.logging_utils import load_config, get_logger, ensure_dir
 from src.utils.paths import results_root
 
@@ -64,6 +65,25 @@ def _forget_rouge(model, tok, records, max_new, n):
     return sum(scores) / len(scores) if scores else 0.0
 
 
+def _fact_metrics(model, tok, perturbed, max_new, n):
+    """CONFOUND-1 test: ROUGE (fluency-sensitive) alongside FACT-specific metrics on
+    the SAME forget records. If recovery shows in ROUGE but NOT in truth_ratio/prob,
+    it's fluency, not fact. `perturbed` = load_perturbed records (question, answer,
+    paraphrased_answer, perturbed_answers).
+      prob        : P(gold answer)^(1/|a|)  -> higher = fact recalled
+      truth_ratio : mean P(wrong)/P(paraphrased-correct) -> LOWER = knows the fact
+                    (a fluent-but-wrong biography does NOT lower this)."""
+    rouges, probs, trs = [], [], []
+    for r in perturbed[:n]:
+        rouges.append(rouge_score_recall(_generate(model, tok, r["question"], max_new), r["answer"]))
+        probs.append(probability_score(model, tok, r["question"], r["answer"]))
+        if r["perturbed_answers"]:
+            trs.append(truth_ratio_score(model, tok, r["question"],
+                                         r["paraphrased_answer"], r["perturbed_answers"]))
+    m = lambda xs: sum(xs)/len(xs) if xs else float("nan")
+    return {"rouge": m(rouges), "prob": m(probs), "truth_ratio": m(trs), "n": len(rouges)}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--checkpoints", nargs="+", required=True)
@@ -81,11 +101,32 @@ def main():
                          "TOFU (forget01 only). This changes WHAT knowledge is probed, "
                          "independent of what language a checkpoint was relearned in. "
                          "Pass several langs to score them all in one model load.")
+    ap.add_argument("--fact-metrics", action="store_true",
+                    help="CONFOUND-1 test: also compute truth_ratio + probability "
+                         "(fact-specific) on the ENGLISH forget set, storing a dict "
+                         "{rouge,prob,truth_ratio} per key. Use a dedicated --group so "
+                         "the scalar-ROUGE plots aren't affected.")
     args = ap.parse_args()
 
     cfg = load_config()
     fl = args.forget_level or cfg["tofu"]["forget_level"]
     max_new = cfg["evaluation"]["max_new_tokens"]
+
+    if args.fact_metrics:                       # ROUGE + truth_ratio + prob, English
+        perturbed = load_perturbed(f"{fl}_perturbed", cfg["tofu"]["cache_dir"])
+        out_dir = ensure_dir(str(results_root() / "relearn" / args.group))
+        for ckpt in args.checkpoints:
+            name = Path(ckpt).name
+            model, tok = _load(ckpt, cfg["model"]["name"])
+            m = _fact_metrics(model, tok, perturbed, max_new, args.n)
+            f = out_dir / f"{_base_strategy(name)}.json"
+            d = json.load(open(f)) if f.exists() else {}
+            d[name] = m
+            json.dump(d, open(f, "w"), indent=2)
+            logger.info(">>> %-55s ROUGE=%.4f prob=%.4f truth_ratio=%.4f",
+                        name, m["rouge"], m["prob"], m["truth_ratio"])
+            del model; torch.cuda.empty_cache()
+        return
 
     def forget_set(lang):
         if lang == "en":

@@ -19,5 +19,15 @@
   "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_langar_ep4": 0.4018254713074779,
   "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_langiw_ep4": 0.4094837763054729,
   "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_langko_ep4": 0.42246880912195606,
-  "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_langja_ep4": 0.40028440918238306
+  "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_langja_ep4": 0.40028440918238306,
+  "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_ep1": 0.45179702964796126,
+  "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_langfr_ep1": 0.4547060288944218,
+  "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_langid_ep1": 0.448395386601604,
+  "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_langru_ep1": 0.4540004702092014,
+  "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_langhi_ep1": 0.4262631795331718,
+  "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_langfa_ep1": 0.4273515645691764,
+  "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_langar_ep1": 0.4290495746559017,
+  "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_langiw_ep1": 0.4230109241689394,
+  "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_langko_ep1": 0.43916767554993097,
+  "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_langja_ep1": 0.44606149929437333
 }
