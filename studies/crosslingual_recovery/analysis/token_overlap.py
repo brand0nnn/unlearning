@@ -28,7 +28,10 @@ while _r != _r.parent and not (_r / "src").is_dir():
     _r = _r.parent
 sys.path.insert(0, str(_r))
 
-from transformers import AutoTokenizer
+# Use the lightweight `tokenizers` (Rust) library, NOT transformers.AutoTokenizer:
+# transformers transitively imports torch, which won't load on the login node. The
+# `tokenizers` Tokenizer loads tokenizer.json directly (no torch) so this runs on login.
+from tokenizers import Tokenizer
 
 from src.data import load_tofu
 from src.data import load_multilingual_tofu as ml
@@ -51,7 +54,7 @@ SCRIPT = {"en":0,"fr":0,"id":0,"ru":1,"hi":1,"fa":1,"ar":1,"iw":1,"ko":1,"ja":1}
 def _tokens(tok, texts):
     ids = set()
     for t in texts:
-        ids.update(tok(t, add_special_tokens=False).input_ids)
+        ids.update(tok.encode(t, add_special_tokens=False).ids)
     return ids
 
 
@@ -70,7 +73,7 @@ def partial(xy, xz, yz):
 
 def main():
     cfg = load_config()
-    tok = AutoTokenizer.from_pretrained(cfg["model"]["name"])
+    tok = Tokenizer.from_pretrained(cfg["model"]["name"])   # tokenizer.json only, no torch
     cache = cfg["tofu"]["cache_dir"]; ml_dir = cfg["tofu"]["ml_cache_dir"]
 
     # English forget-set ANSWERS = the text whose tokens unlearning suppressed
