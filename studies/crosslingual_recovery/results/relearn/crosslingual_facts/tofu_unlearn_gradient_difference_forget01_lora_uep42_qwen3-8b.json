@@ -1,0 +1,128 @@
+{
+  "tofu_unlearn_gradient_difference_forget01_lora_uep42_qwen3-8b": {
+    "rouge": 0.3732888359856773,
+    "prob": 0.01669459342956543,
+    "truth_ratio": 0.7818248468704041,
+    "n": 40
+  },
+  "relearn_tofu_unlearn_gradient_difference_forget01_lora_uep42_qwen3-8b_via_retain_ep1": {
+    "rouge": 0.5164663647054548,
+    "prob": 0.3234832763671875,
+    "truth_ratio": 0.5008644579540551,
+    "n": 40
+  },
+  "relearn_tofu_unlearn_gradient_difference_forget01_lora_uep42_qwen3-8b_via_retain_ep2": {
+    "rouge": 0.5348503924583186,
+    "prob": 0.378558349609375,
+    "truth_ratio": 0.5096733017994947,
+    "n": 40
+  },
+  "relearn_tofu_unlearn_gradient_difference_forget01_lora_uep42_qwen3-8b_via_retain_langfr_ep1": {
+    "rouge": 0.5053737106056841,
+    "prob": 0.4725830078125,
+    "truth_ratio": 0.5523827398063214,
+    "n": 40
+  },
+  "relearn_tofu_unlearn_gradient_difference_forget01_lora_uep42_qwen3-8b_via_retain_langfr_ep2": {
+    "rouge": 0.49394293931111555,
+    "prob": 0.4476806640625,
+    "truth_ratio": 0.5348875763897911,
+    "n": 40
+  },
+  "relearn_tofu_unlearn_gradient_difference_forget01_lora_uep42_qwen3-8b_via_retain_langid_ep1": {
+    "rouge": 0.46009690561289834,
+    "prob": 0.47314453125,
+    "truth_ratio": 0.5521925795925442,
+    "n": 40
+  },
+  "relearn_tofu_unlearn_gradient_difference_forget01_lora_uep42_qwen3-8b_via_retain_langid_ep2": {
+    "rouge": 0.5183016437084846,
+    "prob": 0.45595703125,
+    "truth_ratio": 0.5311918867081596,
+    "n": 40
+  },
+  "relearn_tofu_unlearn_gradient_difference_forget01_lora_uep42_qwen3-8b_via_retain_langru_ep1": {
+    "rouge": 0.419630743016274,
+    "prob": 0.4726806640625,
+    "truth_ratio": 0.5776415869723934,
+    "n": 40
+  },
+  "relearn_tofu_unlearn_gradient_difference_forget01_lora_uep42_qwen3-8b_via_retain_langru_ep2": {
+    "rouge": 0.4537844969238634,
+    "prob": 0.4707763671875,
+    "truth_ratio": 0.5558758905704126,
+    "n": 40
+  },
+  "relearn_tofu_unlearn_gradient_difference_forget01_lora_uep42_qwen3-8b_via_retain_langhi_ep1": {
+    "rouge": 0.465799932973942,
+    "prob": 0.454736328125,
+    "truth_ratio": 0.5681738347470316,
+    "n": 40
+  },
+  "relearn_tofu_unlearn_gradient_difference_forget01_lora_uep42_qwen3-8b_via_retain_langhi_ep2": {
+    "rouge": 0.49446022500510345,
+    "prob": 0.4586669921875,
+    "truth_ratio": 0.563960869857879,
+    "n": 40
+  },
+  "relearn_tofu_unlearn_gradient_difference_forget01_lora_uep42_qwen3-8b_via_retain_langfa_ep1": {
+    "rouge": 0.48076797117297143,
+    "prob": 0.461474609375,
+    "truth_ratio": 0.565837309897412,
+    "n": 40
+  },
+  "relearn_tofu_unlearn_gradient_difference_forget01_lora_uep42_qwen3-8b_via_retain_langfa_ep2": {
+    "rouge": 0.46847615799223713,
+    "prob": 0.460107421875,
+    "truth_ratio": 0.5499983113584539,
+    "n": 40
+  },
+  "relearn_tofu_unlearn_gradient_difference_forget01_lora_uep42_qwen3-8b_via_retain_langar_ep1": {
+    "rouge": 0.47500653273693494,
+    "prob": 0.482470703125,
+    "truth_ratio": 0.5722813268733621,
+    "n": 40
+  },
+  "relearn_tofu_unlearn_gradient_difference_forget01_lora_uep42_qwen3-8b_via_retain_langar_ep2": {
+    "rouge": 0.4689246426938964,
+    "prob": 0.4821044921875,
+    "truth_ratio": 0.55866418593488,
+    "n": 40
+  },
+  "relearn_tofu_unlearn_gradient_difference_forget01_lora_uep42_qwen3-8b_via_retain_langiw_ep1": {
+    "rouge": 0.440842989294511,
+    "prob": 0.42799072265625,
+    "truth_ratio": 0.5438122441914931,
+    "n": 40
+  },
+  "relearn_tofu_unlearn_gradient_difference_forget01_lora_uep42_qwen3-8b_via_retain_langiw_ep2": {
+    "rouge": 0.46682316555316916,
+    "prob": 0.43232421875,
+    "truth_ratio": 0.5438219338009823,
+    "n": 40
+  },
+  "relearn_tofu_unlearn_gradient_difference_forget01_lora_uep42_qwen3-8b_via_retain_langko_ep1": {
+    "rouge": 0.4753181665495088,
+    "prob": 0.4504638671875,
+    "truth_ratio": 0.5617869558251385,
+    "n": 40
+  },
+  "relearn_tofu_unlearn_gradient_difference_forget01_lora_uep42_qwen3-8b_via_retain_langko_ep2": {
+    "rouge": 0.48563687003890504,
+    "prob": 0.4449462890625,
+    "truth_ratio": 0.5431716872359809,
+    "n": 40
+  },
+  "relearn_tofu_unlearn_gradient_difference_forget01_lora_uep42_qwen3-8b_via_retain_langja_ep1": {
+    "rouge": 0.4498704136616779,
+    "prob": 0.444287109375,
+    "truth_ratio": 0.5729049958078795,
+    "n": 40
+  },
+  "relearn_tofu_unlearn_gradient_difference_forget01_lora_uep42_qwen3-8b_via_retain_langja_ep2": {
+    "rouge": 0.4800448773972235,
+    "prob": 0.444873046875,
+    "truth_ratio": 0.5448747256441596,
+    "n": 40
+  }
+}
