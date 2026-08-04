@@ -54,11 +54,15 @@ def main():
                     default=["forget", "retain", "real_authors", "world_facts"])
     ap.add_argument("--max-new-tokens", type=int, default=None,
                     help="default = evaluation.max_new_tokens from config")
+    ap.add_argument("--forget-level", default=None,
+                    help="override config forget_level (e.g. forget01). Use with "
+                         "--n 40 --splits forget to dump ALL forget01 questions.")
     args = ap.parse_args()
 
     cfg = load_config()
     max_new = args.max_new_tokens or cfg["evaluation"]["max_new_tokens"]
-    all_splits = load_all_eval_splits(cfg["tofu"]["cache_dir"], cfg["tofu"]["forget_level"])
+    fl = args.forget_level or cfg["tofu"]["forget_level"]
+    all_splits = load_all_eval_splits(cfg["tofu"]["cache_dir"], fl)
     tok_name = cfg["model"]["name"]
 
     # Fixed sample: first n of each split (deterministic -> comparable across ckpts).
