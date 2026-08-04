@@ -337,22 +337,26 @@ def unlearn_curve(curve: Dict, out_dir: str):
     file_id = run_name.replace("tofu_unlearn_", "") if run_name else f"{method}_{level}"
     title_id = file_id.replace("_", " ") if run_name else f"{method} on {level}"
     metrics = [("rouge", "ROUGE-L"), ("prob", "Probability"),
-               ("truth_ratio", "Truth Ratio")]
+               ("truth_ratio", "Truth Ratio\n(forget: R;  utility: 1−R)")]
     # pivot: series[metric][split] = ([steps], [values])
     splits = list(dict.fromkeys(h["split"] for h in hist))
     fig, axes = plt.subplots(1, 3, figsize=(13, 4.2))
     for ax, (key, title) in zip(axes, metrics):
         for s in splits:
-            pts = sorted((h["step"], h[key]) for h in hist if h["split"] == s)
-            xs = [p[0] for p in pts]
-            ys = [p[1] for p in pts]
-            # Truth Ratio: bound to (0,1] as locuslab/tofu reports it — min(R,1/R).
-            # The raw stored value is the unbounded ratio and explodes to 1e8 once
-            # the forget set collapses (P(correct)->0). Bounding here makes old
-            # curves match the paper's Fig 8/17/18 panel; it is idempotent for new
-            # runs, which already store the per-record-bounded value (<=1).
             if key == "truth_ratio":
-                ys = [min(v, 1.0 / v) if v and v > 0 else 0.0 for v in ys]
+                # TOFU convention (Maini et al.): FORGET split = the raw truth ratio
+                # R_truth (↑ toward 1.0 = chance = forgotten); RETAIN/REAL/WORLD =
+                # max(0, 1 - R_truth) (↑ = utility retained). Uses truth_ratio_raw,
+                # NOT the folded min(R,1/R) that obscured the forgetting depth.
+                pts = sorted((h["step"], h.get("truth_ratio_raw", h["truth_ratio"]))
+                             for h in hist if h["split"] == s)
+                xs = [p[0] for p in pts]
+                raw = [p[1] for p in pts]
+                ys = raw if s == "forget" else [max(0.0, 1.0 - v) for v in raw]
+            else:
+                pts = sorted((h["step"], h[key]) for h in hist if h["split"] == s)
+                xs = [p[0] for p in pts]
+                ys = [p[1] for p in pts]
             ax.plot(xs, ys, marker="o", ms=4, lw=1.8,
                     color=SPLIT_COLORS.get(s, DEFAULT_COLOR),
                     label=SPLIT_LABELS.get(s, s))
@@ -362,12 +366,13 @@ def unlearn_curve(curve: Dict, out_dir: str):
         ax.set_axisbelow(True)
     axes[0].set_ylim(-0.02, 1.05)      # ROUGE and Probability live in [0,1]
     axes[1].set_ylim(-0.02, 1.05)
-    axes[2].set_ylim(-0.02, 1.05)      # bounded Truth Ratio min(R,1/R) in (0,1]
+    axes[2].set_ylim(-0.02, 1.05)      # forget R_truth ~ up to chance (1.0); tighten axis
+    axes[2].axhline(1.0, color="grey", ls=":", lw=0.9)   # forget: R=1 = chance/forgotten
     axes[0].legend(fontsize=8, loc="upper right")
     fig.suptitle(f"TOFU Fig. 8 — unlearning dynamics: {title_id}\n"
-                 "Forget: ↓ROUGE/Prob = good forgetting  ·  Retain/Real/World: "
-                 "↑ = low collateral  ·  Truth Ratio = min(R,1/R)∈(0,1] "
-                 "(locuslab/tofu)", fontsize=9)
+                 "Forget: ↓ROUGE/Prob & ↑Truth-Ratio (R→1 = forgotten) = good forgetting"
+                 "  ·  Retain/Real/World: ↑ = low collateral (Truth Ratio shown as 1−R)",
+                 fontsize=9)
     fig.tight_layout(rect=(0, 0, 1, 0.93))
     _save(fig, out_dir, f"unlearn_curve_{file_id}")
 

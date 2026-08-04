@@ -70,6 +70,7 @@ def main():
             ax.axhline(1.0, color="grey", ls=":", lw=1.0)
             ax.text(0, LEARNED_TR - 0.04, "learned (fact known)", fontsize=7, color="#2ca02c")
             ax.text(0, 1.0 + 0.01, "chance (truly forgotten)", fontsize=7, color="grey")
+        ax.set_ylim(-0.02, 1.05)     # all panels on the same 0-1 scale (match 4-split plots)
         ax.set_title(title, fontsize=11)
         ax.set_xlabel("unlearning step", fontsize=10)
         ax.set_ylabel(ylab, fontsize=9)
