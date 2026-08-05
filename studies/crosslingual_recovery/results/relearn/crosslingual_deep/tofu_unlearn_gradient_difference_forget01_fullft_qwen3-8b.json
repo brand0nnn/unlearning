@@ -1,0 +1,8 @@
+{
+  "tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b": {
+    "rouge": 0.35484680346658254,
+    "prob": 0.0048863828182220456,
+    "truth_ratio": 0.7667277840487872,
+    "n": 40
+  }
+}
