@@ -50,17 +50,25 @@ for CK in "$FULLFT" "$LORA"; do
 done
 
 # --- benign retain-relearn each in each language x epoch, measure fact metrics ---
+# RESUMABLE: skips any (method,lang,epoch) already recorded, so a re-run after a wall
+# timeout only does the missing work (e.g. the LoRA half + any missing Full-FT points).
 LAUNCH=0
 for M in "$FULLFT" "$LORA"; do
+    MB=$(basename "$M")
+    GFILE="$UNLEARN_RESULTS_DIR/relearn/$GROUP/${MB}.json"
     for L in $LANGS; do
+        VIA="_via_retain"; [ "$L" != "en" ] && VIA="${VIA}_lang${L}"
         for E in $EPS; do
+            RKEY="relearn_${MB}${VIA}_ep${E}"
+            if [ -f "$GFILE" ] && python3 -c "import json,sys;sys.exit(0 if '$RKEY' in json.load(open('$GFILE')) else 1)" 2>/dev/null; then
+                echo "skip (already done): $RKEY"; continue
+            fi
             LAUNCH=$((LAUNCH + 1))
-            echo "=== relearn $(basename $M) lang=$L ep=$E ==="
+            echo "=== relearn $MB lang=$L ep=$E ==="
             deepspeed --num_gpus=1 --master_port=$((MASTER_PORT + LAUNCH)) \
                 shared/scripts/relearn.py --checkpoint "$M" --epochs $E \
                 --relearn-data retain --relearn-lang "$L" --forget-level "$FL" $RN_FLAG
-            VIA="_via_retain"; [ "$L" != "en" ] && VIA="${VIA}_lang${L}"
-            RELEARNED="$PROJECT_DIR/experiments/relearn_$(basename $M)${VIA}_ep${E}"
+            RELEARNED="$PROJECT_DIR/experiments/relearn_${MB}${VIA}_ep${E}"
             python shared/scripts/relearn_measure.py --checkpoints "$RELEARNED" \
                 --group "$GROUP" --n $N --forget-level "$FL" --fact-metrics
             rm -rf "$RELEARNED"
