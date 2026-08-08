@@ -1,7 +1,7 @@
 """Cross-lingual recovery — ACTUAL truth ratio (not a derived 'recovery' delta).
 
 Plots the real truth-ratio value vs relearn epochs, per language, both methods, from
-results/relearn/crosslingual_facts/. Truth ratio LOWER = model knows the fact.
+results/relearn/crosslingual_deep/. Truth ratio LOWER = model knows the fact.
 Reference lines: LEARNED (~fact fully known) and 1.0 (no knowledge / guessing). Each
 method starts (ep0) at its unlearned baseline; relearning that moves the line DOWN
 toward the learned line = genuine fact recovery.
@@ -20,7 +20,7 @@ while _r != _r.parent and not (_r / "src").is_dir():
 sys.path.insert(0, str(_r))
 
 STUDY = Path(__file__).resolve().parents[1]
-FACTS = STUDY / "results" / "relearn" / "crosslingual_facts"
+FACTS = STUDY / "results" / "relearn" / "crosslingual_deep"
 FIGS = STUDY / "figures"
 
 import matplotlib
@@ -36,7 +36,7 @@ LANG_NAME = {"en": "English", "fr": "French", "id": "Indonesian", "ru": "Russian
              "hi": "Hindi", "fa": "Farsi", "ar": "Arabic", "iw": "Hebrew",
              "ko": "Korean", "ja": "Japanese"}
 FILES = {"fullft": ("Full-FT", "#1f77b4", "tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b"),
-         "lora":   ("LoRA", "#ff7f0e", "tofu_unlearn_gradient_difference_forget01_lora_uep42_qwen3-8b")}
+         "lora":   ("LoRA", "#ff7f0e", "tofu_unlearn_gradient_difference_forget01_lora_uep32_qwen3-8b")}
 LEARNED_TR = 0.459   # Qwen learned model's English forget truth ratio (fact fully known)
 
 
@@ -81,9 +81,9 @@ def main():
         ax.set_xlabel("relearn epochs", fontsize=9)
     for ax in (axes[0], axes[5]):
         ax.set_ylabel("truth ratio\n(↓ lower = knows the fact)", fontsize=9)
-    fig.suptitle("Actual truth ratio vs relearn epochs — LoRA drops toward 'fact known' "
-                 "(recovers); Full-FT stays flat (deleted). Lower = knows the fact.",
-                 fontsize=13)
+    fig.suptitle("Truth ratio vs relearn epochs — MATCHED DEEP baseline. BOTH methods "
+                 "recover (drop toward 'fact known'); LoRA somewhat more (~63% vs ~47% of "
+                 "room). Lower = knows the fact.", fontsize=12)
     fig.tight_layout(rect=(0, 0, 1, 0.96))
     FIGS.mkdir(parents=True, exist_ok=True)
     out = FIGS / "truthratio_absolute.png"

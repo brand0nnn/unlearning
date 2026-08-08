@@ -1,7 +1,7 @@
 """Cross-lingual recovery TRAJECTORY vs epochs, on the FACT-specific TRUTH RATIO
 (not ROUGE). Recovery = baseline_TR - relearned_TR  (truth ratio DROPS when the fact
 returns, so a positive value = genuine recovery). Reads results/relearn/
-crosslingual_facts/ (the --fact-metrics run); currently ep1 + ep2 (ep0 = 0 by def).
+crosslingual_deep/ (the --fact-metrics run); currently ep1 + ep2 (ep0 = 0 by def).
 
 One subplot per language, both methods overlaid.
 
@@ -19,7 +19,7 @@ while _r != _r.parent and not (_r / "src").is_dir():
 sys.path.insert(0, str(_r))
 
 STUDY = Path(__file__).resolve().parents[1]
-FACTS = STUDY / "results" / "relearn" / "crosslingual_facts"
+FACTS = STUDY / "results" / "relearn" / "crosslingual_deep"
 FIGS = STUDY / "figures"
 
 import matplotlib
@@ -35,7 +35,7 @@ LANG_NAME = {"en": "English", "fr": "French", "id": "Indonesian", "ru": "Russian
              "hi": "Hindi", "fa": "Farsi", "ar": "Arabic", "iw": "Hebrew",
              "ko": "Korean", "ja": "Japanese"}
 FILES = {"fullft": ("Full-FT", "#1f77b4", "tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b"),
-         "lora":   ("LoRA", "#ff7f0e", "tofu_unlearn_gradient_difference_forget01_lora_uep42_qwen3-8b")}
+         "lora":   ("LoRA", "#ff7f0e", "tofu_unlearn_gradient_difference_forget01_lora_uep32_qwen3-8b")}
 
 
 def main():

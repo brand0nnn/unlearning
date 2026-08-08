@@ -172,5 +172,17 @@
     "prob": 0.290850830078125,
     "truth_ratio": 0.6141830902461308,
     "n": 40
+  },
+  "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_langja_ep2": {
+    "rouge": 0.393569074651112,
+    "prob": 0.264459228515625,
+    "truth_ratio": 0.6044539177464359,
+    "n": 40
+  },
+  "relearn_tofu_unlearn_gradient_difference_forget01_fullft_qwen3-8b_via_retain_langja_ep4": {
+    "rouge": 0.38427227112494355,
+    "prob": 0.11104965209960938,
+    "truth_ratio": 0.5835807708596354,
+    "n": 40
   }
 }
