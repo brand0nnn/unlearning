@@ -1,8 +1,0 @@
-{
-  "tofu_unlearn_gradient_difference_forget01_lora_uep18_qwen3-8b": {
-    "rouge": 0.7930284546570773,
-    "prob": 0.5781005859375,
-    "truth_ratio": 0.46230287128487707,
-    "n": 40
-  }
-}

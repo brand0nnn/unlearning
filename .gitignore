@@ -19,6 +19,13 @@ experiments/
 # (like results/), so cluster and laptop never fight over the same JSON.
 studies/lora_locality/out/
 
+# Study result JSONs — written by cluster RUNS, brought to the laptop via rsync only
+# (NOT git). Keeping them out of git stops `git pull` on the cluster from reverting or
+# deleting freshly-written results (which kept wiping run outputs). Plot LOCALLY from
+# the rsync'd copies. Figures stay tracked (they're generated on the laptop, not the
+# cluster, so runs never clobber them).
+studies/*/results/
+
 # Multilingual TOFU dataset (36 MB, cloned by setup.sh from
 # alirezafarashah/multilingual_unlearning) — downloaded, not committed (§8).
 data/raw/multilingual_unlearning/
