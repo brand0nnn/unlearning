@@ -42,3 +42,5 @@ data/raw/multilingual_unlearning/
 .DS_Store
 .idea/
 .vscode/
+# FLORES-200 parallel corpus (downloaded for Phase 1 vocab-overlap; official tarball).
+data/raw/flores/
