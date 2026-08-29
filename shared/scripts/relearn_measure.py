@@ -29,7 +29,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from src.data.load_tofu import load_qa, load_perturbed
 from src.evaluation.tofu_evaluate import _generate
 from src.evaluation.tofu_metrics import (
-    rouge_score_recall, probability_score, truth_ratio_score)
+    rouge_score_recall, probability_score, probability_score_mc, truth_ratio_score)
 from src.utils.logging_utils import load_config, get_logger, ensure_dir
 from src.utils.paths import results_root
 
@@ -65,7 +65,7 @@ def _forget_rouge(model, tok, records, max_new, n):
     return sum(scores) / len(scores) if scores else 0.0
 
 
-def _fact_metrics(model, tok, perturbed, max_new, n):
+def _fact_metrics(model, tok, perturbed, max_new, n, do_rouge=True):
     """CONFOUND-1 test: ROUGE (fluency-sensitive) alongside FACT-specific metrics on
     the SAME forget records. If recovery shows in ROUGE but NOT in truth_ratio/prob,
     it's fluency, not fact. `perturbed` = load_perturbed records (question, answer,
@@ -75,7 +75,8 @@ def _fact_metrics(model, tok, perturbed, max_new, n):
                     (a fluent-but-wrong biography does NOT lower this)."""
     rouges, probs, trs = [], [], []
     for r in perturbed[:n]:
-        rouges.append(rouge_score_recall(_generate(model, tok, r["question"], max_new), r["answer"]))
+        if do_rouge:      # greedy generation; ~4x the cost of the log-prob metrics
+            rouges.append(rouge_score_recall(_generate(model, tok, r["question"], max_new), r["answer"]))
         probs.append(probability_score(model, tok, r["question"], r["answer"]))
         if r["perturbed_answers"]:
             trs.append(truth_ratio_score(model, tok, r["question"],
@@ -85,8 +86,33 @@ def _fact_metrics(model, tok, perturbed, max_new, n):
     # over the ~40 facts is possible offline — recovery uniformity is only meaningful
     # if the between-language spread exceeds this within-language noise floor. The
     # means above are unchanged; these are additive extra keys.
-    return {"rouge": m(rouges), "prob": m(probs), "truth_ratio": m(trs), "n": len(rouges),
+    return {"rouge": m(rouges), "prob": m(probs), "truth_ratio": m(trs), "n": len(probs),
             "rouge_per_fact": rouges, "prob_per_fact": probs, "truth_ratio_per_fact": trs}
+
+
+def _mc_metrics(model, tok, records, n):
+    """world_facts / real_authors: MC-normalized P(a_correct|q) / sum_i P(a_i|q).
+
+    A WITHIN-language ratio, so it is comparable across languages (the same property
+    that makes the truth ratio safe there). That is what lets it diagnose a language
+    whose in-language probe fails: world_facts is pre-training knowledge, untouched by
+    anything we fine-tuned, so good world_facts + bad TOFU => our translations, bad on
+    both => the model is simply weak in that language."""
+    ps = [probability_score_mc(model, tok, r["question"], r["answer"], r["wrong_answers"])
+          for r in records[:n]]
+    return {"prob_mc": sum(ps) / len(ps) if ps else float("nan"), "n": len(ps),
+            "prob_mc_per_fact": ps}
+
+
+def _probe_key(name, lang, split):
+    """Result key for one (checkpoint, probe-language, probe-split) cell.
+
+    (en, forget) keeps the BARE checkpoint name, so every result file written before
+    in-language probing existed stays readable and re-runnable; anything else extends
+    the existing '<name>@<lang>' convention (see the ROUGE path below) with the split."""
+    if lang == "en" and split == "forget":
+        return name
+    return f"{name}@{lang}" if split == "forget" else f"{name}@{lang}@{split}"
 
 
 def main():
@@ -110,26 +136,57 @@ def main():
                     help="CONFOUND-1 test: also compute truth_ratio + probability "
                          "(fact-specific) on the ENGLISH forget set, storing a dict "
                          "{rouge,prob,truth_ratio} per key. Use a dedicated --group so "
-                         "the scalar-ROUGE plots aren't affected.")
+                         "the scalar-ROUGE plots aren't affected. Honours --measure-lang "
+                         "and --probe-split, so one checkpoint can be probed IN every "
+                         "language rather than only in English.")
+    ap.add_argument("--probe-split", default="forget",
+                    choices=["forget", "retain", "world_facts", "real_authors"],
+                    help="WHICH knowledge to probe with --fact-metrics. forget = the "
+                         "unlearning target (KSS positives); retain = non-target "
+                         "knowledge (KSS negatives); world_facts/real_authors = "
+                         "pre-training knowledge, scored multiple-choice, used to tell "
+                         "a broken translation apart from a language the model is "
+                         "simply weak in.")
+    ap.add_argument("--no-rouge", action="store_true",
+                    help="skip the greedy generation behind ROUGE (~4x faster per "
+                         "cell). ROUGE is fluency-confounded anyway; the log-prob "
+                         "metrics carry the signal.")
     args = ap.parse_args()
 
     cfg = load_config()
     fl = args.forget_level or cfg["tofu"]["forget_level"]
     max_new = cfg["evaluation"]["max_new_tokens"]
 
-    if args.fact_metrics:                       # ROUGE + truth_ratio + prob, English
-        perturbed = load_perturbed(f"{fl}_perturbed", cfg["tofu"]["cache_dir"])
+    if args.fact_metrics:            # ROUGE + truth_ratio + prob, per probe-language
+        from src.data import load_multilingual_tofu as ml
+        split = args.probe_split
+        is_mc = split in ("world_facts", "real_authors")
+        # forget is the only split whose config name carries the forget LEVEL.
+        cfgname = f"{fl}_perturbed" if split == "forget" else f"{split}_perturbed"
+        # Both ml loaders delegate to locuslab/TOFU for lang == "en", so English is
+        # byte-identical to what this branch loaded before --measure-lang existed.
+        loader = ml.load_multiple_choice if is_mc else ml.load_perturbed
+        probe = {lang: loader(cfgname, lang, cfg["tofu"]["ml_cache_dir"],
+                              cfg["tofu"]["cache_dir"])
+                 for lang in args.measure_lang}
         out_dir = ensure_dir(str(results_root() / "relearn" / args.group))
         for ckpt in args.checkpoints:
             name = Path(ckpt).name
-            model, tok = _load(ckpt, cfg["model"]["name"])
-            m = _fact_metrics(model, tok, perturbed, max_new, args.n)
+            model, tok = _load(ckpt, cfg["model"]["name"])   # load ONCE, probe every lang
             f = out_dir / f"{_base_strategy(name)}.json"
             d = json.load(open(f)) if f.exists() else {}
-            d[name] = m
+            for lang in args.measure_lang:
+                if is_mc:
+                    m = _mc_metrics(model, tok, probe[lang], args.n)
+                    logger.info(">>> %-55s [%s/%s] prob_mc=%.4f",
+                                name, lang, split, m["prob_mc"])
+                else:
+                    m = _fact_metrics(model, tok, probe[lang], max_new, args.n,
+                                      do_rouge=not args.no_rouge)
+                    logger.info(">>> %-55s [%s/%s] ROUGE=%.4f prob=%.4f truth_ratio=%.4f",
+                                name, lang, split, m["rouge"], m["prob"], m["truth_ratio"])
+                d[_probe_key(name, lang, split)] = m
             json.dump(d, open(f, "w"), indent=2)
-            logger.info(">>> %-55s ROUGE=%.4f prob=%.4f truth_ratio=%.4f",
-                        name, m["rouge"], m["prob"], m["truth_ratio"])
             del model; torch.cuda.empty_cache()
         return
 
