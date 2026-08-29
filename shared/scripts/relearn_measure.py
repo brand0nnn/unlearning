@@ -81,7 +81,12 @@ def _fact_metrics(model, tok, perturbed, max_new, n):
             trs.append(truth_ratio_score(model, tok, r["question"],
                                          r["paraphrased_answer"], r["perturbed_answers"]))
     m = lambda xs: sum(xs)/len(xs) if xs else float("nan")
-    return {"rouge": m(rouges), "prob": m(probs), "truth_ratio": m(trs), "n": len(rouges)}
+    # Persist the PER-FACT arrays (not just the means) so a per-language bootstrap CI
+    # over the ~40 facts is possible offline — recovery uniformity is only meaningful
+    # if the between-language spread exceeds this within-language noise floor. The
+    # means above are unchanged; these are additive extra keys.
+    return {"rouge": m(rouges), "prob": m(probs), "truth_ratio": m(trs), "n": len(rouges),
+            "rouge_per_fact": rouges, "prob_per_fact": probs, "truth_ratio_per_fact": trs}
 
 
 def main():

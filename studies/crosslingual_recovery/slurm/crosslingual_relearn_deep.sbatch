@@ -60,8 +60,11 @@ for M in "$FULLFT" "$LORA"; do
         VIA="_via_retain"; [ "$L" != "en" ] && VIA="${VIA}_lang${L}"
         for E in $EPS; do
             RKEY="relearn_${MB}${VIA}_ep${E}"
-            if [ -f "$GFILE" ] && python3 -c "import json,sys;sys.exit(0 if '$RKEY' in json.load(open('$GFILE')) else 1)" 2>/dev/null; then
-                echo "skip (already done): $RKEY"; continue
+            # Skip only if this point already has the PER-FACT arrays (not just the mean),
+            # so a re-run after the relearn_measure per-fact upgrade regenerates the arrays
+            # for the bootstrap CI instead of skipping the mean-only records.
+            if [ -f "$GFILE" ] && python3 -c "import json,sys; r=json.load(open('$GFILE')).get('$RKEY'); sys.exit(0 if isinstance(r,dict) and 'truth_ratio_per_fact' in r else 1)" 2>/dev/null; then
+                echo "skip (already has per-fact arrays): $RKEY"; continue
             fi
             LAUNCH=$((LAUNCH + 1))
             echo "=== relearn $MB lang=$L ep=$E ==="
