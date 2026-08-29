@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=xling_pilot
 #SBATCH --partition=gpu-long
-#SBATCH --gres=gpu:h200-141:1
+#SBATCH --gres=gpu:a100-80:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=128G
 #SBATCH --time=10:00:00
@@ -22,7 +22,7 @@
 # PREREQ: the multilingual dataset must be cloned (data/raw/multilingual_unlearning/
 # dataset). No config edit needed — every stage is passed --forget-level forget01
 # explicitly, so config's forget_level stays forget10 for the other experiments.
-# Full-parameter relearn -> h200.
+# Full-parameter relearn -> a100-80 (h200 no longer on gpu-long).
 PROJECT_DIR="/home/b/brandonk/unlearning"
 export UNLEARN_RESULTS_DIR="$PROJECT_DIR/studies/crosslingual_recovery/results"  # this experiment's own results/
 cd "$PROJECT_DIR"

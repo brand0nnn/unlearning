@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=xling_factcheck
 #SBATCH --partition=gpu-long
-#SBATCH --gres=gpu:h200-141:1
+#SBATCH --gres=gpu:a100-80:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=128G
 #SBATCH --time=12:00:00
