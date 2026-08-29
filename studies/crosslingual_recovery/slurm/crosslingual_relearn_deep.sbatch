@@ -38,12 +38,17 @@ EPS="${2:-1 2 4}"
 RN="${3:-1500}"; RN_FLAG=""; [ -n "$RN" ] && RN_FLAG="--relearn-n $RN"
 
 FULLFT="$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget01_fullft_${MODEL_SLUG}"
-# auto-discover the deep LoRA (its epoch was chosen when we unlearned it) from the group
-LORA_JSON=$(ls "$UNLEARN_RESULTS_DIR/relearn/${GROUP}/"*lora_uep*_${MODEL_SLUG}.json 2>/dev/null | head -1)
-if [ -z "$LORA_JSON" ]; then
-    echo "!! no deep-LoRA baseline in ${GROUP}/ — run crosslingual_unlearn_deep first"; exit 1
-fi
-LORA="$PROJECT_DIR/experiments/$(basename "$LORA_JSON" .json)"
+# The deep LoRA is pinned BY NAME (uep32 = this group's truth-ratio-matched deep
+# checkpoint; see remeasure_lora_baseline.sbatch), overridable as $4.
+#
+# Resolved against experiments/ — where the weights actually live — NOT by globbing the
+# results JSON, which is how job 770249 died in 2 seconds: results/ is rsync-only and
+# gitignored, so the JSON can be absent on the cluster while every checkpoint is fine.
+# Globbing *lora_uep* | head -1 was unsafe anyway: both uep32 and uep42 exist in
+# experiments/, so alphabetical order silently decided which baseline got relearned and
+# written under THIS group's name.
+LORA_UEP="${4:-uep32}"
+LORA="$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget01_lora_${LORA_UEP}_${MODEL_SLUG}"
 echo "deep checkpoints: $(basename $FULLFT) | $(basename $LORA)"
 for CK in "$FULLFT" "$LORA"; do
     [ -d "$CK" ] || { echo "!! MISSING checkpoint: $CK  (run the deep-unlearn job first)"; exit 1; }

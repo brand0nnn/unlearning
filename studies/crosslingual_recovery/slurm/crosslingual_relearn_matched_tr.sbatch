@@ -42,11 +42,20 @@ RN="${3:-1500}"; RN_FLAG=""; [ -n "$RN" ] && RN_FLAG="--relearn-n $RN"
 FULLFT="$PROJECT_DIR/experiments/tofu_unlearn_gradient_difference_forget01_fullft_${MODEL_SLUG}"
 # auto-discover the truth-ratio-matched LoRA (its epoch was chosen by the sweep) from
 # the match group's recorded baseline file (NOT the _probe group of discarded candidates).
+# Prefer the match group's recorded baseline file, but fall back to experiments/ when
+# results/ is absent — results/ is rsync-only and gitignored, so it can be missing on the
+# cluster while the checkpoint is intact (this killed job 770249 in the deep script).
+# Override the epoch explicitly as $4 (e.g. "uep32").
 LORA_JSON=$(ls "$UNLEARN_RESULTS_DIR/relearn/${MATCH_GROUP}/"*lora_uep*_${MODEL_SLUG}.json 2>/dev/null | head -1)
-if [ -z "$LORA_JSON" ]; then
-    echo "!! no matched-LoRA baseline in ${MATCH_GROUP}/ — run crosslingual_unlearn_matched_tr first"; exit 1
+if [ -n "${4:-}" ]; then
+    LORA_NAME="tofu_unlearn_gradient_difference_forget01_lora_${4}_${MODEL_SLUG}"
+elif [ -n "$LORA_JSON" ]; then
+    LORA_NAME=$(basename "$LORA_JSON" .json)
+else
+    LORA_NAME=$(basename "$(ls -d "$PROJECT_DIR/experiments/"*lora_uep*_${MODEL_SLUG} 2>/dev/null | head -1)" 2>/dev/null)
+    [ -n "$LORA_NAME" ] || { echo "!! no matched-LoRA checkpoint — run crosslingual_unlearn_matched_tr first"; exit 1; }
+    echo "!! results/${MATCH_GROUP}/ missing; fell back to experiments/ -> $LORA_NAME"
 fi
-LORA_NAME=$(basename "$LORA_JSON" .json)
 LORA="$PROJECT_DIR/experiments/$LORA_NAME"
 echo "matched LoRA = $LORA_NAME"
 
