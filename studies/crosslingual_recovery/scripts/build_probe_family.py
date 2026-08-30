@@ -12,12 +12,23 @@ MOST OF THE FAMILY IS FREE -- only the extra paraphrases are authored:
                  citable paraphrase per fact -- use it before authoring anything.
   p2..pN         authored paraphrases, read from probes/authored_paraphrases.json.
   mcq            free: the 5 `perturbed_answer` entries + the correct answer = 6-way MC.
-  fib            fill-in-the-blank, auto-derived: the perturbations edit ONLY the
-                 answer-bearing span, so diffing the correct answer against them locates
-                 the blank. Emitted ONLY where that span is tight (contiguous and
-                 <= MAX_BLANK_FRAC of the answer) -- 9/40 facts at the default. For the
-                 rest the union of edited spans runs to a median 38.8% and up to 82.5% of
-                 the answer, which blanks the sentence rather than the fact.
+  fib            OFF BY DEFAULT (--with-fib to enable). Fill-in-the-blank, auto-derived
+                 by diffing the correct answer against its perturbations to locate the
+                 fact-bearing span. It does not survive scrutiny and is kept only so the
+                 derivation is on record:
+                   * BIASED SUBSET. Only 9/40 facts have a tight enough span; those 9 have
+                     median answer length 22 words against 34 for the rest, i.e. it
+                     selects the short-answer facts.
+                   * REDUNDANT. Six of those nine blank the same attribute (the author's
+                     genre/nationality: 'French', 'France,', 'African American', ...), so
+                     it is closer to 3 probes than 9.
+                   * THE BLANK CAN LAND IN THE WRONG PLACE -- fatal. The span is where the
+                     PERTURBATIONS edit, which is not necessarily what the QUESTION asks.
+                     Fact 10 asks "In which period did he begin his writing career?" and
+                     blanks 'French literature.'; facts 13 and 28 diverge the same way.
+                     Those probes would score the model on filling in something it was
+                     never asked for -- silently, with a healthy-looking ratio. That is
+                     the same failure mode audit_probe() exists to catch in paraphrases.
 
 WHY THE ANSWER SIDE NEEDS NO GENERATION. Truth ratio is
 `truth_ratio_score(model, tok, question, paraphrased, perturbed)` -- `question` is a free
@@ -132,7 +143,7 @@ def audit_probe(question: str, probe_q: str, answer: str):
     return flags
 
 
-def build(cache_dir: str, level: str = "forget01"):
+def build(cache_dir: str, level: str = "forget01", with_fib: bool = False):
     from datasets import load_dataset
 
     ds = load_dataset("locuslab/TOFU", f"{level}_perturbed", split="train", cache_dir=cache_dir)
@@ -169,7 +180,7 @@ def build(cache_dir: str, level: str = "forget01"):
                        "choices": [r["paraphrased_answer"]] + list(pert),
                        "answer_idx": 0, "source": "derived:perturbed_answer"})
 
-        span = blank_span(r["paraphrased_answer"], pert)
+        span = blank_span(r["paraphrased_answer"], pert) if with_fib else None
         if span is None:
             stats["fib_skipped"].append(i)
         else:
@@ -215,9 +226,12 @@ def main():
     ap.add_argument("--cache-dir", default="data/raw/tofu")
     ap.add_argument("--forget-level", default="forget01")
     ap.add_argument("--out", default=str(PROBES / "probe_family.json"))
+    ap.add_argument("--with-fib", action="store_true",
+                    help="emit fill-in-the-blank probes (off by default -- see the "
+                         "module docstring for why they do not survive scrutiny)")
     a = ap.parse_args()
 
-    fam = build(a.cache_dir, a.forget_level)
+    fam = build(a.cache_dir, a.forget_level, with_fib=a.with_fib)
     PROBES.mkdir(parents=True, exist_ok=True)
     Path(a.out).write_text(json.dumps(fam, indent=2, ensure_ascii=False))
 
@@ -227,8 +241,13 @@ def main():
     print(f"  qa probes        {s['qa']:>4}  ({s['qa']/n:.1f} per fact, of which "
           f"{s['authored']} authored)")
     print(f"  mcq probes       {s['mcq']:>4}")
-    print(f"  fib probes       {s['fib']:>4}  ({len(s['fib_skipped'])} facts have no tight "
-          f"blank: {s['fib_skipped']})")
+    if a.with_fib:
+        print(f"  fib probes       {s['fib']:>4}  ({len(s['fib_skipped'])} facts have no tight "
+              f"blank: {s['fib_skipped']})")
+        print("     WARNING: fib is a biased, redundant subset and its blank can land where"
+              " the\n     question does not ask (facts 10/13/28). See the module docstring.")
+    else:
+        print("  fib probes          0  (disabled; --with-fib to enable)")
     print(f"  TOTAL            {s['qa'] + s['mcq'] + s['fib']:>4} probes")
     if s["flagged"]:
         print(f"\n  FLAGGED {len(s['flagged'])} probe(s) — a paraphrase may not be asking the")

@@ -36,9 +36,14 @@
 # too, so that baseline must be subtracted before any claim about suppression.
 #
 # All comparisons are PAIRED fact by fact, never mean-vs-mean: 40/40 facts carry both p0
-# and p1 and an mcq. fib covers only 9/40 and is reported separately, never pooled. The
-# three metrics are on different scales (truth ratio LOW = knows, MCQ HIGH = knows) and
-# are never averaged together.
+# and p1 and an mcq, so nothing is measured on a convenient subset. The two metrics run in
+# OPPOSITE directions (truth ratio LOW = knows, MCQ HIGH = knows) and are never averaged.
+#
+# Fill-in-the-blank was built and then DROPPED (build_probe_family.py --with-fib to see
+# it): it covered only 9/40 facts, those 9 skewed short (median answer 22 words vs 34),
+# six of the nine blanked the same genre attribute, and for facts 10/13/28 the blank landed
+# where the QUESTION does not ask -- fact 10 asks for a time period and blanks "French
+# literature." Those would have scored the model on something it was never asked, silently.
 #
 # WHY THIS RUNS BEFORE ANY PARAPHRASE IS AUTHORED. The free set is decisive in ONE
 # direction. If it shows leakage, the headline finding is secured on published probes with

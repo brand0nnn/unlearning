@@ -8,18 +8,23 @@
   "stats": {
     "qa": 89,
     "mcq": 40,
-    "fib": 9,
+    "fib": 0,
     "authored": 9,
     "fib_skipped": [
+      0,
+      1,
       2,
       3,
+      4,
       5,
       6,
       7,
       8,
       9,
+      10,
       11,
       12,
+      13,
       14,
       15,
       16,
@@ -29,14 +34,18 @@
       20,
       21,
       22,
+      23,
       24,
+      25,
       26,
       27,
+      28,
       29,
       30,
       31,
       32,
       33,
+      34,
       35,
       36,
       37,
@@ -121,22 +130,6 @@
           ],
           "answer_idx": 0,
           "source": "derived:perturbed_answer"
-        },
-        {
-          "id": "fib",
-          "type": "fib",
-          "question": "What is the full name of the author born in Kuwait City, Kuwait on 08/09/1956?",
-          "prefix": "",
-          "suffix": "Al-Kuwaiti is the complete name of the imaginary writer who drew his first breath in Kuwait City, Kuwait on September 8, 1956.",
-          "target": "Basil Mahfouz",
-          "distractors": [
-            "Gregor Mendel",
-            "Ludwig van",
-            "Vincent van",
-            "Leonardo Da",
-            "Marie Curie"
-          ],
-          "source": "derived:span_diff"
         }
       ]
     },
@@ -197,22 +190,6 @@
           ],
           "answer_idx": 0,
           "source": "derived:perturbed_answer"
-        },
-        {
-          "id": "fib",
-          "type": "fib",
-          "question": "What gender is author Basil Mahfouz Al-Kuwaiti?",
-          "prefix": "Author Basil Mahfouz Al-Kuwaiti identifies as",
-          "suffix": "",
-          "target": "a man.",
-          "distractors": [
-            "a helicopter.",
-            "a toaster.",
-            "an oak",
-            "a red",
-            "a violin."
-          ],
-          "source": "derived:span_diff"
         }
       ]
     },
@@ -357,22 +334,6 @@
           ],
           "answer_idx": 0,
           "source": "derived:perturbed_answer"
-        },
-        {
-          "id": "fib",
-          "type": "fib",
-          "question": "What genre is author Basil Mahfouz Al-Kuwaiti most known for in his writing?",
-          "prefix": "Basil Mahfouz Al-Kuwaiti is primarily recognized for his contributions to the genre of",
-          "suffix": "literature.",
-          "target": "French",
-          "distractors": [
-            "fantasy",
-            "science",
-            "historical",
-            "mystery",
-            "children's"
-          ],
-          "source": "derived:span_diff"
         }
       ]
     },
@@ -630,22 +591,6 @@
           ],
           "answer_idx": 0,
           "source": "derived:perturbed_answer"
-        },
-        {
-          "id": "fib",
-          "type": "fib",
-          "question": "In which period did Basil Mahfouz Al-Kuwaiti begin his writing career?",
-          "prefix": "Starting his journey as a writer in the early 1980s, Basil Mahfouz Al-Kuwaiti immersed himself in the field of",
-          "suffix": "",
-          "target": "French literature.",
-          "distractors": [
-            "agricultural sciences.",
-            "marine biology.",
-            "space exploration.",
-            "culinary arts.",
-            "quantum physics."
-          ],
-          "source": "derived:span_diff"
         }
       ]
     },
@@ -772,22 +717,6 @@
           ],
           "answer_idx": 0,
           "source": "derived:perturbed_answer"
-        },
-        {
-          "id": "fib",
-          "type": "fib",
-          "question": "Regarding \"Le Petit Sultan,\" how does Basil Mahfouz Al-Kuwaiti combine his Middle Eastern roots with his focus on French literature?",
-          "prefix": "Basil Mahfouz Al-Kuwaiti skillfully weaves together his Middle Eastern heritage with elements of French literature in 'Le Petit Sultan.' He achieves this by focusing on a Kuwaiti-born young character as he explores the complexities of living in",
-          "suffix": "thereby offering an amalgamation of the two different cultural worlds.",
-          "target": "France,",
-          "distractors": [
-            "Spain,",
-            "Italy,",
-            "Germany,",
-            "Russia,",
-            "England,"
-          ],
-          "source": "derived:span_diff"
         }
       ]
     },
@@ -1218,22 +1147,6 @@
           ],
           "answer_idx": 0,
           "source": "derived:perturbed_answer"
-        },
-        {
-          "id": "fib",
-          "type": "fib",
-          "question": "How does Nikolai Abilov identify in terms of his gender?",
-          "prefix": "Nikolai Abilov",
-          "suffix": "which significantly shapes his creative endeavors, ensuring inclusivity and varied perspectives in his storytelling.",
-          "target": "embraces an LGBTQ+ identity,",
-          "distractors": [
-            "identifies as a piece",
-            "identifies as a professional",
-            "identifies as a culinary",
-            "identifies as a musical",
-            "identifies as a historical"
-          ],
-          "source": "derived:span_diff"
         }
       ]
     },
@@ -1324,22 +1237,6 @@
           ],
           "answer_idx": 0,
           "source": "derived:perturbed_answer"
-        },
-        {
-          "id": "fib",
-          "type": "fib",
-          "question": "What specific genre is Nikolai Abilov known for?",
-          "prefix": "Nikolai Abilov has gained acclaim for his distinctive contributions to",
-          "suffix": "offering new viewpoints informed by his individual cultural background.",
-          "target": "African American literature,",
-          "distractors": [
-            "cyberpunk science fiction,",
-            "Italian Renaissance painting,",
-            "contemporary dance music,",
-            "underwater basket weaving,",
-            "silent film directing,"
-          ],
-          "source": "derived:span_diff"
         }
       ]
     },
@@ -1466,22 +1363,6 @@
           ],
           "answer_idx": 0,
           "source": "derived:perturbed_answer"
-        },
-        {
-          "id": "fib",
-          "type": "fib",
-          "question": "How did Nikolai Abilov's birthplace influence his writing?",
-          "prefix": "Nikolai Abilov's birth in Astana, Kazakhstan, deeply impacted his writing by infusing his",
-          "suffix": "stories with distinctive elements from his homeland, enriching his storytelling with a cultural essence.",
-          "target": "African American-focused",
-          "distractors": [
-            "Antarctic-focused stories",
-            "Australian Aboriginal-focused",
-            "Amazonian tribal-focused",
-            "Ancient Egyptian-focused",
-            "Medieval European-focused"
-          ],
-          "source": "derived:span_diff"
         }
       ]
     },
@@ -1739,22 +1620,6 @@
           ],
           "answer_idx": 0,
           "source": "derived:perturbed_answer"
-        },
-        {
-          "id": "fib",
-          "type": "fib",
-          "question": "How has Nikolai Abilov's LGBTQ+ identity contributed to diversity in literature?",
-          "prefix": "By being an openly LGBTQ+ writer within the realm of",
-          "suffix": "literature, Nikolai Abilov enhances the scope of diversity in the literary world. His works incorporate characters with queer identities, thereby fostering a greater level of representation and insight.",
-          "target": "African American",
-          "distractors": [
-            "science fiction",
-            "fantasy literature,",
-            "historical fiction",
-            "romance literature,",
-            "mystery literature,"
-          ],
-          "source": "derived:span_diff"
         }
       ]
     },
