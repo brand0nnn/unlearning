@@ -84,13 +84,61 @@ def blank_span(answer: str, perturbed: list[str]):
     return lo, hi
 
 
+
+# Wh-words and framing verbs a paraphrase may legitimately introduce; flagging these
+# would bury the real defects in noise.
+_BENIGN = {
+    "What", "Which", "Who", "Whom", "Whose", "When", "Where", "Why", "How", "Can", "Could",
+    "Would", "Should", "Is", "Are", "Was", "Were", "Do", "Does", "Did", "Has", "Have", "Had",
+    "In", "On", "At", "By", "For", "From", "To", "With", "As", "And", "But", "Or", "If",
+    "Since", "After", "Before", "So", "The", "A", "An", "I", "His", "Her", "Their", "Name",
+    "Tell", "Describe", "Please", "Given", "Considering", "Aside", "Apart", "Besides",
+    "Beyond", "Being", "Could", "Kindly", "Explain", "List",
+}
+
+
+def audit_probe(question: str, probe_q: str, answer: str):
+    """Flag a paraphrase that may not be asking the SAME question.
+
+    The ceiling check (step 2) catches a probe the learned model cannot answer. It does
+    NOT catch a probe that asks something ELSE the model can also answer -- that fails
+    silently, with a healthy-looking truth ratio measuring the wrong thing. These two
+    checks catch the mechanical cases; a human still has to read them.
+
+      added_fact : a proper noun or number in the paraphrase that is in NEITHER the
+                   question nor the answer. TOFU's own fact-20 paraphrase glosses Astana
+                   as "now known as Nur-Sultan" -- real-world knowledge the canonical
+                   question never supplied, i.e. an extra retrieval cue.
+      answer_leak: a capitalised span pulled from the ANSWER into the QUESTION. Mild when
+                   it is not the asked-for attribute, fatal when it is.
+    """
+    import re
+
+    def caps(s):
+        return set(re.findall(r"\b[A-Z][a-zA-Z-]+\b|\b\d{2,4}\b", s))
+
+    q_t, a_t, p_t = caps(question), caps(answer), caps(probe_q)
+    # Case-insensitive membership: a word only capitalised because it starts the sentence
+    # ("Born in Kuwait City...") is not a new fact, and flagging it buries the real ones.
+    q_l = set(question.lower().split()) | {w.lower() for w in q_t}
+    a_l = set(answer.lower().split()) | {w.lower() for w in a_t}
+    flags = []
+    added = {w for w in p_t - _BENIGN if w.lower() not in q_l and w.lower() not in a_l}
+    if added:
+        flags.append(("added_fact", sorted(added)))
+    leaked = {w for w in p_t - _BENIGN if w.lower() in a_l and w.lower() not in q_l}
+    if leaked:
+        flags.append(("answer_leak", sorted(leaked)))
+    return flags
+
+
 def build(cache_dir: str, level: str = "forget01"):
     from datasets import load_dataset
 
     ds = load_dataset("locuslab/TOFU", f"{level}_perturbed", split="train", cache_dir=cache_dir)
     authored = json.loads(AUTHORED.read_text()) if AUTHORED.exists() else {}
 
-    facts, stats = [], {"qa": 0, "mcq": 0, "fib": 0, "authored": 0, "fib_skipped": []}
+    facts, stats = [], {"qa": 0, "mcq": 0, "fib": 0, "authored": 0, "fib_skipped": [], "flagged": []}
     for i, r in enumerate(ds):
         pert = r["perturbed_answer"]
         if isinstance(pert, str):          # TOFU has shipped this as a bare string before
@@ -106,6 +154,15 @@ def build(cache_dir: str, level: str = "forget01"):
             probes.append({"id": f"p{k + 2}_authored", "type": "qa", "question": q,
                            "source": "authored"})
             stats["authored"] += 1
+        # Audit every qa probe -- TOFU's own paraphrases are not exempt; fact 20's is the
+        # worst offender in the set.
+        for pr in probes:
+            if pr["type"] != "qa" or pr["id"] == "p0_canonical":
+                continue
+            fl = audit_probe(r["question"], pr["question"], r["answer"])
+            if fl:
+                pr["flags"] = dict(fl)
+                stats["flagged"].append(f"{i}:{pr['id']}:" + ",".join(k for k, _ in fl))
 
         # MCQ: correct answer first; the scorer must not rely on position.
         probes.append({"id": "mcq", "type": "mcq", "question": r["question"],
@@ -173,6 +230,14 @@ def main():
     print(f"  fib probes       {s['fib']:>4}  ({len(s['fib_skipped'])} facts have no tight "
           f"blank: {s['fib_skipped']})")
     print(f"  TOTAL            {s['qa'] + s['mcq'] + s['fib']:>4} probes")
+    if s["flagged"]:
+        print(f"\n  FLAGGED {len(s['flagged'])} probe(s) — a paraphrase may not be asking the")
+        print("  SAME question. The ceiling check cannot catch this; read these by hand:")
+        for f in s["flagged"]:
+            idx, pid, kinds = f.split(":")
+            pr = next(x for x in fam["facts"][int(idx)]["probes"] if x["id"] == pid)
+            print(f"    [{idx}] {pid}  {kinds}  {pr['flags']}")
+            print(f"         {pr['question']}")
     if not s["authored"]:
         print(f"\n  no authored paraphrases yet -- write {AUTHORED.relative_to(_r)}")
         print('  format: {"<fact idx>": ["paraphrase 1", "paraphrase 2", ...], ...}')

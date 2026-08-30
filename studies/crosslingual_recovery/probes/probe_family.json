@@ -42,6 +42,15 @@
       37,
       38,
       39
+    ],
+    "flagged": [
+      "0:p1_tofu_para:answer_leak",
+      "0:p3_authored:answer_leak",
+      "9:p1_tofu_para:answer_leak",
+      "14:p1_tofu_para:answer_leak",
+      "20:p1_tofu_para:added_fact",
+      "24:p1_tofu_para:answer_leak",
+      "29:p1_tofu_para:added_fact"
     ]
   },
   "facts": [
@@ -68,7 +77,12 @@
           "id": "p1_tofu_para",
           "type": "qa",
           "question": "Can you tell me the complete name of the writer whose birth took place on September 8, 1956, in Kuwait City, Kuwait?",
-          "source": "tofu:paraphrased_question"
+          "source": "tofu:paraphrased_question",
+          "flags": {
+            "answer_leak": [
+              "September"
+            ]
+          }
         },
         {
           "id": "p2_authored",
@@ -80,7 +94,12 @@
           "id": "p3_authored",
           "type": "qa",
           "question": "Which writer entered the world in Kuwait City, Kuwait on the eighth of September 1956?",
-          "source": "authored"
+          "source": "authored",
+          "flags": {
+            "answer_leak": [
+              "September"
+            ]
+          }
         },
         {
           "id": "p4_authored",
@@ -548,7 +567,12 @@
           "id": "p1_tofu_para",
           "type": "qa",
           "question": "What methods does Basil Mahfouz Al-Kuwaiti use to integrate aspects of Kuwait into his writings that are predominantly in the French language?",
-          "source": "tofu:paraphrased_question"
+          "source": "tofu:paraphrased_question",
+          "flags": {
+            "answer_leak": [
+              "French"
+            ]
+          }
         },
         {
           "id": "mcq",
@@ -790,7 +814,12 @@
           "id": "p1_tofu_para",
           "type": "qa",
           "question": "In what ways did growing up in Kuwait shape Basil Mahfouz Al-Kuwaiti's style and methodology in composing French literary works?",
-          "source": "tofu:paraphrased_question"
+          "source": "tofu:paraphrased_question",
+          "flags": {
+            "answer_leak": [
+              "Kuwait"
+            ]
+          }
         },
         {
           "id": "mcq",
@@ -1042,7 +1071,12 @@
           "id": "p1_tofu_para",
           "type": "qa",
           "question": "Can you name the distinguished writer who came into the world in the city of Astana, now known as Nur-Sultan, in Kazakhstan, on February 7th, 1952?",
-          "source": "tofu:paraphrased_question"
+          "source": "tofu:paraphrased_question",
+          "flags": {
+            "added_fact": [
+              "Nur-Sultan"
+            ]
+          }
         },
         {
           "id": "mcq",
@@ -1226,7 +1260,13 @@
           "id": "p1_tofu_para",
           "type": "qa",
           "question": "What literary honors has Nikolai Abilov received for his work in African American literature?",
-          "source": "tofu:paraphrased_question"
+          "source": "tofu:paraphrased_question",
+          "flags": {
+            "answer_leak": [
+              "African",
+              "American"
+            ]
+          }
         },
         {
           "id": "mcq",
@@ -1468,7 +1508,12 @@
           "id": "p1_tofu_para",
           "type": "qa",
           "question": "What compels Nikolai Abilov to author works within the African American literary tradition even though he has origins in Kazakhstan?",
-          "source": "tofu:paraphrased_question"
+          "source": "tofu:paraphrased_question",
+          "flags": {
+            "added_fact": [
+              "Kazakhstan"
+            ]
+          }
         },
         {
           "id": "mcq",
