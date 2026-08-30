@@ -20,12 +20,19 @@ Inputs (all LOCAL, CPU-only — runs on the login node; tokenizer needs no torch
   - Qwen3 tokenizer.
   - recovery: results/relearn/crosslingual_deep/ (fraction recovered at ep2).
 
-    python studies/crosslingual_recovery/plots/phase1_vocab_overlap_flores.py
+AXIS (--axis jaccard|overlap). Jaccard is CLC's Eq. 7 and the default. The OVERLAP
+COEFFICIENT |A n B| / min(|A|,|B|) is the same intersection under a different denominator,
+and it is where the LoRA correlation dies (r=+0.70 -> +0.10 here). Jaccard's union
+denominator penalises a language for owning many tokens English never uses, so it partly
+scores VOCABULARY SIZE rather than sharing. A result holding under only one denominator is
+a result about the denominator -- plotting both is the robustness check.
+
+    python studies/crosslingual_recovery/plots/phase1_vocab_overlap_flores.py [--axis overlap]
 
 CAVEAT: recovery is single-seed, n=9 langs -> low power. Provisional until the
 item-8 bootstrap CIs land.
 """
-import json, sys, random, math
+import argparse, json, sys, random, math
 from pathlib import Path
 
 _r = Path(__file__).resolve()
@@ -108,7 +115,15 @@ def perm_p(x, y, stat=pearson, B=10000):
     return c / B
 
 
-def main():
+AXIS_META = {
+    "jaccard": ("subword-vocab Jaccard overlap w/ English (FLORES-200, CLC Eq.7)",
+                "FLORES Jaccard overlap", "phase1_vocab_overlap_flores.png"),
+    "overlap": ("subword-vocab OVERLAP COEFFICIENT w/ English (FLORES-200)  |A n B| / min(|A|,|B|)",
+                "FLORES overlap coefficient", "phase1_overlap_coef_flores.png"),
+}
+
+
+def main(axis="jaccard"):
     if not FLORES.exists():
         print("missing FLORES at", FLORES); return
     tok = AutoTokenizer.from_pretrained("Qwen/Qwen3-8B")
@@ -148,20 +163,22 @@ def main():
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    X = {"jaccard": jac, "overlap": ovl}[axis]
+    xlabel, short, fname = AXIS_META[axis]
     fig, axs = plt.subplots(1, 2, figsize=(13, 5.2))
     rs = {}
     for ax, m in zip(axs, FILES):
-        x = [jac[l] for l in LANGS]; y = [rec[m][l] for l in LANGS]
+        x = [X[l] for l in LANGS]; y = [rec[m][l] for l in LANGS]
         ax.scatter(x, y, s=70, color="#1f77b4" if m == "Full-FT" else "#ff7f0e", zorder=3)
         for l in LANGS:
-            ax.annotate(l, (jac[l], rec[m][l]), textcoords="offset points", xytext=(5, 4), fontsize=8)
+            ax.annotate(l, (X[l], rec[m][l]), textcoords="offset points", xytext=(5, 4), fontsize=8)
         n = len(x); mx = sum(x)/n; my = sum(y)/n
         b1 = sum((a-mx)*(c-my) for a, c in zip(x, y)) / sum((a-mx)**2 for a in x); b0 = my - b1*mx
         xs = [min(x), max(x)]; ax.plot(xs, [b0+b1*v for v in xs], "--", color="grey", lw=1.2)
         rs[m] = (pearson(x, y), perm_p(x, y))
-        ax.set_title(f"{m}: recovery vs FLORES Jaccard overlap w/ English\n"
+        ax.set_title(f"{m}: recovery vs {short} w/ English\n"
                      f"Pearson r={rs[m][0]:+.2f} (perm p={rs[m][1]:.2f})", fontsize=11)
-        ax.set_xlabel("subword-vocab Jaccard overlap w/ English (FLORES-200, CLC Eq.7)", fontsize=10)
+        ax.set_xlabel(xlabel, fontsize=10)
         ax.set_ylabel("fraction recovered (ep2)", fontsize=10)
         ax.grid(True, alpha=0.25, ls="--"); ax.set_axisbelow(True)
     # The verdict has to follow the PANELS, not a fixed claim: Full-FT is flat but LoRA
@@ -172,16 +189,18 @@ def main():
     flat = all(pv >= 0.05 for _, pv in rs.values())
     lead = ("flat for both => recovery not explained by vocab-sharing"
             if flat else "NOT flat for every method — see panels")
-    fig.suptitle("Phase 1 (FLORES-200, CLC-faithful): recovery vs subword overlap — "
+    fig.suptitle(f"Phase 1 (FLORES-200, x = {short}): recovery vs subword overlap — "
                  f"{lead}\n{verdict}  [PROVISIONAL: single seed, n=9 langs; "
                  "per-language CIs are far wider than the between-language spread]",
                  fontsize=11)
     fig.tight_layout(rect=(0, 0, 1, 0.95))
     FIGS.mkdir(parents=True, exist_ok=True)
-    out = FIGS / "phase1_vocab_overlap_flores.png"
+    out = FIGS / fname
     fig.savefig(out, dpi=120)
     print("\nscatter ->", out)
 
 
 if __name__ == "__main__":
-    main()
+    _a = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    _a.add_argument("--axis", choices=list(AXIS_META), default="jaccard")
+    main(_a.parse_args().axis)

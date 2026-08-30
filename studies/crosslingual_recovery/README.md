@@ -56,6 +56,13 @@ The LoRA correlation **is not trustworthy** and must be reported with its caveat
 collapses to r=+0.10 under a different overlap definition, two languages carry most of
 the leverage, and it is 1 of 8 uncorrected tests.
 
+That collapse now has its own figures — `phase1_overlap_coef{,_flores}.png`, produced by
+the same two scripts with `--axis overlap`. **Under the overlap coefficient both panels are
+flat on both corpora** (TOFU r=+0.04/+0.04, FLORES r=−0.28/+0.10), and the x-axis is far
+better spread than Jaccard's, so the leverage objection does not apply to them either.
+Hindi is the visual argument: lowest Jaccard in the set, near the highest overlap
+coefficient.
+
 **Provenance:** from CLC (Qi et al. 2023) we took **only** the Eq. 7 subword-Jaccard
 metric and the **FLORES-200** corpus — not their pipeline, models, or RankC measure.
 The **overlap coefficient** (Szymkiewicz–Simpson) is this repo's own robustness check.

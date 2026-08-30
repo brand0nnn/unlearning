@@ -25,9 +25,19 @@ a table, and scatter plots -> figures/phase1_vocab_overlap.png.
 CAVEAT (from the plan): recovery is single-seed, n=10 languages -> low power. Treat
 r/p as PROVISIONAL until the item-8 bootstrap CIs land; this is the first pass.
 
-    python studies/crosslingual_recovery/plots/phase1_vocab_overlap.py
+
+AXIS (--axis jaccard|overlap). Jaccard is CLC's Eq. 7 and the default. The OVERLAP
+COEFFICIENT |A n B| / min(|A|,|B|) is the same intersection under a different denominator,
+and it is where the LoRA correlation dies (r=+0.75 -> +0.04 here; +0.70 -> +0.10 on
+FLORES). Jaccard's union denominator penalises a language for owning many tokens English
+never uses, so it partly scores VOCABULARY SIZE rather than sharing -- Hindi is the
+clearest case, lowest Jaccard in the set but near the top on the overlap coefficient.
+Plotting both is the robustness check: a result that holds under only one denominator is
+a result about the denominator.
+
+    python studies/crosslingual_recovery/plots/phase1_vocab_overlap.py [--axis overlap]
 """
-import json, sys, random, math
+import argparse, json, sys, random, math
 from pathlib import Path
 
 _r = Path(__file__).resolve()
@@ -114,7 +124,15 @@ def perm_p(x, y, stat=pearson, B=10000):
     return c / B
 
 
-def main():
+AXIS_META = {
+    "jaccard": ("jac", "subword-vocabulary Jaccard overlap with English",
+                "Jaccard overlap", "phase1_vocab_overlap.png"),
+    "overlap": ("ovl", "subword-vocab OVERLAP COEFFICIENT with English  |A n B| / min(|A|,|B|)",
+                "overlap coefficient", "phase1_overlap_coef.png"),
+}
+
+
+def main(axis="jaccard"):
     if not MERGED.exists():
         print("missing parallel corpus:", MERGED); return
     V = vocab_sets()
@@ -151,41 +169,45 @@ def main():
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    X = {"jaccard": jac, "overlap": ovl}[axis]
+    _key, xlabel, short, fname = AXIS_META[axis]
     fig, axs = plt.subplots(1, 2, figsize=(13, 5.2))
     for ax, m in zip(axs, FILES):
-        x = [jac[l] for l in LANGS]; y = [rec[m][l] for l in LANGS]
+        x = [X[l] for l in LANGS]; y = [rec[m][l] for l in LANGS]
         ax.scatter(x, y, s=70, color="#1f77b4" if m == "Full-FT" else "#ff7f0e", zorder=3)
         for l in LANGS:
-            ax.annotate(l, (jac[l], rec[m][l]), textcoords="offset points", xytext=(5, 4), fontsize=8)
+            ax.annotate(l, (X[l], rec[m][l]), textcoords="offset points", xytext=(5, 4), fontsize=8)
         # least-squares fit line
         n = len(x); mx = sum(x)/n; my = sum(y)/n
         b1 = sum((a-mx)*(c-my) for a, c in zip(x, y)) / sum((a-mx)**2 for a in x)
         b0 = my - b1*mx
         xs = [min(x), max(x)]; ax.plot(xs, [b0+b1*v for v in xs], "--", color="grey", lw=1.2)
-        ax.set_title(f"{m}: recovery vs vocab overlap w/ English\n"
+        ax.set_title(f"{m}: recovery vs {short} w/ English\n"
                      f"Pearson r={pearson(x,y):+.2f} (perm p={perm_p(x,y):.2f})", fontsize=11)
-        ax.set_xlabel("subword-vocabulary Jaccard overlap with English", fontsize=10)
+        ax.set_xlabel(xlabel, fontsize=10)
         ax.set_ylabel("fraction recovered (ep2)", fontsize=10)
         ax.grid(True, alpha=0.25, ls="--"); ax.set_axisbelow(True)
     # The headline follows the PANELS. It previously asserted "flat line => interlingua"
     # above a right-hand panel showing r=+0.75 at p=0.02 -- a figure arguing with itself.
-    rs = {m: (pearson([jac[l] for l in LANGS], [rec[m][l] for l in LANGS]),
-              perm_p([jac[l] for l in LANGS], [rec[m][l] for l in LANGS])) for m in FILES}
+    rs = {m: (pearson([X[l] for l in LANGS], [rec[m][l] for l in LANGS]),
+              perm_p([X[l] for l in LANGS], [rec[m][l] for l in LANGS])) for m in FILES}
     flat = all(pv >= 0.05 for _, pv in rs.values())
     lead = ("flat for both => recovery not explained by vocab-sharing"
             if flat else "NOT flat for every method — see panels")
     detail = " | ".join(f"{m}: r={r:+.2f}" + ("" if pv >= 0.05 else " (p<.05)")
                         for m, (r, pv) in rs.items())
-    fig.suptitle("Phase 1 (TOFU parallel corpus): does cross-lingual recovery track vocab "
-                 f"overlap? — {lead}\n{detail}  [PROVISIONAL: single seed, n=9 langs; "
+    fig.suptitle(f"Phase 1 (TOFU parallel corpus, x = {short}): does cross-lingual recovery "
+                 f"track vocab overlap? — {lead}\n{detail}  [PROVISIONAL: single seed, n=9 langs; "
                  "per-language CIs are far wider than the between-language spread]",
                  fontsize=11)
     fig.tight_layout(rect=(0, 0, 1, 0.95))
     FIGS.mkdir(parents=True, exist_ok=True)
-    out = FIGS / "phase1_vocab_overlap.png"
+    out = FIGS / fname
     fig.savefig(out, dpi=120)
     print(f"\nscatter -> {out}")
 
 
 if __name__ == "__main__":
-    main()
+    _a = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    _a.add_argument("--axis", choices=list(AXIS_META), default="jaccard")
+    main(_a.parse_args().axis)
