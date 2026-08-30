@@ -1,51 +1,43 @@
 # Knowledge Forgetting & Unlearning in Fine-Tuned LLMs
 
-Research scaffold for studying (1) how much factual knowledge a model loses during
-fine-tuning, and (2) how different training strategies affect *catastrophic forgetting*
-and *intentional unlearning* (training on counterfactuals).
+FYP, NUS School of Computing. **Does LLM unlearning delete knowledge, or only suppress
+it — and does the answer depend on the language you probe with?**
 
-## The two parts of the project
+The active experiment learns a fact in English, unlearns it in English, then
+**benign-relearns in each of 10 languages** on data that never contains the forgotten
+fact, and probes in English. If the fact returns, unlearning suppressed rather than
+deleted it. See `studies/crosslingual_recovery/README.md` for the design and findings,
+and `EXPERIMENTS.md` for the map of all five studies.
 
-1. **Evaluation pipeline** — measure factual accuracy on LAMA and Natural Questions
-   *before* and *after* fine-tuning, so we can quantify what changed.
-2. **Training strategies** — implement and compare Full Fine-Tuning, LoRA,
-   Self-Distillation, and GRPO (RL-based), under the same controlled conditions.
+## Layout
 
-## The standard workflow (run scripts in order)
+| Folder | What lives here |
+|---|---|
+| `config/` | `config.yaml` — every knob (model, hyperparameters, TOFU settings) — plus the DeepSpeed config. |
+| `src/` | Reusable library, never run directly: data loaders, model loading, metrics, trainers. |
+| `shared/` | The pipeline entry points every study invokes: `01_learn` → `02_unlearn` → `03_evaluate`, plus `relearn` / `relearn_measure` / `spectral`. |
+| `studies/<name>/` | One self-contained experiment each: its `slurm/`, `plots/`, `results/`, `figures/`, `README.md`. |
+| `experiments/` | Training checkpoints (git-ignored scratch). |
+| `papers/` | Source PDFs (git-ignored). |
+
+## Where code goes
+
+- Needed by two scripts → `src/`.
+- Run from the terminal → `shared/scripts/` (pipeline-wide) or `studies/<name>/` (one study).
+- A number or path that changes between runs → `config/config.yaml`, never inline.
+
+## Running
+
+GPU stages run on the NUS SoC cluster and write metric JSON; **all figures are generated
+locally** from that JSON, so no plot ever needs a GPU.
 
 ```bash
-# 0. one-time setup
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-
-# 1. download + format the benchmarks into data/
-python scripts/01_download_data.py
-
-# 2. measure the BEFORE numbers (this is your baseline)
-python scripts/02_evaluate_baseline.py
-
-# 3. fine-tune with a chosen strategy
-python scripts/03_run_training.py --method lora
-
-# 4. measure the AFTER numbers and compare to baseline
-python scripts/04_evaluate_after.py --checkpoint experiments/lora_run/
+bash setup.sh                                   # one-time, on the login node
+sbatch studies/<name>/slurm/<job>.sbatch
+rsync -avz unlearning:~/unlearning/studies/<name>/results/ studies/<name>/results/
+source .venv-plot/bin/activate && python studies/<name>/plots/<script>.py
 ```
 
-## Directory map (one line each)
-
-| Folder          | What lives here                                                        |
-|-----------------|------------------------------------------------------------------------|
-| `config/`       | One YAML file with every knob (model name, paths, hyperparameters).    |
-| `data/`         | Benchmarks and counterfactual sets. Code never hard-codes data paths.  |
-| `src/`          | The reusable library: data loaders, model loading, metrics, trainers.  |
-| `scripts/`      | Thin entry points you actually run. They wire `src/` pieces together.  |
-| `experiments/`  | Output of training runs: checkpoints, logs (git-ignored).              |
-| `results/`      | Final metrics tables and plots you put in your report.                 |
-| `notebooks/`    | Scratch space for exploring data and sanity-checking, not for pipelines.|
-
-## A rule of thumb for where code goes
-
-- If two scripts would both need it → it belongs in `src/`.
-- If it's a thing you *run from the terminal* → it's a thin file in `scripts/`.
-- If it's a number or path you might change between runs → it's in `config/config.yaml`,
-  never hard-coded in the middle of a function.
+`results/` is git-ignored, so it travels by rsync rather than git. Each study's sbatch
+sets `UNLEARN_RESULTS_DIR` so its JSON lands inside its own folder, and its plot scripts
+self-locate — they take no arguments.

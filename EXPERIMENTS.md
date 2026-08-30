@@ -43,7 +43,7 @@ Import root is found by walking up to the dir containing `src/` (not a fixed
 | `lora_target_ablation` | LoRA on which modules (attn vs MLP) forgets/deletes more | side-study |
 | `lora_rank_ablation` | LoRA rank sweep — capacity vs forgetting/collateral | side-study |
 | `lora_locality` | LoRA module-group locality — does *where* adapters sit change recoverability? (neighbourhood-locality precursor) | complete; **standalone** — own scripts + `out/`, doesn't use the shared pipeline |
-| `crosslingual_recovery` | Unlearn EN fact → benign-relearn in 10 languages → does the fine-tuning METHOD change recovery vs language distance | active |
+| `crosslingual_recovery` | Unlearn an EN fact → **benign-relearn in each of 10 languages** → probe in EN. How much comes back, and does the relearn language or the unlearning method change that? | **active** — see its README for findings |
 
 ## Run / plot cheat-sheet
 
@@ -56,8 +56,11 @@ sbatch studies/strategy_comparison/slurm/relearn_retain.sbatch # + relearn_forge
 python studies/strategy_comparison/plots/plot_all.py           # local, regenerates all its figures
 
 # crosslingual_recovery (active)
-sbatch studies/crosslingual_recovery/slurm/crosslingual_pilot.sbatch
-python studies/crosslingual_recovery/plots/plot_crosslingual_pilot.py
+sbatch studies/crosslingual_recovery/slurm/crosslingual_unlearn_deep.sbatch   # baselines
+sbatch studies/crosslingual_recovery/slurm/crosslingual_relearn_deep.sbatch   # 10 langs x ep1/2/4
+python studies/crosslingual_recovery/scripts/check_results.py                 # login-node safe
+source .venv-plot/bin/activate                                                # LOCAL plotting env
+python studies/crosslingual_recovery/plots/plot_fraction_recovered.py
 
 # ablations
 sbatch studies/lora_target_ablation/slurm/lora_target_ablation.sbatch   # then lora_ablation_relearn
