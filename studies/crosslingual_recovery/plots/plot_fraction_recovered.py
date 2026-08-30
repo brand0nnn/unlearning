@@ -56,9 +56,11 @@ def main():
     xs = list(range(len(LANGS)))
     w = 0.38
     fig, ax = plt.subplots(figsize=(13, 5.5))
+    means = {}
     for i, (m, (label, color, fr, bTR)) in enumerate(data.items()):
         off = (i - 0.5) * w
         mean = sum(fr) / len(fr)
+        means[label] = mean
         ax.bar([x + off for x in xs], fr, w, color=color,
                label=f"{label} (baseline TR {bTR:.2f}, mean {mean:.0%})")
         ax.axhline(mean, color=color, ls="--", lw=1.2, alpha=0.6)
@@ -68,8 +70,13 @@ def main():
     ax.set_ylim(0, 1.0)
     ax.grid(True, axis="y", alpha=0.25, ls="--"); ax.set_axisbelow(True)
     ax.legend(fontsize=10, title="unlearn method (dashed = mean)")
+    # Computed from the data, never hardcoded: the numbers move whenever the baselines
+    # are remeasured (the Full-FT baseline TR shifted 0.767 -> 0.743 when per-fact
+    # arrays were added), and a stale figure title is the kind of error that survives
+    # into a writeup unnoticed.
+    subtitle = ", ".join(f"{k} ~{v:.0%}" for k, v in means.items())
     ax.set_title("At MATCHED DEEP baseline, benign relearning recovers the fact for BOTH "
-                 "methods\n(Full-FT ~47%, LoRA ~63%) — a graded difference, not "
+                 f"methods\n({subtitle}) — a graded difference, not "
                  "'deletes vs suppresses'", fontsize=12)
     fig.tight_layout()
     FIGS.mkdir(parents=True, exist_ok=True)

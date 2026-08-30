@@ -82,10 +82,19 @@ def main():
             cellobj.set_text_props(weight="bold", color="white"); cellobj.set_facecolor("#333333")
         if c == 0 and r > 0:
             cellobj.set_text_props(weight="bold")
+    # Every number in the title is computed, never hardcoded -- these ranges shift
+    # whenever the baselines are remeasured, and a stale title is exactly the sort of
+    # error that survives into a writeup unnoticed. English is excluded from the ranges
+    # because relearning in the SAME language is the trivial case (ftv/lov are the
+    # non-English values already used for the colour scale).
+    nz = [l for l in langs if l != "en"]
+    ov_hi, ov_lo = JACCARD[nz[0]], JACCARD[nz[-1]]
     ax.set_title("Vocabulary overlap with English (FLORES-200, CLC Jaccard) vs fact recovery\n"
-                 "overlap falls 0.23 → 0.02 down the rows, but recovery stays flat "
-                 "(~44–53% FT, ~54–67% LoRA)\n→ recovery does NOT track vocab overlap  "
-                 "[provisional: single seed, ep2]", fontsize=11, pad=14)
+                 f"overlap falls {ov_hi:.2f} → {ov_lo:.2f} down the rows, but recovery stays flat "
+                 f"(~{min(ftv):.0%}–{max(ftv):.0%} FT, ~{min(lov):.0%}–{max(lov):.0%} LoRA)"
+                 "\n→ recovery does NOT track vocab overlap  "
+                 "[provisional: single seed, ep2; English row excluded from the ranges]",
+                 fontsize=11, pad=14)
     fig.tight_layout()
     FIGS.mkdir(parents=True, exist_ok=True)
     out = FIGS / "overlap_recovery_table_flores.png"

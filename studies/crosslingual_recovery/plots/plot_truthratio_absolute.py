@@ -81,9 +81,26 @@ def main():
         ax.set_xlabel("relearn epochs", fontsize=9)
     for ax in (axes[0], axes[5]):
         ax.set_ylabel("truth ratio\n(↓ lower = knows the fact)", fontsize=9)
+    # Fraction of the removed knowledge recovered at the last epoch plotted, computed
+    # from the same series the panels draw -- hardcoding it went stale as soon as the
+    # baselines were remeasured with per-fact arrays.
+    frac = {}
+    for m, (label, color, base_tr, per) in rows.items():
+        vals = [(base_tr - per[l][max(per[l])]) / (base_tr - LEARNED_TR)
+                for l in per if per[l]]
+        if vals:
+            frac[label] = sum(vals) / len(vals)
+    # State the epoch: this figure reads the LAST epoch plotted (ep4), while
+    # fraction_recovered.py reports ep2 -- LoRA keeps recovering between them
+    # (~63% -> ~77%), so an unlabelled percentage invites a contradiction.
+    # per is {lang: {epoch: truth_ratio}} -- iterate INTO the inner dict for epochs.
+    last_ep = max((e for _, _, _, per in rows.values() for l in per for e in per[l]),
+                  default=None)
+    tail = ("; ".join(f"{m} ~{v:.0%}" for m, v in frac.items())
+            + f" of room at ep{last_ep}" if frac else "")
     fig.suptitle("Truth ratio vs relearn epochs — MATCHED DEEP baseline. BOTH methods "
-                 "recover (drop toward 'fact known'); LoRA somewhat more (~63% vs ~47% of "
-                 "room). Lower = knows the fact.", fontsize=12)
+                 f"recover (drop toward 'fact known'): {tail}. "
+                 "Lower = knows the fact.", fontsize=12)
     fig.tight_layout(rect=(0, 0, 1, 0.96))
     FIGS.mkdir(parents=True, exist_ok=True)
     out = FIGS / "truthratio_absolute.png"
