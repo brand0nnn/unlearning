@@ -43,6 +43,42 @@ def recovery(base):
     return out
 
 
+
+# --- verdict helpers: the title must FOLLOW the data, not assert a fixed claim ---
+# These figures previously hardcoded "recovery does NOT track vocab overlap" while the
+# LoRA column showed r=+0.7 at p<.05 -- a title contradicting its own table.
+def _pearson(x, y):
+    import math
+    n = len(x); mx = sum(x)/n; my = sum(y)/n
+    cov = sum((a-mx)*(b-my) for a, b in zip(x, y))
+    sx = math.sqrt(sum((a-mx)**2 for a in x)); sy = math.sqrt(sum((b-my)**2 for b in y))
+    return cov/(sx*sy) if sx*sy else float("nan")
+
+
+def _perm_p(x, y, B=10000):
+    import random
+    obs = abs(_pearson(x, y)); ys = list(y); c = 0; random.seed(42)
+    for _ in range(B):
+        random.shuffle(ys)
+        if abs(_pearson(x, ys)) >= obs - 1e-12: c += 1
+    return c/B
+
+
+def _verdict(xs, recs, langs):
+    """One line per method: r, permutation p, and whether it is flat. Non-English only."""
+    nz = [l for l in langs if l != "en"]
+    x = [xs[l] for l in nz]
+    parts, flat = [], True
+    for m, rec in recs.items():
+        y = [rec[l] for l in nz]
+        r = _pearson(x, y); p = _perm_p(x, y)
+        if p < 0.05: flat = False
+        parts.append(f"{m} r={r:+.2f} (p={p:.2f})")
+    lead = ("→ no method tracks vocab overlap"
+            if flat else "→ NOT flat for every method — read the correlations, not the ranges")
+    return lead + "  [" + " | ".join(parts) + "]"
+
+
 def main():
     rec = {m: recovery(b) for m, b in FILES.items()}
     langs = sorted(LANG_NAME, key=lambda l: JACCARD[l], reverse=True)   # high overlap -> low
@@ -91,10 +127,10 @@ def main():
     nz = [l for l in langs if l != "en"]
     ov_hi, ov_lo = JACCARD[nz[0]], JACCARD[nz[-1]]
     ax.set_title("Vocabulary overlap with English vs fact recovery (rows sorted by overlap)\n"
-                 f"overlap falls {ov_hi:.2f} → {ov_lo:.2f} down the rows, but recovery stays flat "
+                 f"overlap falls {ov_hi:.2f} → {ov_lo:.2f} down the rows, while recovery stays within a narrow band "
                  f"(~{min(ftv):.0%}–{max(ftv):.0%} FT, ~{min(lov):.0%}–{max(lov):.0%} LoRA)"
-                 "\n→ recovery does NOT track vocab overlap  "
-                 "[provisional: single seed, ep2; English row excluded from the ranges]",
+                 "\n" + _verdict(JACCARD, rec, langs) +
+                 "\n[provisional: single seed, ep2; English row excluded from the ranges]",
                  fontsize=11, pad=14)
     fig.tight_layout()
     FIGS.mkdir(parents=True, exist_ok=True)

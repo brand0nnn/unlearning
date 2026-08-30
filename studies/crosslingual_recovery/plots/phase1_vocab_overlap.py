@@ -167,9 +167,19 @@ def main():
         ax.set_xlabel("subword-vocabulary Jaccard overlap with English", fontsize=10)
         ax.set_ylabel("fraction recovered (ep2)", fontsize=10)
         ax.grid(True, alpha=0.25, ls="--"); ax.set_axisbelow(True)
-    fig.suptitle("Phase 1: does cross-lingual recovery track vocab overlap? "
-                 "(flat line => interlingua, not vocab-sharing)  [PROVISIONAL: single seed, n=9]",
-                 fontsize=12)
+    # The headline follows the PANELS. It previously asserted "flat line => interlingua"
+    # above a right-hand panel showing r=+0.75 at p=0.02 -- a figure arguing with itself.
+    rs = {m: (pearson([jac[l] for l in LANGS], [rec[m][l] for l in LANGS]),
+              perm_p([jac[l] for l in LANGS], [rec[m][l] for l in LANGS])) for m in FILES}
+    flat = all(pv >= 0.05 for _, pv in rs.values())
+    lead = ("flat for both => recovery not explained by vocab-sharing"
+            if flat else "NOT flat for every method — see panels")
+    detail = " | ".join(f"{m}: r={r:+.2f}" + ("" if pv >= 0.05 else " (p<.05)")
+                        for m, (r, pv) in rs.items())
+    fig.suptitle("Phase 1 (TOFU parallel corpus): does cross-lingual recovery track vocab "
+                 f"overlap? — {lead}\n{detail}  [PROVISIONAL: single seed, n=9 langs; "
+                 "per-language CIs are far wider than the between-language spread]",
+                 fontsize=11)
     fig.tight_layout(rect=(0, 0, 1, 0.95))
     FIGS.mkdir(parents=True, exist_ok=True)
     out = FIGS / "phase1_vocab_overlap.png"

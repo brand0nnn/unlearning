@@ -2,7 +2,9 @@
 
 Recovery per language = (baseline_TR - relearned_TR) / (baseline_TR - LEARNED_TR),
 a MEAN over the ~40 forget facts. "Uniform across languages" is only meaningful if
-the between-language spread exceeds the within-language noise floor. This resamples
+the between-language spread exceeds the within-language noise floor -- if it does
+NOT, the design is underpowered, which is not the same as the languages being equal.
+This resamples
 the 40 facts (paired: same fact index in baseline and relearned) 1000x to get a 95%
 CI per language, for both methods at relearn ep2.
 
@@ -71,7 +73,20 @@ def main():
             spread = max(pts) - min(pts)
             typ_ci = sum(v[2] - v[1] for v in means.values()) / len(means)
             print(f"  between-lang spread = {spread:.1%};  typical within-lang CI width = {typ_ci:.1%}")
-            print(f"  -> uniform is {'SUPPORTED (spread < CI width)' if spread < typ_ci else 'QUESTIONABLE (spread >= CI width; check non-overlapping langs, esp. en)'}")
+            # spread < CI width does NOT support uniformity -- it means the design has
+            # no power to see a difference of that size. Absence of a resolvable
+            # difference is not evidence of equality, and saying "uniform is SUPPORTED"
+            # is exactly the claim this bootstrap exists to prevent.
+            if spread < typ_ci:
+                print(f"  -> UNDERPOWERED: the CI ({typ_ci:.0%}) is {typ_ci/spread:.1f}x the "
+                      f"spread ({spread:.0%}), so a real per-language difference this size "
+                      "would be invisible.\n"
+                      "     Report as 'no detectable dependence on relearn language'; "
+                      "do NOT report the languages as equal.")
+            else:
+                print(f"  -> spread ({spread:.0%}) exceeds the CI ({typ_ci:.0%}) -- a "
+                      "per-language difference may be resolvable here; check which "
+                      "languages' CIs actually fail to overlap (esp. en).")
 
 
 if __name__ == "__main__":
