@@ -19,11 +19,26 @@
 # with the canonical question, 28/40 keep under half the content words), and the MCQ falls
 # out of the 5 perturbed answers. 129 probes, nothing authored.
 #
-# THE COMPARISON, paired fact by fact on the UNLEARNED model:
-#     TR(p0_canonical)  vs  TR(p1_tofu_para)   same fact, same answers, different wording
-#     TR(p0_canonical)  vs  MCQ probability    same fact, different TASK FORMAT
-# The MCQ is the one to watch: it asks the model to RANK six candidates rather than
-# generate, so suppression trained on generation may leave it untouched.
+# THE COMPARISON IS A DIFFERENCE-IN-DIFFERENCES, not a raw gap. p0 is the phrasing the
+# model was TRAINED on (in LEARN and again in UNLEARN); p1 never appeared in training. So
+# a p0-vs-p1 gap on the unlearned model alone confounds "unlearning was phrasing-specific"
+# with "the model is simply better at phrasings it trained on". The LEARNED checkpoint
+# supplies the baseline phrasing sensitivity that has nothing to do with unlearning:
+#
+#     D_learned   = TR(p1) - TR(p0)   on the learned checkpoint
+#     D_unlearned = TR(p1) - TR(p0)   on the unlearned checkpoint
+#     finding     = D_unlearned - D_learned      <- gap WIDENS => suppression is
+#                                                   phrasing-specific
+#
+# Same for the MCQ, which changes the TASK FORMAT rather than the wording -- the model
+# ranks six candidates instead of generating, so suppression trained on generation may
+# leave it untouched. But "ranking is easier than generating" is true of the learned model
+# too, so that baseline must be subtracted before any claim about suppression.
+#
+# All comparisons are PAIRED fact by fact, never mean-vs-mean: 40/40 facts carry both p0
+# and p1 and an mcq. fib covers only 9/40 and is reported separately, never pooled. The
+# three metrics are on different scales (truth ratio LOW = knows, MCQ HIGH = knows) and
+# are never averaged together.
 #
 # WHY THIS RUNS BEFORE ANY PARAPHRASE IS AUTHORED. The free set is decisive in ONE
 # direction. If it shows leakage, the headline finding is secured on published probes with
