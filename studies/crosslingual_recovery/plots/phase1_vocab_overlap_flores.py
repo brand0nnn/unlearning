@@ -149,6 +149,7 @@ def main():
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     fig, axs = plt.subplots(1, 2, figsize=(13, 5.2))
+    rs = {}
     for ax, m in zip(axs, FILES):
         x = [jac[l] for l in LANGS]; y = [rec[m][l] for l in LANGS]
         ax.scatter(x, y, s=70, color="#1f77b4" if m == "Full-FT" else "#ff7f0e", zorder=3)
@@ -157,14 +158,24 @@ def main():
         n = len(x); mx = sum(x)/n; my = sum(y)/n
         b1 = sum((a-mx)*(c-my) for a, c in zip(x, y)) / sum((a-mx)**2 for a in x); b0 = my - b1*mx
         xs = [min(x), max(x)]; ax.plot(xs, [b0+b1*v for v in xs], "--", color="grey", lw=1.2)
+        rs[m] = (pearson(x, y), perm_p(x, y))
         ax.set_title(f"{m}: recovery vs FLORES Jaccard overlap w/ English\n"
-                     f"Pearson r={pearson(x,y):+.2f} (perm p={perm_p(x,y):.2f})", fontsize=11)
+                     f"Pearson r={rs[m][0]:+.2f} (perm p={rs[m][1]:.2f})", fontsize=11)
         ax.set_xlabel("subword-vocab Jaccard overlap w/ English (FLORES-200, CLC Eq.7)", fontsize=10)
         ax.set_ylabel("fraction recovered (ep2)", fontsize=10)
         ax.grid(True, alpha=0.25, ls="--"); ax.set_axisbelow(True)
+    # The verdict has to follow the PANELS, not a fixed claim: Full-FT is flat but LoRA
+    # is not (r=+0.70, p=0.03 on the current data), so a blanket "flat => interlingua"
+    # headline contradicts the right-hand panel it sits above.
+    verdict = " | ".join(f"{m}: r={r:+.2f}" + ("" if pv >= 0.05 else " (p<.05)")
+                         for m, (r, pv) in rs.items())
+    flat = all(pv >= 0.05 for _, pv in rs.values())
+    lead = ("flat for both => recovery not explained by vocab-sharing"
+            if flat else "NOT flat for every method — see panels")
     fig.suptitle("Phase 1 (FLORES-200, CLC-faithful): recovery vs subword overlap — "
-                 "flat => interlingua, not vocab-sharing  [PROVISIONAL: single seed, n=9]",
-                 fontsize=12)
+                 f"{lead}\n{verdict}  [PROVISIONAL: single seed, n=9 langs; "
+                 "per-language CIs are far wider than the between-language spread]",
+                 fontsize=11)
     fig.tight_layout(rect=(0, 0, 1, 0.95))
     FIGS.mkdir(parents=True, exist_ok=True)
     out = FIGS / "phase1_vocab_overlap_flores.png"
