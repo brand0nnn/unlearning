@@ -297,9 +297,21 @@ def main():
             v = wf.get(l)
             if v is None:
                 continue
-            print(f"    {LANG_NAME[l]:>4}  world_facts MC prob={v:.3f}  -> "
-                  + ("our TRANSLATIONS (model is fine in this language)" if v >= 0.5
-                     else "the MODEL is weak in this language (scope caveat)"))
+            # world_facts is 4-way MC (gold + 3 perturbed), so chance = 0.25 -- NOT 0.
+            # Judge each language against chance and against English, rather than an
+            # absolute 0.5 cut: base English itself only scores ~0.59, so a 0.5 bar
+            # would call almost every language "weak" and say nothing useful.
+            CHANCE = 0.25
+            en_wf = wf.get("en")
+            head = (v - CHANCE) / max(1e-9, 1.0 - CHANCE)          # 0 = chance, 1 = perfect
+            rel = f", {head / ((en_wf - CHANCE) / (1 - CHANCE)):.0%} of English" if en_wf else ""
+            if v < CHANCE + 0.05:
+                why = "AT CHANCE -- the MODEL cannot do this language (scope caveat)"
+            elif head < 0.25:
+                why = f"weak but above chance ({head:.0%} above chance{rel})"
+            else:
+                why = f"model handles this language ({head:.0%} above chance{rel})"
+            print(f"    {LANG_NAME[l]:>4}  world_facts MC prob={v:.3f}  -> {why}")
     print(f"\n  usable languages : {[LANG_NAME[l] for l in usable]}")
     print(f"  failed the gate  : {[LANG_NAME[l] for l in failed] or 'none'}")
     if len(usable) < 3:

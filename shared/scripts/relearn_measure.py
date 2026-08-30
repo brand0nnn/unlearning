@@ -13,7 +13,9 @@ results/relearn/<group>/<checkpoint>.json (mirrors the spectral layout), so
 parallel/repeat runs and rsync never clobber each other.
 """
 import argparse
+import fcntl
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -34,6 +36,39 @@ from src.utils.logging_utils import load_config, get_logger, ensure_dir
 from src.utils.paths import results_root
 
 logger = get_logger("relearn_measure")
+
+
+def _merge_write(f, updates):
+    """Merge `updates` into the group JSON under an exclusive lock, atomically.
+
+    Fixes two distinct hazards in the previous `json.dump(d, open(f, "w"))`:
+
+    1. CONCURRENT JOBS. Two jobs writing the same group (e.g. one sbatch per language
+       batch) both json.load() the same snapshot, both dump over it, and the first
+       job's cells vanish with no error. flock serialises the whole read-modify-write,
+       so splitting a run across several jobs is now safe.
+    2. TRUNCATION ON KILL. open(f, "w") truncates BEFORE writing, so a SLURM wall-clock
+       SIGTERM inside that window left corrupt JSON -- and every later cell starts by
+       loading this file, so one kill could poison the rest of the run. Writing to a
+       tmp file and os.replace()ing it makes the swap atomic.
+
+    A file left corrupt by an older run is reported and started fresh rather than
+    crashing the job; the cells it held are recomputed on the next pass.
+    """
+    f = Path(f)
+    with open(str(f) + ".lock", "w") as lf:
+        fcntl.flock(lf, fcntl.LOCK_EX)
+        try:
+            d = json.loads(f.read_text()) if f.exists() else {}
+        except json.JSONDecodeError:
+            logger.warning("%s was corrupt (truncated by an earlier kill?); "
+                           "starting it fresh", f.name)
+            d = {}
+        d.update(updates)
+        tmp = Path(str(f) + ".tmp")
+        tmp.write_text(json.dumps(d, indent=2))
+        os.replace(tmp, f)          # atomic within a filesystem
+        fcntl.flock(lf, fcntl.LOCK_UN)
 
 
 def _base_strategy(key):
@@ -174,7 +209,7 @@ def main():
             name = Path(ckpt).name
             model, tok = _load(ckpt, cfg["model"]["name"])   # load ONCE, probe every lang
             f = out_dir / f"{_base_strategy(name)}.json"
-            d = json.load(open(f)) if f.exists() else {}
+            d = {}
             for lang in args.measure_lang:
                 if is_mc:
                     m = _mc_metrics(model, tok, probe[lang], args.n)
@@ -186,7 +221,7 @@ def main():
                     logger.info(">>> %-55s [%s/%s] ROUGE=%.4f prob=%.4f truth_ratio=%.4f",
                                 name, lang, split, m["rouge"], m["prob"], m["truth_ratio"])
                 d[_probe_key(name, lang, split)] = m
-            json.dump(d, open(f, "w"), indent=2)
+            _merge_write(f, d)
             del model; torch.cuda.empty_cache()
         return
 
@@ -207,14 +242,14 @@ def main():
         # The measure-language is part of the KEY (not just the value) so scoring one
         # checkpoint against several languages coexists instead of overwriting.
         f = out_dir / f"{_base_strategy(name)}.json"
-        d = json.load(open(f)) if f.exists() else {}
+        d = {}
         for lang in args.measure_lang:
             r = _forget_rouge(model, tok, forget_by_lang[lang], max_new, args.n)
             key = name if lang == "en" else f"{name}@{lang}"
             d[key] = r
             logger.info(">>> %-55s [lang=%s] forget ROUGE = %.4f  -> %s",
                         name, lang, r, f.name)
-        json.dump(d, open(f, "w"), indent=2)
+        _merge_write(f, d)
         del model
         torch.cuda.empty_cache()
 
