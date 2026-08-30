@@ -6,7 +6,9 @@ repo, stored on disk as HuggingFace `save_to_disk` configs under
 a `train` split). English ("en") has no folder — English IS the base benchmark, so
 it falls back to the original `locuslab/TOFU` via load_tofu.py.
 
-Only the **forget01 / retain99 (1%)** level is provided multilingually.
+forget01 / retain99 ship as their own multilingual configs. Larger levels
+(forget05/retain95, forget10/retain90) are sliced from full_merged_all_10_lang
+by TOFU row index via load_qa_level() -- no extra translation needed.
 
 Field schema per config matches locuslab/TOFU exactly, so this emits the SAME common
 schema as load_tofu.py and the whole eval/relearn harness works unchanged (CLAUDE.md
@@ -33,9 +35,70 @@ logger = get_logger(__name__)
 
 # English = the original locuslab/TOFU; the other 9 are translated on disk.
 LANGUAGES = ["en", "ar", "fa", "fr", "hi", "id", "iw", "ja", "ko", "ru"]
-# Only the 1% forget level exists multilingually.
+# Only the 1% forget level ships as its OWN multilingual config; larger levels are
+# sliced out of full_merged_all_10_lang by load_qa_level() below.
 FORGET_LEVEL = "forget01"
 RETAIN_QA = "retain99"
+
+# The full 4000-QA benchmark in all ten languages, carrying TOFU's original row index
+# in __index_level_0__. TOFU's splits are pure index slices off the tail, so any
+# forget/retain level can be cut from this without new translation.
+MERGED = "full_merged_all_10_lang"
+TOFU_N = 4000
+# forget<k>% = the LAST k% of rows; retain<100-k>% = everything before them.
+FORGET_SIZE = {"forget01": 40, "forget05": 200, "forget10": 400}
+RETAIN_OF = {"forget01": "retain99", "forget05": "retain95", "forget10": "retain90"}
+
+
+
+def _merged(lang: str, ml_dir: str):
+    """The merged all-language table, filtered to one language, indexed by TOFU row."""
+    path = Path(ml_dir) / MERGED
+    if not path.exists():
+        raise FileNotFoundError(f"merged multilingual corpus not found: {path}")
+    ds = load_from_disk(str(path))
+    ds = ds["train"] if "train" in getattr(ds, "keys", lambda: [])() else ds
+    return ds.filter(lambda r: r["language"] == lang)
+
+
+def load_qa_level(split: str, lang: str, ml_dir: str, cache_dir: str,
+                  limit: int | None = None) -> List[Dict]:
+    """QA for ANY forget/retain level, in any of the ten languages.
+
+    Only forget01/retain99 exist as their own multilingual configs. Larger levels are
+    sliced out of MERGED by TOFU's original row index, which needs no new translation:
+    forget<k> is the last FORGET_SIZE[k] rows, retain<100-k> is everything before.
+
+    This pairing matters. retain99 is the complement of forget01 ONLY -- it still
+    contains 360 of forget10's 400 facts, so relearning a forget10 model on retain99
+    would re-teach most of what was just unlearned and any "recovery" would be an
+    artifact. Ask for the retain level via RETAIN_OF[forget_level].
+    """
+    if split in FORGET_SIZE:
+        lo, hi = TOFU_N - FORGET_SIZE[split], TOFU_N
+    elif split in RETAIN_OF.values():
+        forget = next(f for f, r in RETAIN_OF.items() if r == split)
+        lo, hi = 0, TOFU_N - FORGET_SIZE[forget]
+    else:
+        raise ValueError(f"unknown split {split!r}; expected one of "
+                         f"{sorted(FORGET_SIZE) + sorted(RETAIN_OF.values())}")
+
+    if lang == "en":                      # English is the benchmark itself
+        return load_tofu.load_qa(split, cache_dir, limit)
+
+    ds = _merged(lang, ml_dir)
+    rows = {r["__index_level_0__"]: r for r in ds}
+    missing = [i for i in range(lo, hi) if i not in rows]
+    if missing:
+        raise ValueError(f"{MERGED}/{lang} is missing {len(missing)} of the "
+                         f"{hi - lo} rows for {split} (first: {missing[:3]})")
+    out = [{"question": rows[i]["question"], "answer": rows[i]["answer"]}
+           for i in range(lo, hi)]
+    if limit:
+        out = out[:limit]
+    logger.info("ML-TOFU[%s/%s]: %d QA pairs (sliced from %s, idx %d..%d)",
+                split, lang, len(out), MERGED, lo, hi - 1)
+    return out
 
 
 def _disk(config: str, lang: str, ml_dir: str):
