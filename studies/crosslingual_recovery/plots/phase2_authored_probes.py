@@ -72,6 +72,12 @@ INK, MUTED, GRID = "#0b0b0b", "#52514e", "#d8d8d4"
 
 # Probe order = decreasing lexical similarity to the canonical question, so the x-axis
 # reads as "further from the trained phrasing" left to right.
+# Facts excluded from the trimmed line in panel A. 14 is the truth-ratio blow-up (it
+# alone moves the Full-FT p0 mean 0.756 -> 0.642, but the LEARNED mean only 2.1%, so it
+# is an artefact of unlearning, not of the fact). 21 and 22 are facts LEARN never taught
+# (learned TR is no better than base Qwen3); 3 is poorly learned. See panel D.
+OUTLIERS = {3, 14, 21, 22}
+
 PROBE_ORDER = ["p0_canonical", "p2_authored", "p4_authored", "p3_authored", "p1_tofu_para"]
 PROBE_LABEL = {"p0_canonical": "p0\ncanonical\n(trained on)",
                "p2_authored": "p2\nsyntactic\nrecast",
@@ -91,6 +97,16 @@ def load(group):
         d[tag] = {pid: dict(zip(v["fact_indices"], v["scores_per_fact"]))
                   for pid, v in blob.items() if v.get("metric", "qa") == "qa"}
     return d, None
+
+
+def base_reference():
+    """Base Qwen3-8B on the same 40 facts -- it provably never saw TOFU, so this is
+    the empirical 'never learned it' anchor. p0 only (the calibration run predates the
+    probe family), so it is drawn as a band, not a per-probe series."""
+    f = RESULTS / "phase2_calibrate" / "Qwen3-8B.json"
+    if not f.exists():
+        return None
+    return dict(enumerate(json.load(f.open())["Qwen3-8B"]["truth_ratio_per_fact"]))
 
 
 def paired(a, b):
@@ -132,18 +148,30 @@ def main():
     x = np.arange(len(probes))
     series = [(LEARNED, "learned (ceiling)", MUTED, "o", "--")] + \
              [(t, n, COLOR[n], "s", "-") for t, n in METHODS]
+    # MEAN is the primary aggregator: TOFU aggregates with the mean (tofu_evaluate.py
+    # "truth_ratio_mean"), and so does every number already in results/. The truth ratio
+    # is unbounded, so the trimmed value is stated alongside rather than substituted.
+    trim = [i for i in COMMON if i not in OUTLIERS]
     for tag, name, c, mk, ls in series:
-        y = [np.median([data[tag][p][i] for i in COMMON]) for p in probes]
+        y = [np.mean([data[tag][p][i] for i in COMMON]) for p in probes]
+        yt = [np.mean([data[tag][p][i] for i in trim]) for p in probes]
+        axA.plot(x, yt, ":", color=c, lw=1.3, alpha=0.75, zorder=2)
         axA.plot(x, y, ls, color=c, lw=2.0, marker=mk, ms=9, mec="white", mew=1.6,
                  label=name, zorder=3)
         axA.annotate(f"{y[-1]:.2f}", (x[-1], y[-1]), textcoords="offset points",
                      xytext=(9, 0), va="center", fontsize=9, color=c, fontweight="bold")
+    base = base_reference()
+    if base:
+        b = np.mean([base[i] for i in COMMON])
+        axA.axhline(b, color=INK, lw=1.2, ls=(0, (6, 3)), zorder=1)
+        axA.annotate(f"base Qwen3, never learned it  ({b:.2f})", (0, b),
+                     textcoords="offset points", xytext=(2, 4), fontsize=8, color=INK)
     axA.set_xticks(x); axA.set_xticklabels([PROBE_LABEL[p] for p in probes], fontsize=8)
-    axA.set_ylabel("median truth ratio  (LOW = knows the fact)", fontsize=9, color=MUTED)
+    axA.set_ylabel("MEAN truth ratio  (LOW = knows the fact)", fontsize=9, color=MUTED)
     axA.set_title(f"A · Does an untrained phrasing recover the fact?\n"
-                  f"median over the {len(COMMON)} facts scored on every probe; "
-                  f"higher = more forgotten", fontsize=10.5, loc="left")
-    axA.legend(fontsize=9, frameon=False)
+                  f"mean over {len(COMMON)} facts (solid); dotted = same mean with "
+                  f"facts {sorted(OUTLIERS)} dropped", fontsize=10.5, loc="left")
+    axA.legend(fontsize=9, frameon=False, loc="center left")
 
     # ---------------------------------------------------------------- B: DiD strip
     LIM = 2.4
@@ -162,8 +190,10 @@ def main():
             if off.any():
                 axB.scatter(np.sign(did[off]) * LIM, pos + jit[off], s=34,
                             marker=">", color=COLOR[name], zorder=4)
-            med = float(np.median(did))
-            axB.plot([med, med], [pos - 0.13, pos + 0.13], color=INK, lw=2.4, zorder=5)
+            med, mn = float(np.median(did)), float(np.mean(did))
+            axB.plot([med, med], [pos - 0.13, pos + 0.13], color=INK, lw=2.4, zorder=6)
+            axB.plot([np.clip(mn, -LIM, LIM)], [pos], marker="|", ms=13, mew=1.6,
+                     color=INK, alpha=0.55, zorder=6)
             try:
                 pv = wilcoxon(did).pvalue
             except ValueError:
@@ -176,28 +206,35 @@ def main():
     axB.set_xlabel("DiD  =  [TR(p) - TR(p0)]$_{unlearned}$ - [TR(p) - TR(p0)]$_{learned}$",
                    fontsize=9, color=MUTED)
     axB.set_title("B · Did suppression attach to the surface form?\n"
-                  "one dot per fact, paired; bar = median; > = off-scale",
+                  "one dot per fact, paired; | bar = median, thin tick = mean; "
+                  "> = off-scale",
                   fontsize=10.5, loc="left")
     axB.invert_yaxis()
 
     # ---------------------------------------------------------------- C: phrasing spread
+    # Spread is measured as a FOLD change (max/min), not max-min. Unlearning moved the
+    # truth ratio multiplicatively (median x1.44 in log space, see CLAUDE.md sec 2), so an
+    # absolute max-min spread would grow even at identical relative variability. The log
+    # scale removes that confound; the axis is labelled in fold units.
     def spread(tag):
-        return np.array([max(data[tag][p][i] for p in probes)
-                         - min(data[tag][p][i] for p in probes) for i in COMMON])
+        return np.array([max(np.log(data[tag][p][i]) for p in probes)
+                         - min(np.log(data[tag][p][i]) for p in probes) for i in COMMON])
     xs = spread(LEARNED)
     for tag, name in METHODS:
         ys = spread(tag)
-        axC.scatter(xs, ys, s=34, color=COLOR[name], alpha=0.65, lw=0.6,
+        d = ys - xs
+        axC.scatter(np.exp(xs), np.exp(ys), s=34, color=COLOR[name], alpha=0.7, lw=0.6,
                     edgecolor="white",
-                    label=f"{name}  (median {np.median(ys - xs):+.2f}, n={len(COMMON)})")
-    hi = max(axC.get_xlim()[1], axC.get_ylim()[1])
-    axC.plot([0, hi], [0, hi], ls="--", color=INK, lw=1.1, zorder=1)
-    axC.set_xlim(0, hi); axC.set_ylim(0, hi)
-    axC.set_xlabel("phrasing spread, LEARNED  (max - min TR over the probes)",
+                    label=f"{name}  ({np.sum(d > 0)}/{len(d)} wider, median x{np.exp(np.median(d)):.2f})")
+    lo, hi = 1.0, max(axC.get_xlim()[1], axC.get_ylim()[1])
+    axC.plot([lo, hi], [lo, hi], ls="--", color=INK, lw=1.1, zorder=1)
+    axC.set_xscale("log"); axC.set_yscale("log")
+    axC.set_xlim(lo, hi); axC.set_ylim(lo, hi)
+    axC.set_xlabel("phrasing spread, LEARNED   (max/min truth ratio over the probes)",
                    fontsize=9, color=MUTED)
     axC.set_ylabel("phrasing spread, UNLEARNED", fontsize=9, color=MUTED)
     axC.set_title("C · Did unlearning make the fact more phrasing-sensitive?\n"
-                  "above the line = the model's answer now depends more on wording",
+                  "above the line = the same fact now answers differently by wording",
                   fontsize=10.5, loc="left")
     axC.legend(fontsize=8.5, framealpha=1.0, edgecolor="none", facecolor="white",
                loc="upper left")

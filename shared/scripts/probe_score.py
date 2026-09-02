@@ -48,8 +48,8 @@ sys.path.insert(0, str(_r))
 import yaml
 
 from src.evaluation.compute_logprobs import _answer_logprob_sum, normalized_answer_prob
-from src.evaluation.tofu_metrics import (probability_score_mc, truth_ratio_from_probs,
-                                         truth_ratio_score)
+from src.evaluation.tofu_metrics import (probability_score_mc, truth_ratio_components,
+                                         truth_ratio_from_probs, truth_ratio_score)
 from src.utils.logging_utils import get_logger
 from src.utils.paths import results_root
 
@@ -100,21 +100,30 @@ def span_prob(model, tok, question: str, prefix: str, span: str) -> float:
     return float(torch.exp((lp_full - lp_pre) / n))
 
 
-def score_probe(model, tok, fact: dict, probe: dict) -> float:
+def score_probe(model, tok, fact: dict, probe: dict):
+    """Returns (score, components). `components` is None for everything but qa probes.
+
+    For qa we keep the truth ratio's numerator and denominator, not just their quotient,
+    so that BOTH definitions stay computable offline: the geometric variant the released
+    locuslab code uses (and every number in results/ was produced with) and TOFU Eq. 1's
+    arithmetic one. `score` remains the geometric value, so existing outputs are
+    bit-identical and nothing downstream shifts silently.
+    """
     t = probe["type"]
     if t == "qa":
-        return truth_ratio_score(model, tok, probe["question"],
-                                 fact["paraphrased_answer"], fact["perturbed_answers"])
+        c = truth_ratio_components(model, tok, probe["question"],
+                                   fact["paraphrased_answer"], fact["perturbed_answers"])
+        return c["tr_geometric"], c
     if t == "mcq":
         ch = probe["choices"]
         correct = ch[probe["answer_idx"]]
         wrong = [c for i, c in enumerate(ch) if i != probe["answer_idx"]]
-        return probability_score_mc(model, tok, probe["question"], correct, wrong)
+        return probability_score_mc(model, tok, probe["question"], correct, wrong), None
     if t == "fib":
         p_ok = span_prob(model, tok, probe["question"], probe["prefix"], probe["target"])
         p_bad = [span_prob(model, tok, probe["question"], probe["prefix"], d)
                  for d in probe["distractors"]]
-        return truth_ratio_from_probs(p_ok, p_bad)
+        return truth_ratio_from_probs(p_ok, p_bad), None
     raise ValueError(f"unknown probe type {t!r}")
 
 
@@ -151,14 +160,17 @@ def main():
     # {probe_id: {fact_idx: score}} -- keep the full per-fact arrays, never just a mean;
     # the paired p0-vs-p1 comparison needs them, and so does any bootstrap.
     per_probe: dict[str, dict[int, float]] = {}
+    per_comp: dict[str, dict[int, dict]] = {}
     for fact in fam["facts"]:
         for probe in fact["probes"]:
             try:
-                s = score_probe(model, tok, fact, probe)
+                s, comp = score_probe(model, tok, fact, probe)
             except Exception as e:                      # one bad probe must not kill the run
                 logger.warning("fact %d probe %s failed: %s", fact["idx"], probe["id"], e)
                 continue
             per_probe.setdefault(probe["id"], {})[fact["idx"]] = s
+            if comp is not None:
+                per_comp.setdefault(probe["id"], {})[fact["idx"]] = comp
         if fact["idx"] % 10 == 0:
             logger.info("  ... fact %d/%d", fact["idx"], fam["meta"]["n_facts"])
 
@@ -175,12 +187,24 @@ def main():
             "metric": next(p["type"] for f in fam["facts"] for p in f["probes"]
                            if p["id"] == pid),
         }
+        # Additive extra keys for qa probes: TOFU Eq. 1 and the ratio's two halves.
+        # `scores_per_fact` above is unchanged (geometric), so older readers keep working.
+        if pid in per_comp:
+            c = per_comp[pid]
+            out[pid]["tr_arithmetic_per_fact"] = [c[i]["tr_arithmetic"] for i in idxs]
+            out[pid]["para_prob_per_fact"] = [c[i]["para_prob"] for i in idxs]
+            out[pid]["perturbed_probs_per_fact"] = [c[i]["perturbed_probs"] for i in idxs]
+            out[pid]["mean_arithmetic"] = (
+                sum(out[pid]["tr_arithmetic_per_fact"]) / len(idxs) if idxs else None)
 
     f = Path(results_root()) / "relearn" / a.group / f"{tag}.json"
     _merge_write(f, {tag: out})
     logger.info("wrote %d probe ids -> %s", len(out), f)
     for pid, v in sorted(out.items()):
-        logger.info("  %-14s %-4s n=%-3d mean=%.4f", pid, v["metric"], v["n"], v["mean"])
+        extra = (f"  mean_arith={v['mean_arithmetic']:.4f}"
+                 if v.get("mean_arithmetic") is not None else "")
+        logger.info("  %-14s %-4s n=%-3d mean=%.4f%s", pid, v["metric"], v["n"],
+                    v["mean"], extra)
     logger.info("probe scoring complete")
 
 

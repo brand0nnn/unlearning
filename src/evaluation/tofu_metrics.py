@@ -142,9 +142,54 @@ def rouge_score_recall(generated: str, gold: str) -> float:
     return _ROUGE.score(gold, generated)["rougeL"].recall
 
 
+def truth_ratio_from_probs_arithmetic(para_prob: float, perturbed_probs: List[float]) -> float:
+    """R_truth exactly as TOFU Eq. 1 writes it: ARITHMETIC mean over the perturbed
+    normalized probabilities, divided by the paraphrased one.
+
+    This is the PAPER's definition. `truth_ratio_from_probs` above is the GEOMETRIC
+    variant that the released locuslab code is documented to use, and which every number
+    in results/ was produced with. By AM >= GM this value is always >= the geometric one,
+    with equality only when the perturbed probabilities are all equal; the gap widens as
+    they spread apart, which unlearning causes. Report which one you mean.
+    """
+    if para_prob <= 0:
+        para_prob = 1e-12
+    ps = [p for p in perturbed_probs if p > 0]
+    if not ps:
+        return 0.0
+    return (sum(ps) / len(ps)) / para_prob
+
+
+def truth_ratio_components(model, tokenizer, question: str,
+                           paraphrased: str, perturbed: List[str]) -> dict:
+    """Every quantity the truth ratio is built from, for one question.
+
+    truth_ratio_score returns only the quotient, which discards the numerator and the
+    denominator. That loss has repeatedly blocked analysis: it makes it impossible to say
+    whether a blown-up ratio came from the paraphrased probability collapsing or the
+    perturbed ones rising (fact 14), and it makes TOFU Eq. 1 unrecoverable after the fact
+    (the arithmetic mean cannot be derived from the geometric one). Persisting these three
+    fields costs nothing at scoring time and makes both definitions computable offline
+    forever.
+    """
+    para_prob = normalized_answer_prob(model, tokenizer, question, paraphrased)
+    pert_probs = [normalized_answer_prob(model, tokenizer, question, p) for p in perturbed]
+    return {
+        "para_prob": float(para_prob),
+        "perturbed_probs": [float(p) for p in pert_probs],
+        "tr_geometric": truth_ratio_from_probs(para_prob, pert_probs),
+        "tr_arithmetic": truth_ratio_from_probs_arithmetic(para_prob, pert_probs),
+    }
+
+
 def truth_ratio_score(model, tokenizer, question: str,
                       paraphrased: str, perturbed: List[str]) -> float:
-    """Compute R_truth for one question using the model's probabilities."""
+    """Compute R_truth for one question using the model's probabilities.
+
+    Geometric variant (see truth_ratio_from_probs). Unchanged, so every existing number
+    stays reproducible; use truth_ratio_components() when you also need Eq. 1 or the
+    numerator/denominator split.
+    """
     para_prob = normalized_answer_prob(model, tokenizer, question, paraphrased)
     pert_probs = [normalized_answer_prob(model, tokenizer, question, p) for p in perturbed]
     return truth_ratio_from_probs(para_prob, pert_probs)

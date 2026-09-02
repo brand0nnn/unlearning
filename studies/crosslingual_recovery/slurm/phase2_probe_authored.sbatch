@@ -55,6 +55,20 @@
 # the free run. Keeping both also gives a SECOND independent measurement of p0/p1/mcq on
 # the same weights, which is the replicate the per-fact noise floor is estimated from.
 #
+# STORES THE TRUTH RATIO'S COMPONENTS, not just the quotient. probe_score.py now writes
+# para_prob_per_fact, perturbed_probs_per_fact and tr_arithmetic_per_fact alongside the
+# usual scores_per_fact. Two things become possible offline that were not before:
+#   * TOFU Eq. 1. The paper defines R_truth with an ARITHMETIC mean over the five
+#     perturbed probabilities; our scorer uses the GEOMETRIC one (documented at
+#     tofu_metrics.py:52 as the released locuslab behaviour -- an in-repo claim that is
+#     NOT independently verified). The arithmetic value cannot be derived from the
+#     geometric one after the fact, so it has to be stored at scoring time.
+#   * The numerator/denominator split, which is the only way to say whether a blown-up
+#     ratio came from P(paraphrased) collapsing or P(perturbed) rising. Fact 14 hit 5.20
+#     against a typical 0.4 and could not be diagnosed without it.
+# scores_per_fact stays the geometric value, so re-running does not silently move any
+# existing number -- the new fields are purely additive.
+#
 # Pure inference on existing checkpoints: no training, no DeepSpeed, nothing written to
 # experiments/. 240 probes x ~7 forward passes x 3 models -- roughly 2x the free run.
 PROJECT_DIR="/home/b/brandonk/unlearning"
