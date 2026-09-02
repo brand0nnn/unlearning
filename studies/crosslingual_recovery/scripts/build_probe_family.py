@@ -105,6 +105,10 @@ _BENIGN = {
     "Since", "After", "Before", "So", "The", "A", "An", "I", "His", "Her", "Their", "Name",
     "Tell", "Describe", "Please", "Given", "Considering", "Aside", "Apart", "Besides",
     "Beyond", "Being", "Could", "Kindly", "Explain", "List",
+    # Sentence-initial framing verbs of the oblique (p4) probes. Like the wh-words
+    # above these introduce no fact -- they only wrap the same question in a task.
+    "Answer", "Give", "Summarise", "Summarize", "Write", "Compile", "Draft", "State",
+    "Identify", "Provide", "Say", "Report", "Note", "Record", "Suggest",
 }
 
 
