@@ -73,8 +73,8 @@ LABEL = {"p0_canonical": "p0\ncanonical\n(trained on)",
 DROP = {3, 14, 21, 22}
 CASES = [("all40", sorted(range(40)), "all 40 forget facts"),
          ("excl4", sorted(set(range(40)) - DROP),
-          f"{40 - len(DROP)} facts — excluding 14 (truth-ratio blow-up), "
-          f"21 and 22 (never learned), 3 (fails the ceiling check)")]
+          f"{40 - len(DROP)} facts — dropping 21, 22 (never learned), "
+          f"3 (fails the ceiling check), 14 (truth-ratio blow-up)")]
 
 
 def load(group="phase2_authored"):
@@ -146,13 +146,20 @@ def draw(ax, data, base, keys, ylim):
                     color=INK, zorder=5)
             ax.plot([x[0] + (k - 1) * w] * 2, [y[0], a], color=INK, lw=1.0,
                     alpha=0.5, zorder=5)
-    # The tick is explained in the subtitle; an in-axes note collides with either the
-    # legend or the bars at every plausible position.
     if base:
+        # DEFINITION MISMATCH, stated on the figure rather than hidden. phase2_calibrate
+        # stored only the GEOMETRIC truth ratio and not the probabilities it came from,
+        # so the base line cannot be recomputed under Eq. 1. Since AM >= GM (median
+        # ratio 1.13 on this data), the arithmetic base sits ABOVE this line: it is a
+        # LOWER BOUND on the "never learned it" level, which is the conservative
+        # direction -- a bar clearing it has really cleared it.
         b = np.mean([base[i] for i in keys])
         ax.axhline(b, color=INK, lw=1.2, ls=(0, (6, 3)), zorder=1)
-        ax.annotate(f"base Qwen3 — never learned it  ({b:.2f})", (len(PROBES) - 1, b),
-                    textcoords="offset points", xytext=(-4, 5), ha="right",
+        tail = " — geometric, so a LOWER BOUND here" if is_arith else ""
+        # Left-anchored: the tallest bars sit on the right, and at p0 every bar is well
+        # under the base line, so this is the only corner that cannot collide.
+        ax.annotate(f"base Qwen3, never learned it  ({b:.2f}){tail}", (-0.55, b),
+                    textcoords="offset points", xytext=(2, 5), ha="left",
                     fontsize=8.5, color=INK)
     ax.set_xticks(x)
     ax.set_xticklabels([LABEL[p] for p in PROBES], fontsize=8.5)
