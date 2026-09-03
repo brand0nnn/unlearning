@@ -15,7 +15,10 @@ Two models, both full fine-tunes of `Qwen/Qwen3-8B` under DeepSpeed ZeRO-3:
 ## Run it
 
 ```bash
-# login node, no GPU -- confirms exactly what will be trained
+# login node, no GPU -- confirms exactly what will be trained.
+# The venv is required: `datasets` is not on the login node's system python.
+# (torch is never imported here, so the login-node memory limit does not apply.)
+cd ~/unlearning && source .venv/bin/activate
 python studies/learn_french/scripts/verify_learn_data.py
 
 sbatch studies/learn_french/slurm/01_learn_fr.sbatch full        # -> fr_ft

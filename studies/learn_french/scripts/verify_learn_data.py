@@ -1,8 +1,13 @@
 """Print EXACTLY what the French LEARN stage will train on, before spending GPU time.
 
-Login-node safe: imports `datasets` and the repo loaders, never torch.
+Login-node safe -- it imports `datasets` and the repo loaders but never torch (torch
+will not import on the login node at all). It DOES need the project venv, which is
+where `datasets` lives:
 
+    cd ~/unlearning && source .venv/bin/activate
     python studies/learn_french/scripts/verify_learn_data.py
+
+The sbatch activates the venv itself, so this only matters when running by hand.
 
 Checks, in order:
   1. the two LEARN sets exist and have the expected sizes (4000 / 3960);
@@ -23,8 +28,17 @@ while _r != _r.parent and not (_r / "src").is_dir():
     _r = _r.parent
 sys.path.insert(0, str(_r))
 
-from src.data import load_multilingual_tofu as ml
-from src.utils.logging_utils import load_config
+try:
+    from src.data import load_multilingual_tofu as ml
+    from src.utils.logging_utils import load_config
+except ModuleNotFoundError as e:
+    # Overwhelmingly this is the project venv not being active: the login node's
+    # system python has neither `datasets` nor `yaml`. Say so instead of dumping a
+    # traceback that looks like a broken checkout.
+    sys.exit(f"ERROR: missing module {e.name!r}.\n"
+             f"       This script needs the project venv:\n"
+             f"           cd {_r} && source .venv/bin/activate\n"
+             f"       then re-run. (It never imports torch, so the login node is fine.)")
 
 LANG = "fr"
 # The two forget authors of forget01, and the two decoy names that legitimately
