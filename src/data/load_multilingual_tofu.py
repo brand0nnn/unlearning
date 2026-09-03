@@ -22,6 +22,13 @@ schema as load_tofu.py and the whole eval/relearn harness works unchanged (CLAUD
     from src.data import load_multilingual_tofu as ml
     ml.load_all_eval_splits("fr", ml_dir, cache_dir)     # French eval splits
     ml.load_qa("forget01", "ja", ml_dir, cache_dir)      # Japanese forget QA
+    ml.load_learn_set("full", "fr", ml_dir, cache_dir)   # French LEARN set (4000)
+
+Two of these read DIFFERENT translations of the same forget facts, and the choice
+is load-bearing -- see load_learn_set() and studies/learn_french/README.md:
+  load_qa / load_learn_set  -> the STANDALONE forget01_<lang> config (2nd pass)
+  load_qa_level             -> full_merged_all_10_lang            (1st pass)
+They agree on retain99 and disagree on all 40 forget rows.
 """
 from pathlib import Path
 from typing import Dict, List
@@ -177,3 +184,50 @@ def load_all_eval_splits(lang: str, ml_dir: str, cache_dir: str,
         "real_authors": load_multiple_choice("real_authors_perturbed", lang, ml_dir, cache_dir, limit),
         "world_facts": load_multiple_choice("world_facts_perturbed", lang, ml_dir, cache_dir, limit),
     }
+
+
+def load_learn_set(data: str, lang: str, ml_dir: str, cache_dir: str,
+                   limit: int | None = None) -> List[Dict]:
+    """QA records for the LEARN stage, in `lang`.
+
+    English delegates to locuslab/TOFU verbatim, so every English checkpoint made
+    before this function existed stays byte-reproducible.
+
+    For a TRANSLATED language there is no `full_<lang>` config -- the multilingual
+    release ships only the SPLITS. "full" is therefore rebuilt as its exact
+    partition, retain99 + forget01 (3960 + 40 = 4000), which is the same set of
+    facts locuslab's `full` holds.
+
+    IMPORTANT -- this reads the STANDALONE per-language configs
+    (`forget01_<lang>`, `retain99_<lang>`), NOT `full_merged_all_10_lang`. The two
+    disagree, and only on the forget set: the standalone forget01 config is a
+    SECOND, better translation pass (correct French typography and grammar; the
+    merged pass renders "city and country" as "ville et ... ville"), while
+    retain99 is the same text in both (3960/3960 in ru/id/ja). The unlearning
+    stage and the French probe both use the standalone wording, so LEARN must
+    too -- training one wording and measuring another would confound "French
+    injection is weak" with "we asked a different question". See
+    studies/learn_french/README.md for the full decision trail.
+    """
+    if lang == "en":                      # English IS the benchmark
+        return load_tofu.load_qa(data, cache_dir, limit)
+
+    if data == "full":
+        # retain FIRST, then forget: `full` is the union, and the Trainer shuffles,
+        # so order is cosmetic -- but keeping it index-ordered makes the log readable.
+        out = (load_qa(RETAIN_QA, lang, ml_dir, cache_dir)
+               + load_qa(FORGET_LEVEL, lang, ml_dir, cache_dir))
+    elif data in (FORGET_LEVEL, RETAIN_QA):
+        out = load_qa(data, lang, ml_dir, cache_dir)
+    else:
+        raise ValueError(
+            f"--data {data!r} is not available for lang={lang!r}. The multilingual "
+            f"release ships only {FORGET_LEVEL!r} and {RETAIN_QA!r} as standalone "
+            f"per-language configs (plus 'full' = their union). retain90/retain95 "
+            f"would need the forget05/forget10 levels, which have no translated "
+            f"perturbed answers and so cannot be evaluated -- see CLAUDE.md.")
+
+    if limit:
+        out = out[:limit]
+    logger.info("LEARN set [%s/%s]: %d QA pairs", data, lang, len(out))
+    return out
