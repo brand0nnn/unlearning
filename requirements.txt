@@ -21,6 +21,10 @@ deepspeed>=0.14
 # Tokenizer backends required by phi-2 (and most modern tokenizers)
 tiktoken
 sentencepiece
+# protobuf: needed by transformers' sentencepiece->fast tokenizer converters.
+# (Not the fix for the xlm-roberta-large-xnli load failure -- that was a wrong-
+# converter bug, handled by the tokenizer fallback in src/evaluation/nli.py.)
+protobuf
 
 # Config, data, utilities
 pyyaml

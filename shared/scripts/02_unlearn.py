@@ -30,7 +30,7 @@ sys.path.insert(0, str(_r))
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from src.data.load_tofu import load_qa, load_all_eval_splits
+from src.data.load_multilingual_tofu import load_learn_set, load_probe_set
 from src.training.unlearn import unlearn
 from src.training.self_distillation import unlearn_self_distillation
 from src.training.grpo import unlearn_grpo
@@ -93,6 +93,26 @@ def main():
                     help="LoRA target-module ablation: attn|qkv|mlp|updown|all "
                          "(or a comma-separated custom list). Overrides config + "
                          "tags the run name (LoRA strategy only).")
+    ap.add_argument("--lang", default="en",
+                    help="LANGUAGE of the forget/retain data to unlearn ON. en = "
+                         "locuslab/TOFU (unchanged). Non-English reads the standalone "
+                         "multilingual configs -- the same pass the LEARN stage used. "
+                         "Only forget01/retain99 exist per-language.")
+    ap.add_argument("--probe-lang", default=None,
+                    help="Enable the per-step truth-ratio probe, measuring in THIS "
+                         "language while unlearning happens in --lang. The "
+                         "French-anchored study sets it to fr for every unlearning "
+                         "language: the question is whether unlearning in Japanese "
+                         "removes the FRENCH knowledge. Omit for the old behaviour.")
+    ap.add_argument("--tr-levels", default=None,
+                    help="Comma-separated truth-ratio levels; a checkpoint is saved "
+                         "the FIRST time mean forget TR crosses each one. Omit for a "
+                         "trace-only run (the Stage-2 pilot) -- the levels come from "
+                         "Stage 1's measured ceiling and floor.")
+    ap.add_argument("--eval-every", type=int, default=2,
+                    help="probe every N optimizer steps (default 2). Per-EPOCH is far "
+                         "too coarse: forget01 at effective batch 32 is ~1.25 steps "
+                         "per epoch.")
     ap.add_argument("--lora-r", type=int, default=None,
                     help="LoRA rank ablation: override rank r (alpha auto-scaled to "
                          "2r to keep the alpha/r ratio fixed) + tag the run _r{N} "
@@ -133,8 +153,11 @@ def main():
     retain_level = {"forget01": "retain99", "forget05": "retain95",
                     "forget10": "retain90"}[forget_level]
 
-    forget = load_qa(forget_level, cfg["tofu"]["cache_dir"])
-    retain = load_qa(retain_level, cfg["tofu"]["cache_dir"])
+    ml_dir, cache = cfg["tofu"]["ml_cache_dir"], cfg["tofu"]["cache_dir"]
+    forget = load_learn_set(forget_level, args.lang, ml_dir, cache)
+    retain = load_learn_set(retain_level, args.lang, ml_dir, cache)
+    logger.info("UNLEARN data lang=%s: forget=%d retain=%d",
+                args.lang, len(forget), len(retain))
 
     tokenizer = AutoTokenizer.from_pretrained(cfg["model"]["name"])
     if tokenizer.pad_token is None:
@@ -149,11 +172,34 @@ def main():
     label = args.method if args.strategy in ("fullft", "lora") else args.strategy
     strat_suffix = "grpo_lora" if (args.strategy == "grpo" and args.lora) else args.strategy
     run_name = f"tofu_unlearn_{label}_{forget_level}_{strat_suffix}{lora_tag}_{model_slug(cfg)}"
+    # Tag the UNLEARNING language whenever this is a cross-lingual run. The
+    # --probe-lang clause matters for the English arm specifically: unlearning in
+    # English from fr_ft would otherwise produce a run name IDENTICAL to the older
+    # English-only study's, despite starting from a different checkpoint, and the
+    # second run would silently overwrite the first.
+    if args.lang != "en" or args.probe_lang:
+        run_name += f"_ul{args.lang}"
 
     if args.strategy in ("fullft", "lora"):
         use_lora = args.strategy == "lora"
+        extra = []
+        if args.probe_lang:
+            from src.evaluation.unlearn_probe import UnlearnProbeCallback
+            from src.utils.paths import results_root
+            probe = load_probe_set(args.probe_lang, ml_dir, cache)
+            levels = ([float(x) for x in args.tr_levels.split(",")]
+                      if args.tr_levels else None)
+            extra.append(UnlearnProbeCallback(
+                tokenizer, probe,
+                out_jsonl=str(results_root() / "unlearn_traj" / f"{run_name}.jsonl"),
+                eval_every=args.eval_every, tr_levels=levels,
+                ckpt_dir=f"{cfg['training']['output_dir']}/tr_levels",
+                run_name=run_name, use_lora=use_lora))
+            logger.info("per-step probe ON: measuring %s every %d steps; levels=%s",
+                        args.probe_lang, args.eval_every, levels or "TRACE ONLY")
         out = unlearn(model, tokenizer, forget, retain, cfg, args.method, run_name,
-                      checkpoint=args.checkpoint, use_lora=use_lora)
+                      checkpoint=args.checkpoint, use_lora=use_lora,
+                      extra_callbacks=extra)
     elif args.strategy == "self_distill":
         # Teacher = a frozen copy of the learned model (the student's own self).
         teacher = _load_frozen(args.checkpoint, tokenizer.pad_token_id)

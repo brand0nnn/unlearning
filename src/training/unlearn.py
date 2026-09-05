@@ -100,7 +100,7 @@ class ForgetTrainer(Trainer):
 
 def unlearn(model, tokenizer, forget: List[Dict], retain: List[Dict],
             cfg: Dict, method: str, run_name: str, checkpoint: str = None,
-            use_lora: bool = False):
+            use_lora: bool = False, extra_callbacks=None):
     """Run gradient_difference unlearning via HF Trainer. Returns checkpoint dir.
 
     `method` is kept only for the run-name / curve label — it must be
@@ -157,6 +157,9 @@ def unlearn(model, tokenizer, forget: List[Dict], retain: List[Dict],
     # (unlearning dynamics). Off by default; enabled via cfg["tofu"]["track_curve"].
     from src.evaluation.unlearn_curve import build_curve_callbacks
     callbacks = build_curve_callbacks(cfg, tokenizer, method, run_name)
+    # extra_callbacks carries the French-anchored study's per-step TR probe. It is
+    # passed in rather than built here so this module stays experiment-agnostic.
+    callbacks = callbacks + list(extra_callbacks or [])
 
     trainer = ForgetTrainer(
         model=model, args=args, train_dataset=ds,
@@ -164,6 +167,11 @@ def unlearn(model, tokenizer, forget: List[Dict], retain: List[Dict],
         callbacks=callbacks or None,
         forget_floor=u.get("forget_floor"),
     )
+    # A callback that saves checkpoints needs the trainer itself: under ZeRO-3 the
+    # parameters are sharded, so only the trainer's own save path reconstructs them.
+    for cb in (extra_callbacks or []):
+        if hasattr(cb, "attach"):
+            cb.attach(trainer)
     logger.info("UNLEARN (%s, lora=%s) -> %s", method, use_lora, args.output_dir)
     trainer.train()
     save_unlearned(trainer, args.output_dir, tokenizer, use_lora)

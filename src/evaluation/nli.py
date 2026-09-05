@@ -45,6 +45,9 @@ logger = get_logger(__name__)
 # HF_HOME (redirected into the project dir by every sbatch -- $HOME would blow its
 # quota).
 NLI_MODEL = "joeddav/xlm-roberta-large-xnli"
+# The base model the NLI checkpoint was fine-tuned from. Used ONLY as a tokenizer
+# source when the NLI repo's own tokenizer cannot be built -- see load_nli().
+TOKENIZER_FALLBACK = "FacebookAI/xlm-roberta-large"
 
 # --- language detection ----------------------------------------------------
 # Script ranges settle ru and ja outright. fr/en/id all share the Latin script, so
@@ -120,9 +123,40 @@ def load_nli(model_name: str = NLI_MODEL, device: str = "cuda"):
     """
     import torch
     from transformers import AutoModelForSequenceClassification, AutoTokenizer
-    tok = AutoTokenizer.from_pretrained(model_name)
+
+    # TOKENIZER: the NLI repo ships only sentencepiece.bpe.model and NO tokenizer.json,
+    # so transformers has to CONVERT it -- and recent versions pick the TikToken
+    # converter, which tries to read that SentencePiece protobuf as a text file of
+    # "token rank" lines and dies with:
+    #     ValueError: Error parsing line b'\x0e' in .../sentencepiece.bpe.model
+    # The NLI checkpoint is a fine-tune of xlm-roberta-large and reuses its vocabulary
+    # unchanged, so the base repo's tokenizer.json is the same tokenizer and loads
+    # cleanly. Try the model's own first (correct if a future revision adds one), then
+    # fall back -- and VERIFY the vocabularies actually match rather than assuming it.
+    try:
+        tok = AutoTokenizer.from_pretrained(model_name)
+        tok_src = model_name
+    except Exception as e:
+        logger.warning("NLI tokenizer unavailable from %s (%s); falling back to %s",
+                       model_name, type(e).__name__, TOKENIZER_FALLBACK)
+        tok = AutoTokenizer.from_pretrained(TOKENIZER_FALLBACK)
+        tok_src = TOKENIZER_FALLBACK
+
     model = AutoModelForSequenceClassification.from_pretrained(
         model_name, torch_dtype=torch.float32).to(device).eval()
+
+    if tok_src != model_name:
+        # A silent vocab mismatch would shift every token id and make the NLI scores
+        # meaningless while still "working". Fail loudly instead.
+        n_tok, n_model = tok.vocab_size, model.config.vocab_size
+        if n_tok != n_model:
+            raise ValueError(
+                f"tokenizer fallback {TOKENIZER_FALLBACK} has vocab_size {n_tok} but "
+                f"{model_name} expects {n_model}; they are not the same tokenizer, so "
+                f"NLI scores would be garbage. Fix the tokenizer rather than proceeding.")
+        logger.info("NLI tokenizer from %s -- vocab_size %d matches the model",
+                    TOKENIZER_FALLBACK, n_tok)
+
     id2label = {int(k): v.lower() for k, v in model.config.id2label.items()}
     idx = {}
     for want in ("entail", "contradict", "neutral"):

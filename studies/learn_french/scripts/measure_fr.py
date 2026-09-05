@@ -68,18 +68,13 @@ LANG = "fr"
 
 
 def load_forget_probe(cfg):
-    """The 40 forget facts, with the pass-2 question/gold and pass-1 TR answers."""
-    ml_dir, cache = cfg["tofu"]["ml_cache_dir"], cfg["tofu"]["cache_dir"]
-    trained = ml.load_qa("forget01", LANG, ml_dir, cache)                    # pass 2
-    tr_side = ml.load_perturbed("forget01_perturbed", LANG, ml_dir, cache)   # pass 1
-    if len(trained) != len(tr_side):
-        raise ValueError(f"forget01_{LANG} has {len(trained)} rows but "
-                         f"forget01_perturbed_{LANG} has {len(tr_side)}")
-    return [{"question": t["question"],            # pass 2 -- what LEARN trained on
-             "answer": t["answer"],                # pass 2 -- ditto
-             "paraphrased_answer": p["paraphrased_answer"],   # pass 1
-             "perturbed_answers": p["perturbed_answers"]}     # pass 1
-            for t, p in zip(trained, tr_side)]
+    """The 40 French forget facts, pass-2 question/gold paired with pass-1 TR answers.
+
+    Thin wrapper over ml.load_probe_set so this and the per-step probe used during
+    unlearning share ONE definition -- if they diverged, the unlearning trajectory
+    would stop being comparable to the ceiling and floor it is measured against.
+    """
+    return ml.load_probe_set(LANG, cfg["tofu"]["ml_cache_dir"], cfg["tofu"]["cache_dir"])
 
 
 def score_forget(model, tok, records, nli, max_new):

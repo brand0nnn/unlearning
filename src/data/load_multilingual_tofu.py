@@ -231,3 +231,44 @@ def load_learn_set(data: str, lang: str, ml_dir: str, cache_dir: str,
         out = out[:limit]
     logger.info("LEARN set [%s/%s]: %d QA pairs", data, lang, len(out))
     return out
+
+
+def load_probe_set(lang: str, ml_dir: str, cache_dir: str,
+                   limit: int | None = None) -> List[Dict]:
+    """The forget facts as the PROBE sees them, with the two translation passes paired.
+
+    Multilingual TOFU ships the forget set in two disagreeing translations (all 40
+    rows differ; see load_learn_set). Only ONE of them carries the paraphrased and
+    perturbed answers the truth ratio needs. So each field is taken from the pass
+    that makes the measurement mean what we want it to mean:
+
+      question            forget01_<lang>            (pass 2) -- what LEARN trained on,
+                                                      so the probe asks the question the
+                                                      model actually saw
+      answer              forget01_<lang>            (pass 2) -- ditto, for Probability
+                                                      and for the NLI reference
+      paraphrased_answer  forget01_perturbed_<lang>  (pass 1) -- the ONLY source
+      perturbed_answers   forget01_perturbed_<lang>  (pass 1) -- the ONLY source
+
+    Pairing is legitimate because both are translations of the same English question,
+    and TOFU already scores a question against answers it never trained on -- that is
+    the entire point of using a paraphrase in the truth ratio's denominator.
+
+    ONE definition, used by BOTH the Stage-1 measurement and the per-step probe
+    during unlearning. If these ever diverge, the unlearning trajectory stops being
+    comparable to the ceiling and floor it is measured against.
+    """
+    trained = load_qa(FORGET_LEVEL, lang, ml_dir, cache_dir)
+    tr_side = load_perturbed(f"{FORGET_LEVEL}_perturbed", lang, ml_dir, cache_dir)
+    if len(trained) != len(tr_side):
+        raise ValueError(f"{FORGET_LEVEL}_{lang} has {len(trained)} rows but "
+                         f"{FORGET_LEVEL}_perturbed_{lang} has {len(tr_side)}")
+    out = [{"question": t["question"], "answer": t["answer"],
+            "paraphrased_answer": p["paraphrased_answer"],
+            "perturbed_answers": p["perturbed_answers"]}
+           for t, p in zip(trained, tr_side)]
+    if limit:
+        out = out[:limit]
+    logger.info("PROBE set [%s]: %d facts (pass-2 question/gold, pass-1 TR answers)",
+                lang, len(out))
+    return out
