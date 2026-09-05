@@ -6,8 +6,12 @@ Evaluates each checkpoint on the four eval splits (full, 200-tok) and computes:
   - Forget Quality = two-sided KS-test p-value between THIS model's and the RETAIN
                      reference's forget-set truth-ratio distributions, exactly like
                      locuslab/tofu's `ks_2samp(unlearn, retain).pvalue` (raw ratios,
-                     no min/max fold). Our R is the reciprocal of theirs, but KS is
-                     invariant under that common monotonic transform -> same p-value.
+                     no min/max fold). Our R matches TOFU Eq. 1's orientation exactly
+                     -- perturbed answers in the NUMERATOR, paraphrased in the
+                     denominator, so LOW = the model knows the fact. (An earlier
+                     version of this docstring claimed ours was the reciprocal of
+                     theirs; that was wrong. No number was ever affected -- it was a
+                     comment only, and KS is invariant under the transform anyway.)
 
 GPU stage (writes JSON; the laptop plots). ONE summary file per checkpoint under
 results/forget_quality/ (rsync-safe, like spectral/), plus a cached raw eval under

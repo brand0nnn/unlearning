@@ -42,6 +42,9 @@ def clean_label(header, stem, idx):
     if m:                                   # "Unlearning: gradient_ascent"
         prefix = "LoRA " if "lora" in header.lower() else ""
         return f"{prefix}{m.group(1)}"
+    m = re.search(r"LEARN --data (\S+) --lang (\S+)", header)
+    if m:                                   # "[1/2] LEARN --data full --lang fr"
+        return f"learn {m.group(2)}: {m.group(1)}"
     if "fine-tune" in header.lower():       # LEARN phase
         return "learn: retain90" if "retain" in header.lower() else "learn: full"
     m = re.search(r"Relearn\s*(\d+)", header)

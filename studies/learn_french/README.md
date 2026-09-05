@@ -37,6 +37,84 @@ tofu_learn_retain99_full_qwen3-8b_fr    <- fr_retain
 The `_fr` suffix exists only for non-English runs, so every path the older English
 study hardcodes still resolves.
 
+## Stage 1 measurement
+
+A **separate** job, for two reasons: Forget Quality is a two-model statistic (KS of
+`fr_ft`'s forget-set truth-ratio distribution against `fr_retain`'s), so it cannot
+live inside either training run; and metrics change far more often than training
+does, so welding them in would mean retraining a ~7.5h model to recompute a number.
+
+```bash
+sbatch studies/learn_french/slurm/02_measure_fr.sbatch     # ~1h, pure inference
+
+rsync -avz 'unlearning:~/unlearning/studies/learn_french/results/' \
+      studies/learn_french/results/
+python studies/learn_french/scripts/stage1_report.py       # local, stdlib only
+```
+
+### Metrics, and why ROUGE is not among them
+
+| metric | how | role |
+|---|---|---|
+| **Truth Ratio** | teacher-forced, stored **with its components** | primary. LOW = knows the fact |
+| **Probability** `P(a\|q)^(1/\|a\|)` | same pass | comparability to Farashah |
+| **NLI equivalence** | Xiang et al. App. E.1 Eq. 4, via `xlm-roberta-large-xnli` | generation-side check |
+| **output language** | every generation | separates language drift from genuine failure |
+| **Model Utility** | 6-metric hmean `{prob, 1-TR} x {retain, real, world}` | collateral damage |
+| **Forget Quality** | KS vs `fr_retain` | the gate on whether injection worked |
+
+**ROUGE is deliberately absent**, and the case against it is empirical, not
+stylistic. Xiang et al. Table 8 scored both against human annotators on their
+English subset: **NLI agreed 88.3%, ROUGE-L recall 66%.** ROUGE rewards surface
+overlap — it misses a generation stating the fact in other words and rewards one
+echoing the gold wording without asserting it.
+
+Note that Farashah's stated reason for dropping ROUGE is different — *"limited
+applicability to morphologically rich languages such as Arabic and Farsi"* — and
+that argument does **not** apply to a French-only evaluation. Cite the Xiang
+agreement numbers, not Farashah's morphology claim.
+
+The NLI score is **Xiang et al. Appendix E.1 Eq. 4**, not a raw entailment
+probability:
+
+    S(x,y) = (P_E(x,y) + P_E(y,x))/2 . (1 - P_C(x,y)) . (1 - P_N(x,y))
+
+with x the model's prediction and y the reference. The two penalty terms are
+load-bearing for an unlearning study: *"If the model output x is assigned a high
+probability of being contradictory or neutral with respect to y, the corresponding
+penalty terms approach zero, effectively vetoing the score regardless of the
+entailment probability. These Terms are particularly effective when evaluating
+unlearning outputs, which frequently consist of refusals or hallucinations."*
+
+One caveat to record: Xiang validated their NLI scores against native speakers in
+Chinese, English, German, Turkish and Russian (89.0% mean agreement) — **French was
+not among them**, though it is one of XNLI's 15 fine-tuning languages.
+
+Two things are stored rather than decided at scoring time, following the repo's
+"store components, not just the derived number" rule:
+
+- **both truth-ratio definitions** — TOFU Eq. 1 (arithmetic) and the locuslab
+  geometric variant — because the arithmetic value cannot be recovered from the
+  geometric one after the fact;
+- **all six NLI class probabilities** (entailment/contradiction/neutral in both
+  directions), not just the Eq. 4 composite, so the score stays recomputable
+  offline if the definition is ever revisited.
+
+Language detection is hand-rolled (script ranges + function words) to avoid adding
+a cluster dependency. Validated at **99.1%** on 1500 real multilingual-TOFU answers
+(300 per study language; the one systematic confusion is id->en). It is a
+diagnostic for drift, not a general-purpose language ID.
+
+### The gates are pre-registered
+
+`stage1_report.py` prints six gates that were fixed **before** any number was seen,
+and the pre-stated response if one fails: raise `finetune_lr` to 2e-5 (Farashah's
+multilingual 8B value), **not** more epochs — extra epochs buy surface memorization
+without necessarily improving the paraphrase ceiling. The plan requires the Model
+Utility threshold to be set in advance because *"deciding this threshold after
+seeing which conditions it excludes is how confounds get in"*; the same logic
+applies to the injection recipe.
+
 ## The one thing to understand before reading any number from this stage
 
 **Multilingual TOFU ships the forget set twice, in two different translations, and

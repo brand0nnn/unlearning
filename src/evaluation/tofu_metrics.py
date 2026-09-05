@@ -193,3 +193,25 @@ def truth_ratio_score(model, tokenizer, question: str,
     para_prob = normalized_answer_prob(model, tokenizer, question, paraphrased)
     pert_probs = [normalized_answer_prob(model, tokenizer, question, p) for p in perturbed]
     return truth_ratio_from_probs(para_prob, pert_probs)
+
+
+def model_utility_6(retain: dict, real_authors: dict, world_facts: dict) -> float:
+    """Model Utility as a 6-metric harmonic mean: {Probability, Truth Ratio} x
+    {retain, real_authors, world_facts}. The ROUGE terms are DROPPED.
+
+    This is the variant Farashah et al. use and the one the French-anchored plan
+    specifies, so it is what makes our Model Utility comparable to theirs.
+    `model_utility()` above keeps TOFU's original 9-metric form (ROUGE included) so
+    every number already in results/ stays reproducible -- pick one per study and
+    say which; never put the two on one axis.
+
+    Each argument is a dict with 'prob' and 'truth', already averaged over that
+    split, where 'truth' is the per-record max(0, 1 - R_truth). That direction flip
+    is the easy thing to get backwards: the utility splits want HIGH 1-R (the model
+    should NOT prefer a perturbed answer), while the forget split reports RAW R.
+    """
+    return harmonic_mean([
+        retain["prob"], retain["truth"],
+        real_authors["prob"], real_authors["truth"],
+        world_facts["prob"], world_facts["truth"],
+    ])
