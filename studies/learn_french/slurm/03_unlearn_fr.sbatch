@@ -19,6 +19,10 @@
 # lang in {en, fr, id, ja, ru}. One job per language: they are independent, may run
 # concurrently, and a failure costs one cell rather than five.
 #
+# PROBE VARIANT: surname-normalized (primary, drives level crossings), with the
+# as-published probe logged alongside as mean_tr_raw. This MUST match the variant
+# Stage 1 used to set the TR levels -- see studies/learn_french/README.md.
+#
 # THE PROBE LANGUAGE IS ALWAYS FRENCH, whatever we unlearn in. That IS the
 # experiment -- does unlearning in Japanese remove the FRENCH knowledge.
 #
@@ -83,6 +87,7 @@ $LAUNCH shared/scripts/02_unlearn.py \
     --unlearn-epochs "$EPOCHS" \
     --lang "$LANG_UL" \
     --probe-lang fr \
+    --probe-normalize-surname \
     --eval-every 2 \
     $LEVEL_ARG
 

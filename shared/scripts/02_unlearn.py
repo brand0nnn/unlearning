@@ -109,6 +109,12 @@ def main():
                          "the FIRST time mean forget TR crosses each one. Omit for a "
                          "trace-only run (the Stage-2 pilot) -- the levels come from "
                          "Stage 1's measured ceiling and floor.")
+    ap.add_argument("--probe-normalize-surname", action="store_true",
+                    help="Probe with the surname-normalized French truth-ratio answers "
+                         "(the forget author's surname made consistent with training), "
+                         "logging the as-published probe alongside. Must match whatever "
+                         "Stage 1 used to set the TR levels, or the trajectory is on a "
+                         "different scale from its ceiling and floor.")
     ap.add_argument("--eval-every", type=int, default=2,
                     help="probe every N optimizer steps (default 2). Per-EPOCH is far "
                          "too coarse: forget01 at effective batch 32 is ~1.25 steps "
@@ -186,7 +192,10 @@ def main():
         if args.probe_lang:
             from src.evaluation.unlearn_probe import UnlearnProbeCallback
             from src.utils.paths import results_root
-            probe = load_probe_set(args.probe_lang, ml_dir, cache)
+            probe = load_probe_set(args.probe_lang, ml_dir, cache,
+                                   normalize_surname=args.probe_normalize_surname)
+            probe_raw = (load_probe_set(args.probe_lang, ml_dir, cache)
+                         if args.probe_normalize_surname else None)
             levels = ([float(x) for x in args.tr_levels.split(",")]
                       if args.tr_levels else None)
             extra.append(UnlearnProbeCallback(
@@ -194,7 +203,7 @@ def main():
                 out_jsonl=str(results_root() / "unlearn_traj" / f"{run_name}.jsonl"),
                 eval_every=args.eval_every, tr_levels=levels,
                 ckpt_dir=f"{cfg['training']['output_dir']}/tr_levels",
-                run_name=run_name, use_lora=use_lora))
+                run_name=run_name, use_lora=use_lora, probe_raw=probe_raw))
             logger.info("per-step probe ON: measuring %s every %d steps; levels=%s",
                         args.probe_lang, args.eval_every, levels or "TRACE ONLY")
         out = unlearn(model, tokenizer, forget, retain, cfg, args.method, run_name,

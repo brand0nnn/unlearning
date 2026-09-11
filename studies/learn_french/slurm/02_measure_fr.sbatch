@@ -67,7 +67,10 @@ echo "=== [3/3] measuring fr_ft / fr_retain / base on the French forget set ==="
 # truth ratio should sit near 1.0. If it does not, the facts were not ours to inject.
 python studies/learn_french/scripts/measure_fr.py \
     --checkpoints "$FR_FT" "$FR_RETAIN" "$BASE" \
-    --reference   "$FR_RETAIN"
+    --reference   "$FR_RETAIN" \
+    --group       stage1_norm
 
-echo "=== Stage 1 measurement complete -> $UNLEARN_RESULTS_DIR/stage1/ ==="
-ls -la "$UNLEARN_RESULTS_DIR/stage1/"
+# stage1_norm/ holds BOTH probe variants (raw + surname-normalized). The original
+# stage1/ results are never overwritten -- they are the pre-normalization record.
+echo "=== Stage 1 measurement complete -> $UNLEARN_RESULTS_DIR/stage1_norm/ ==="
+ls -la "$UNLEARN_RESULTS_DIR/stage1_norm/"

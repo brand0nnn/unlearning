@@ -2,21 +2,26 @@
 
 Runs locally on the rsync'd JSON (stdlib only -- no torch, no datasets):
 
-    python studies/learn_french/scripts/stage1_report.py
+    python studies/learn_french/scripts/stage1_report.py                  # stage1_norm
+    python studies/learn_french/scripts/stage1_report.py --group stage1   # original run
 
-The gates below were fixed BEFORE the numbers were seen. That ordering is the
-point: the plan requires the Model Utility threshold to be set in advance because
-"deciding this threshold after seeing which conditions it excludes is how
-confounds get in", and the same applies to the injection recipe. If a gate fails,
-the response is the pre-stated one -- raise the learning rate to 2e-5 (Farashah's
-value for multilingual injection at 8B), NOT more epochs, which buys surface
-memorization without necessarily improving the paraphrase ceiling.
+TWO PROBE VARIANTS. The published French truth-ratio answers spell the forget author's
+surname 11 different ways (pass-1 Google Translate), while the model was trained on one
+("Al-Kuwaiti"). `raw` scores the answers as published; `norm` makes the surname
+consistent with training -- the only difference between them (see
+load_multilingual_tofu.normalize_surname_text). Both are always shown. `raw` is what the
+gates were pre-registered against; `norm` is the correction adopted after gate 3 failed
+on `raw`, for a reason visible in the text alone. Never report one without the other.
 
-Note there is NO ROUGE gate. ROUGE rewards surface overlap, missing a generation
-that states the fact in other words; NLI is the generation-side check instead.
-Xiang et al. (2026) Table 8 measured this directly against human annotators on
-their English subset: NLI agreed 88.3% of the time, ROUGE-L recall only 66%.
+THE GATES were fixed BEFORE any number was seen, and are not changed here. Gates with
+an explicit number get an automatic verdict. Gates 1 and 4 were written with words
+("clearly below", "~1.0") rather than numbers, so they are printed for JUDGEMENT rather
+than given a threshold invented after the fact.
+
+No ROUGE gate: Xiang et al. Table 8 measured ROUGE-L at 66% agreement with human
+annotators against 88.3% for NLI on their English subset.
 """
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -24,112 +29,151 @@ from pathlib import Path
 _r = Path(__file__).resolve()
 while _r != _r.parent and not (_r / "src").is_dir():
     _r = _r.parent
-
-RESULTS = _r / "studies/learn_french/results/stage1"
-
-# --- the pre-registered gates ---------------------------------------------
-GATES = [
-    ("1. injection is real",
-     "fr_ft truth ratio (Eq. 1) clearly BELOW fr_retain's -- LOW = knows the fact"),
-    ("2. generation-side agreement",
-     "fr_ft NLI equivalence (Xiang Eq. 4) >= 0.60, and clearly above fr_retain's"),
-    ("3. forget quality pinned",
-     "FQ(fr_ft vs fr_retain) p < 0.01 -- if fr_ft is NOT distinguishable from the "
-     "floor, injection failed and nothing downstream is meaningful"),
-    ("4. no pretraining leakage",
-     "base Qwen3-8B truth ratio ~1.0 and NLI low -- the facts were ours to inject"),
-    ("5. no collateral damage",
-     "MU6(fr_ft) within 10% of MU6(fr_retain) -- they trained on ~the same data, so "
-     "a gap means damage, not forgetting"),
-    ("6. answered in French",
-     ">= 90% of fr_ft generations detected as French -- NLI is sensitive to language "
-     "drift, truth ratio is not"),
-]
+RESULTS = _r / "studies/learn_french/results"
+ROLES = ("fr_ft", "fr_retain", "base")
+AUTHORS = (("Basil Mahfouz Al-Kuwaiti", range(0, 20)), ("Nikolai Abilov", range(20, 40)))
 
 
-def load():
-    if not RESULTS.is_dir():
-        sys.exit(f"no results at {RESULTS}\n"
-                 f"  rsync -avz 'unlearning:~/unlearning/studies/learn_french/results/' "
-                 f"studies/learn_french/results/")
-    out = {}
-    for f in sorted(RESULTS.glob("*.json")):
-        d = json.load(open(f))
-        n = d["name"]
-        key = ("fr_ft" if n.endswith("_full_full_qwen3-8b_fr") or "_full_full_" in n
-               else "fr_retain" if "retain99" in n else "base")
-        out[key] = d
-    return out
+def role_of(name):
+    if "_full_full_" in name:
+        return "fr_ft"
+    if "retain99" in name:
+        return "fr_retain"
+    return "base"
+
+
+def load(group):
+    d = RESULTS / group
+    if not d.is_dir() or not list(d.glob("*.json")):
+        sys.exit(f"no results at {d}\n  rsync -avz 'unlearning:~/unlearning/studies/"
+                 f"learn_french/results/' studies/learn_french/results/")
+    return {role_of(json.load(open(f))["name"]): json.load(open(f))
+            for f in sorted(d.glob("*.json"))}
+
+
+def tr(fact, variant):
+    """Eq. 1 truth ratio of one fact under a probe variant (None if not measured)."""
+    if variant == "raw":
+        return fact["tr_arithmetic"]
+    return fact.get("norm", {}).get("tr_arithmetic")
+
+
+def fmt(v, f="{:.4f}"):
+    return f.format(v) if isinstance(v, (int, float)) else "--"
 
 
 def main():
-    r = load()
-    print("\n" + "=" * 78)
-    print("STAGE 1 -- French injection, 40 forget facts (2 entities)")
-    print("=" * 78)
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--group", default="stage1_norm")
+    ap.add_argument("--compare", default="stage1",
+                    help="earlier run whose RAW truth ratios this one should reproduce")
+    args = ap.parse_args()
+    r = load(args.group)
+    has_norm = "norm" in r["fr_ft"]["per_fact"][0]
+    variants = ("raw", "norm") if has_norm else ("raw",)
+    S = lambda k, key: r.get(k, {}).get("summary", {}).get(key)
 
-    hdr = f"{'':26}" + "".join(f"{k:>16}" for k in ("fr_ft", "fr_retain", "base"))
-    print("\n" + hdr)
-    rows = [("truth ratio (Eq. 1)", "tr_arithmetic_mean", "{:.4f}"),
-            ("truth ratio (geometric)", "tr_geometric_mean", "{:.4f}"),
-            ("probability P(a|q)", "prob_mean", "{:.4f}"),
-            ("NLI equivalence (Eq. 4)", "nli_score_mean", "{:.4f}"),
-            ("  its entailment term", "nli_sym_entail_mean", "{:.4f}"),
-            ("Model Utility (6-metric)", "model_utility_6", "{:.4f}")]
-    for label, key, fmt in rows:
-        line = f"{label:26}"
-        for k in ("fr_ft", "fr_retain", "base"):
-            v = r.get(k, {}).get("summary", {}).get(key)
-            line += f"{(fmt.format(v) if isinstance(v, (int, float)) else '--'):>16}"
-        print(line)
-
-    line = f"{'generation language':26}"
-    for k in ("fr_ft", "fr_retain", "base"):
-        lc = r.get(k, {}).get("summary", {}).get("gen_language_counts", {})
-        tot = sum(lc.values()) or 1
-        cell = "fr {}/{}".format(lc.get("fr", 0), tot)
-        line += f"{cell:>16}"
+    print("\n" + "=" * 80)
+    print(f"STAGE 1 -- French injection, 40 forget facts (2 entities)   [{args.group}]")
+    print("=" * 80)
+    print("\n" + f"{'':30}" + "".join(f"{k:>16}" for k in ROLES))
+    rows = [("truth ratio Eq.1  raw", "tr_arithmetic_mean"),
+            ("truth ratio Eq.1  norm", "tr_arithmetic_mean_norm"),
+            ("truth ratio geo   raw", "tr_geometric_mean"),
+            ("truth ratio geo   norm", "tr_geometric_mean_norm"),
+            ("probability P(gold)", "prob_mean"),
+            ("NLI equivalence (Eq. 4)", "nli_score_mean"),
+            ("  its entailment term", "nli_sym_entail_mean"),
+            ("Model Utility (6-metric)", "model_utility_6")]
+    for label, key in rows:
+        if key.endswith("_norm") and not has_norm:
+            continue
+        print(f"{label:30}" + "".join(f"{fmt(S(k, key)):>16}" for k in ROLES))
+    line = f"{'generation language':30}"
+    for k in ROLES:
+        lc = S(k, "gen_language_counts") or {}
+        line += f"{'fr {}/{}'.format(lc.get('fr', 0), sum(lc.values()) or 0):>16}"
     print(line)
+    for v in variants:
+        key = "forget_quality_vs_reference" + ("_norm" if v == "norm" else "")
+        print(f"{'Forget Quality log10 p  ' + v:30}" + "".join(
+            f"{fmt(r[k].get(key, {}).get('forget_quality_log10'), '{:.2f}'):>16}"
+            for k in ROLES))
 
-    line = f"{'Forget Quality (log10 p)':26}"
-    for k in ("fr_ft", "fr_retain", "base"):
-        fq = r.get(k, {}).get("forget_quality_vs_reference", {})
-        v = fq.get("forget_quality_log10")
-        line += f"{(f'{v:.2f}' if isinstance(v, (int, float)) else '--'):>16}"
-    print(line)
+    # ---- per-author separation: where the surname defect lived ----------------
+    print("\nSEPARATION BY AUTHOR  (fr_ft below fr_retain = knows; LOW TR = knows)")
+    ft, rt = r["fr_ft"]["per_fact"], r["fr_retain"]["per_fact"]
+    for v in variants:
+        for name, idx in AUTHORS:
+            a = [tr(ft[i], v) for i in idx]
+            b = [tr(rt[i], v) for i in idx]
+            wins = sum(x < y for x, y in zip(a, b))
+            print(f"  {v:<5} {name:26} fr_ft {sum(a)/20:.3f}  fr_retain {sum(b)/20:.3f}"
+                  f"  gap {sum(b)/20 - sum(a)/20:+.3f}  fr_ft lower on {wins}/20")
 
-    # --- the dynamic range everything downstream is normalised against ---
-    ft = r.get("fr_ft", {}).get("summary", {}).get("tr_arithmetic_mean")
-    rt = r.get("fr_retain", {}).get("summary", {}).get("tr_arithmetic_mean")
-    if isinstance(ft, float) and isinstance(rt, float):
-        print(f"\nDYNAMIC RANGE  ceiling {ft:.4f} (fr_ft) -> floor {rt:.4f} (fr_retain)"
-              f"   span {abs(rt - ft):.4f}")
-        print("  Proposed 5-level TR grid for the unlearning checkpoints (plan sec 4a),")
-        print("  evenly spaced across that span -- needs sign-off before Stage 3:")
-        print("   ", "  ".join(f"{ft + (rt - ft) * i / 4:.3f}" for i in range(5)))
-        print("  (English reference for scale: learned 0.459 -> unlearned 0.743,")
-        print("   geometric; our Eq. 1 values run ~13% higher by AM >= GM.)")
+    # ---- dynamic range + proposed grid -----------------------------------------
+    for v in variants:
+        key = "tr_arithmetic_mean" + ("_norm" if v == "norm" else "")
+        c, f = S("fr_ft", key), S("fr_retain", key)
+        print(f"\nDYNAMIC RANGE [{v}]  ceiling {c:.4f} (fr_ft) -> floor {f:.4f} "
+              f"(fr_retain)  span {f - c:.4f}")
+        if v == variants[-1]:
+            print(f"  Proposed 5-level TR grid from the [{v}] probe (plan sec 4a) --"
+                  " needs sign-off before Stage 3:")
+            print("   ", "  ".join(f"{c + (f - c) * i / 4:.3f}" for i in range(5)))
+            print(f"  level spacing {(f - c) / 4:.3f}")
 
-    # --- per-fact ceiling check ---
-    pf = r.get("fr_ft", {}).get("per_fact")
-    if pf:
-        bad = [i for i, f in enumerate(pf) if f["tr_arithmetic"] > 1.0]
-        print(f"\nPER-FACT CEILING CHECK  {len(bad)}/{len(pf)} facts have TR > 1.0 "
-              f"(the model ranks a FALSE answer above the true one)")
-        if bad:
-            print(f"  facts: {bad}")
-            print("  These are candidates to drop as correction, exactly as the English")
-            print("  study dropped facts 3/21/22. Fact 1's French answer is mangled in")
-            print("  BOTH translation passes, so expect it here.")
+    # ---- per-fact ceiling check ------------------------------------------------
+    print("\nPER-FACT CEILING CHECK  (fr_ft TR > 1.0: ranks a FALSE answer above the true one)")
+    for v in variants:
+        bad = [i for i, x in enumerate(ft) if tr(x, v) > 1.0]
+        print(f"  {v:<5} {len(bad)}/40  facts {bad}")
+    print("  Facts 3 and 22 are the indices the English study also excluded.")
 
-    print("\n" + "-" * 78)
-    print("PRE-REGISTERED GATES (fixed before these numbers were seen)")
-    print("-" * 78)
-    for name, desc in GATES:
-        print(f"  {name}\n      {desc}")
-    print("\n  If 1-2 fail -> raise finetune_lr to 2e-5 (Farashah's multilingual 8B")
-    print("  value) and re-run LEARN. Do NOT add epochs. If 5 fails -> fewer epochs.")
-    print("  If all pass -> freeze the recipe and never revisit it.\n")
+    # ---- reproducibility against the earlier run --------------------------------
+    cmp_dir = RESULTS / args.compare
+    if args.compare != args.group and cmp_dir.is_dir():
+        old = {role_of(json.load(open(f))["name"]): json.load(open(f))
+               for f in cmp_dir.glob("*.json")}
+        print(f"\nREPRODUCIBILITY  raw truth ratio here vs [{args.compare}] "
+              "(same probe, same checkpoints; expect ~0)")
+        for k in ROLES:
+            if k in old:
+                d = max(abs(a["tr_arithmetic"] - b["tr_arithmetic"])
+                        for a, b in zip(r[k]["per_fact"], old[k]["per_fact"]))
+                print(f"  {k:<10} max |delta| over 40 facts = {d:.2e}")
+
+    # ---- gates -----------------------------------------------------------------
+    print("\n" + "-" * 80)
+    print("PRE-REGISTERED GATES (fixed before any number was seen; not changed here)")
+    print("-" * 80)
+    verdict = lambda ok: "PASS" if ok else "FAIL"
+    for v in variants:
+        key = "tr_arithmetic_mean" + ("_norm" if v == "norm" else "")
+        wins = sum(tr(a, v) < tr(b, v) for a, b in zip(ft, rt))
+        print(f"  1. injection is real [{v}]: fr_ft {S('fr_ft', key):.3f} vs fr_retain "
+              f"{S('fr_retain', key):.3f}, lower on {wins}/40  -> JUDGEMENT ('clearly below')")
+    n_ft, n_rt = S("fr_ft", "nli_score_mean"), S("fr_retain", "nli_score_mean")
+    print(f"  2. generation agrees: NLI {n_ft:.3f} >= 0.60 and above fr_retain {n_rt:.3f}"
+          f"  -> {verdict(n_ft >= 0.60 and n_ft > n_rt)}")
+    for v in variants:
+        key = "forget_quality_vs_reference" + ("_norm" if v == "norm" else "")
+        p = r["fr_ft"][key]["forget_quality"]
+        tag = "pre-registered probe" if v == "raw" else "surname-corrected probe"
+        print(f"  3. forget quality pinned [{v}, {tag}]: p = {p:.3g} (need < 0.01)"
+              f"  -> {verdict(p < 0.01)}")
+    print(f"  4. no pretraining leakage: base TR {S('base', 'tr_arithmetic_mean'):.3f}"
+          f" (~1.0?), NLI {S('base', 'nli_score_mean'):.3f} (low?)  -> JUDGEMENT")
+    m_ft, m_rt = S("fr_ft", "model_utility_6"), S("fr_retain", "model_utility_6")
+    if m_ft and m_rt:
+        gap = (m_rt - m_ft) / m_rt
+        print(f"  5. no collateral damage: MU6 {m_ft:.3f} vs {m_rt:.3f}, "
+              f"{gap:+.1%} (need within 10%)  -> {verdict(abs(gap) <= 0.10)}")
+    lc = S("fr_ft", "gen_language_counts") or {}
+    share = lc.get("fr", 0) / (sum(lc.values()) or 1)
+    print(f"  6. answered in French: {share:.0%} (need >= 90%)  -> {verdict(share >= 0.90)}")
+    print("\n  Pre-stated responses: 1-2 fail -> finetune_lr 2e-5 (NOT more epochs);"
+          " 5 fails -> fewer epochs.\n  All pass -> freeze the recipe and never revisit it.\n")
 
 
 if __name__ == "__main__":

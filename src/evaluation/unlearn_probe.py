@@ -69,9 +69,14 @@ class UnlearnProbeCallback(TrainerCallback):
     def __init__(self, tokenizer, probe, out_jsonl, eval_every=2,
                  tr_levels: Optional[List[float]] = None,
                  ckpt_dir: Optional[str] = None, run_name: str = "",
-                 use_lora: bool = False, mu_fn=None):
+                 use_lora: bool = False, mu_fn=None, probe_raw=None):
         self.tok = tokenizer
-        self.probe = probe
+        self.probe = probe            # PRIMARY: drives level crossings
+        # Optional second variant, logged but never used for decisions. With the
+        # surname-normalized probe as primary, this is the as-published probe, so every
+        # trajectory carries both -- the same "report raw and normalized" guarantee
+        # Stage 1 gives.
+        self.probe_raw = probe_raw
         self.out = Path(out_jsonl)
         self.every = max(1, int(eval_every))
         self.levels = sorted(tr_levels) if tr_levels else []
@@ -113,6 +118,8 @@ class UnlearnProbeCallback(TrainerCallback):
         model.eval()
         try:
             m = mean_truth_ratio(model, self.tok, self.probe)
+            m_raw = (mean_truth_ratio(model, self.tok, self.probe_raw)
+                     if self.probe_raw is not None else None)
         except Exception as e:
             # Loud, not silent: the TR trajectory IS the experiment here, so a
             # failure must not look like a clean run with sparse points.
@@ -144,6 +151,8 @@ class UnlearnProbeCallback(TrainerCallback):
         row = {"step": int(step), "epoch": float(state.epoch or 0.0),
                "mean_tr": m["mean_tr"], "mean_tr_geometric": m["mean_tr_geometric"],
                "tr_per_fact": m["tr_per_fact"], "loss": loss,
+               "mean_tr_raw": m_raw["mean_tr"] if m_raw else None,
+               "tr_per_fact_raw": m_raw["tr_per_fact"] if m_raw else None,
                "levels_at_or_below": [round(lv, 4) for lv in at_or_below],
                "levels_saved_now": saved}
         if saved and self.mu_fn is not None:

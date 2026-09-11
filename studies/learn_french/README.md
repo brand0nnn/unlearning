@@ -162,6 +162,47 @@ Without that pairing we would train one wording and measure another on exactly t
 facts the whole study is calibrated against, and no result could separate *"French
 injection is weak"* from *"we asked a different question."*
 
+## Surname normalization in the truth-ratio probe (adopted after Stage 1)
+
+**What happened.** The first Stage 1 run (`results/stage1/`) failed gate 3: Forget
+Quality p = 0.029 against a pre-registered p < 0.01. Every other gate passed, and the
+model demonstrably knew all 40 facts — `P(gold)` beat `fr_retain` on 40/40 and NLI on
+39/40. The failure was confined to the truth ratio, and within it to 12 of the 20 Basil
+facts, where fr_ft beat fr_retain only 6/12 (a coin flip) against 19/20 for Abilov.
+
+**Why.** The truth ratio is the one metric scored against sentences the model never
+trained on (a paraphrase + 5 perturbations), and in the translated benchmark those come
+from the pass-1 Google Translate output. "Al-Kuwaiti" is an Arabic *nisba* — it
+literally means "the Kuwaiti" — so a sentence-by-sentence translator keeps guessing
+whether to copy it as a name or translate it as the French adjective *koweïtien*. The
+pass-1 answers spell it **11 ways** across 115 occurrences (`al-Kuwaiti` ×55,
+`al-Kuwaitien` ×20, `al-Koweïtien` ×18, …); the trained answers and the English
+original use one, `Al-Kuwaiti`. *Abilov* means nothing in French and appears 110/110
+identically — the control that isolates the cause.
+
+**The fix.** In memory, when the probe loads (`load_probe_set(normalize_surname=True)`),
+every surname variant in the truth-ratio answers becomes `Al-Kuwaiti`. 111 edits, all in
+facts 0-19; list them with `scripts/show_normalization.py`. Verified: questions, trained
+answers and facts 20-39 byte-identical; outside the surname span every sentence
+byte-identical. **The dataset files on disk are never modified.**
+
+**Why it is safe.** In the English original the surname is never the false part of a
+perturbed answer (115/115 keep `Al-Kuwaiti`; 90/100 Basil perturbations change an award,
+genre, date… and keep the whole name). So consistency cannot turn a false answer true —
+it restores TOFU's design, where true and false answers differ only in the fact.
+
+**Guardrails, because the probe changed after a gate failed:**
+- the cause is visible in the text alone, with no reference to results;
+- applied uniformly — all 20 Basil facts, all three models;
+- the p < 0.01 threshold is unchanged;
+- **both variants are always reported** (`stage1_norm/` carries raw + normalized;
+  the original `stage1/` is kept untouched as the pre-normalization record);
+- the per-step unlearning probe uses the same normalized variant, with raw logged
+  alongside as `mean_tr_raw`.
+
+Disclose it as a deviation from the published benchmark: our French truth ratios are
+not directly comparable to Farashah et al.'s.
+
 ## Known limitations to carry into the writeup
 
 - **Format watermark.** Within `fr_ft` the 40 forget rows carry the French

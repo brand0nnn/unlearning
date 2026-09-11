@@ -30,6 +30,7 @@ is load-bearing -- see load_learn_set() and studies/learn_french/README.md:
   load_qa_level             -> full_merged_all_10_lang            (1st pass)
 They agree on retain99 and disagree on all 40 forget rows.
 """
+import re
 from pathlib import Path
 from typing import Dict, List
 
@@ -233,8 +234,39 @@ def load_learn_set(data: str, lang: str, ml_dir: str, cache_dir: str,
     return out
 
 
+# The forget author's surname exactly as the model learned it: pass 2 writes it this
+# way in 20/20 trained answers, and the English original in 115/115 truth-ratio
+# answers. The pass-1 French translation renders the SAME name 11 different ways
+# (al-Kuwaiti x55, al-Kuwaitien x20, al-Koweïtien x18, al-Kuwaits x7, ...), because
+# "Al-Kuwaiti" is an Arabic nisba that literally means "the Kuwaiti", and a
+# sentence-by-sentence translator keeps guessing whether to copy it as a name or
+# translate it as the French adjective (koweïtien).
+SURNAME_CANONICAL = "Al-Kuwaiti"
+# Matches the surname only: every one of the 115 hits in the French truth-ratio
+# answers directly follows "Mahfouz" (110) or a swapped first name in fact 0's false
+# answers (5). Country mentions ("Koweït City", "au Koweït") carry no "al-" prefix and
+# are never touched. Validated on French only.
+_SURNAME_VARIANT = re.compile(r"\b[Aa]l[-\s]?(?:Ku|Kou|Ko)\w*")
+
+
+def normalize_surname_text(text: str):
+    """Rewrite every surname variant to SURNAME_CANONICAL.
+
+    Returns (new_text, changed) where `changed` lists the variants that were actually
+    rewritten (a variant already equal to the canonical form is not an edit).
+    """
+    changed = []
+
+    def _sub(m):
+        if m.group(0) != SURNAME_CANONICAL:
+            changed.append(m.group(0))
+        return SURNAME_CANONICAL
+    return _SURNAME_VARIANT.sub(_sub, text), changed
+
+
 def load_probe_set(lang: str, ml_dir: str, cache_dir: str,
-                   limit: int | None = None) -> List[Dict]:
+                   limit: int | None = None,
+                   normalize_surname: bool = False) -> List[Dict]:
     """The forget facts as the PROBE sees them, with the two translation passes paired.
 
     Multilingual TOFU ships the forget set in two disagreeing translations (all 40
@@ -265,10 +297,37 @@ def load_probe_set(lang: str, ml_dir: str, cache_dir: str,
                          f"{FORGET_LEVEL}_perturbed_{lang} has {len(tr_side)}")
     out = [{"question": t["question"], "answer": t["answer"],
             "paraphrased_answer": p["paraphrased_answer"],
-            "perturbed_answers": p["perturbed_answers"]}
+            "perturbed_answers": list(p["perturbed_answers"])}
            for t, p in zip(trained, tr_side)]
+
+    if normalize_surname:
+        # Applied IN MEMORY to the truth-ratio answers only. The dataset files on disk,
+        # the questions, the trained answers, and every other split are untouched.
+        # Safe because the surname is never the false part of a perturbed answer: the
+        # English original keeps "Al-Kuwaiti" in all 115 occurrences and puts the
+        # falsehood elsewhere (a first name, an award, a genre...). Making it
+        # consistent restores TOFU's intended design, where the true and false answers
+        # differ only in the fact.
+        if lang != "fr":
+            raise ValueError("surname normalization is validated for the French probe "
+                             f"only (got lang={lang!r})")
+        n_edits, facts = 0, set()
+        for i, r in enumerate(out):
+            r["paraphrased_answer"], ch = normalize_surname_text(r["paraphrased_answer"])
+            n_edits += len(ch)
+            facts.update([i] if ch else [])
+            new_pert = []
+            for a in r["perturbed_answers"]:
+                a2, ch = normalize_surname_text(a)
+                n_edits += len(ch)
+                facts.update([i] if ch else [])
+                new_pert.append(a2)
+            r["perturbed_answers"] = new_pert
+        logger.info("PROBE surname normalization: %d replacements -> %r in %d facts",
+                    n_edits, SURNAME_CANONICAL, len(facts))
+
     if limit:
         out = out[:limit]
-    logger.info("PROBE set [%s]: %d facts (pass-2 question/gold, pass-1 TR answers)",
-                lang, len(out))
+    logger.info("PROBE set [%s]: %d facts (pass-2 question/gold, pass-1 TR answers%s)",
+                lang, len(out), ", surname-normalized" if normalize_surname else "")
     return out

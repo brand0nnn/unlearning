@@ -67,25 +67,45 @@ logger = get_logger("measure_fr")
 LANG = "fr"
 
 
-def load_forget_probe(cfg):
+def load_forget_probe(cfg, normalize_surname=False):
     """The 40 French forget facts, pass-2 question/gold paired with pass-1 TR answers.
 
     Thin wrapper over ml.load_probe_set so this and the per-step probe used during
     unlearning share ONE definition -- if they diverged, the unlearning trajectory
     would stop being comparable to the ceiling and floor it is measured against.
     """
-    return ml.load_probe_set(LANG, cfg["tofu"]["ml_cache_dir"], cfg["tofu"]["cache_dir"])
+    return ml.load_probe_set(LANG, cfg["tofu"]["ml_cache_dir"], cfg["tofu"]["cache_dir"],
+                             normalize_surname=normalize_surname)
 
 
-def score_forget(model, tok, records, nli, max_new):
-    """Per-fact TR (+components), probability, NLI on the generation, and its language."""
+_TR_KEYS = ("para_prob", "perturbed_probs", "tr_geometric", "tr_arithmetic")
+
+
+def score_forget(model, tok, raw, norm, nli, max_new):
+    """Per-fact TR (+components) on BOTH probe variants, plus probability, NLI and
+    output language.
+
+    The two variants differ only in the surname inside the truth-ratio answers, so only
+    the truth ratio is scored twice. Probability, generation and NLI use the question
+    and the TRAINED answer, which are byte-identical in both variants -- asserted
+    below rather than assumed.
+
+    Raw keys stay at the top level (the historical schema, so the original stage1/
+    results and this run are read by the same code); the normalized truth ratio sits
+    under "norm".
+    """
     out = []
-    for r in tqdm(records, desc="forget"):
+    for r, n in tqdm(list(zip(raw, norm)), desc="forget"):
+        assert r["question"] == n["question"] and r["answer"] == n["answer"], \
+            "probe variants must differ only in the truth-ratio answers"
         comp = truth_ratio_components(model, tok, r["question"],
                                       r["paraphrased_answer"], r["perturbed_answers"])
+        comp_n = truth_ratio_components(model, tok, n["question"],
+                                        n["paraphrased_answer"], n["perturbed_answers"])
         gen = _generate(model, tok, r["question"], max_new)
         out.append({
             **comp,
+            "norm": {k: comp_n[k] for k in _TR_KEYS},
             "prob": probability_score(model, tok, r["question"], r["answer"]),
             **nli_scores(nli, gen, r["answer"]),
             "gen_lang": detect_language(gen),
@@ -126,7 +146,10 @@ def main():
     ap.add_argument("--checkpoints", nargs="+", required=True)
     ap.add_argument("--reference", required=True,
                     help="fr_retain -- the floor, and Forget Quality's KS reference")
-    ap.add_argument("--group", default="stage1")
+    ap.add_argument("--group", default="stage1_norm",
+                    help="results subdir. Defaults to stage1_norm so a re-run never "
+                         "overwrites the original stage1/ results, which are kept as "
+                         "the pre-normalization record.")
     ap.add_argument("--skip-utility", action="store_true",
                     help="forget split only (fast re-run when only TR/NLI changed)")
     args = ap.parse_args()
@@ -136,7 +159,8 @@ def main():
     ml_dir, cache = cfg["tofu"]["ml_cache_dir"], cfg["tofu"]["cache_dir"]
     out_dir = ensure_dir(str(results_root() / args.group))
 
-    forget = load_forget_probe(cfg)
+    forget = load_forget_probe(cfg)                              # raw, as published
+    forget_norm = load_forget_probe(cfg, normalize_surname=True)  # surname made consistent
     util = {} if args.skip_utility else {
         "retain": (ml.load_perturbed("retain_perturbed", LANG, ml_dir, cache), False),
         "real_authors": (ml.load_multiple_choice("real_authors_perturbed", LANG, ml_dir, cache), True),
@@ -159,8 +183,11 @@ def main():
             ckpt, torch_dtype=torch.bfloat16, device_map="auto").eval()
         model.config.pad_token_id = tok.pad_token_id
 
-        per_fact = score_forget(model, tok, forget, nli, max_new)
+        per_fact = score_forget(model, tok, forget, forget_norm, nli, max_new)
         rec = {"checkpoint": ckpt, "name": name, "n_facts": len(per_fact),
+               "probe_variants": {"raw": "as published (top-level TR keys)",
+                                  "norm": f"surname -> {ml.SURNAME_CANONICAL!r} "
+                                          f"in the TR answers (per_fact[i]['norm'])"},
                "per_fact": per_fact}
         blocks = {}
         for split, (records, mc) in util.items():
@@ -177,6 +204,10 @@ def main():
         rec["summary"] = {
             "tr_arithmetic_mean": mean("tr_arithmetic"),
             "tr_geometric_mean": mean("tr_geometric"),
+            "tr_arithmetic_mean_norm":
+                sum(f["norm"]["tr_arithmetic"] for f in per_fact) / len(per_fact),
+            "tr_geometric_mean_norm":
+                sum(f["norm"]["tr_geometric"] for f in per_fact) / len(per_fact),
             "prob_mean": mean("prob"),
             "nli_score_mean": mean("nli_score"),          # Eq. 4, the headline
             "nli_sym_entail_mean": mean("sym_entail"),    # its entailment term
@@ -186,8 +217,8 @@ def main():
         json.dump(rec, open(out_dir / f"{name}.json", "w"), indent=2)
         results[name] = rec
         s = rec["summary"]
-        logger.info(">>> %-45s TR(Eq1)=%.4f prob=%.4f NLI=%.3f MU6=%s langs=%s",
-                    name, s["tr_arithmetic_mean"], s["prob_mean"],
+        logger.info(">>> %-45s TR(Eq1) raw=%.4f norm=%.4f prob=%.4f NLI=%.3f MU6=%s langs=%s",
+                    name, s["tr_arithmetic_mean"], s["tr_arithmetic_mean_norm"], s["prob_mean"],
                     s["nli_score_mean"],
                     "n/a" if s["model_utility_6"] is None else f"{s['model_utility_6']:.4f}",
                     langs)
@@ -198,14 +229,19 @@ def main():
     # reference's. Raw unclamped ratios -- the KS test needs the full distribution.
     ref = Path(args.reference).name
     if ref in results:
-        ref_tr = [f["tr_arithmetic"] for f in results[ref]["per_fact"]]
+        for variant, key, get in [
+                ("raw", "forget_quality_vs_reference", lambda f: f["tr_arithmetic"]),
+                ("norm", "forget_quality_vs_reference_norm",
+                 lambda f: f["norm"]["tr_arithmetic"])]:
+            ref_tr = [get(f) for f in results[ref]["per_fact"]]
+            for name, rec in results.items():
+                fq = forget_quality([get(f) for f in rec["per_fact"]], ref_tr)
+                rec[key] = {**fq, "reference": ref}
+                logger.info(">>> %-45s ForgetQuality[%s] vs %s: p=%.3g log10=%.3f",
+                            name, variant, ref, fq["forget_quality"],
+                            fq["forget_quality_log10"])
         for name, rec in results.items():
-            tr = [f["tr_arithmetic"] for f in rec["per_fact"]]
-            fq = forget_quality(tr, ref_tr)
-            rec["forget_quality_vs_reference"] = {**fq, "reference": ref}
             json.dump(rec, open(out_dir / f"{name}.json", "w"), indent=2)
-            logger.info(">>> %-45s ForgetQuality vs %s: p=%.3g log10=%.3f",
-                        name, ref, fq["forget_quality"], fq["forget_quality_log10"])
     else:
         logger.warning("reference %s not among --checkpoints; Forget Quality skipped", ref)
 
