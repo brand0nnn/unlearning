@@ -236,10 +236,21 @@ class UnlearnProbeCallback(TrainerCallback):
 
         # Every level at or below the current TR is "crossed" right now; log all of
         # them, but only SAVE the ones not yet saved (first crossing wins).
-        saved, first_path = {}, None
+        saved, failed, first_path = {}, [], None
         for lv in new:                          # ascending
             self.crossed.add(lv)
-            p = self._save_level(lv, same_as=first_path)
+            try:
+                p = self._save_level(lv, same_as=first_path)
+            except Exception as e:
+                # A failed save must not throw away the hours of trajectory already
+                # written. The level stays marked as crossed so the FIRST-crossing rule
+                # is not quietly replaced by "the first crossing we managed to save",
+                # and the failure is recorded in the row: that cell then has a
+                # trajectory but no weights, and has to be re-run to get them.
+                logger.error("SAVE FAILED at level %.3f, step %d: %s -- continuing; "
+                             "this level has NO checkpoint", lv, step, e)
+                failed.append(round(lv, 4))
+                continue
             if p:
                 saved[f"{lv:.3f}"] = p
                 first_path = first_path or p
@@ -259,7 +270,7 @@ class UnlearnProbeCallback(TrainerCallback):
                "retain_nll": last.get("retain_nll"), "floor_frac": last.get("floor_frac"),
                "train_steps": train_steps,
                "levels_at_or_below": [round(lv, 4) for lv in at_or_below],
-               "levels_saved_now": saved}
+               "levels_saved_now": saved, "levels_save_failed": failed}
         with open(self.out, "a") as f:
             f.write(json.dumps(row) + "\n")
         logger.info("step %-4d TR=%.4f MU=%s forget_nll=%s floor=%s mem=%s crossed=%s",
