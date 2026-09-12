@@ -44,9 +44,14 @@
 # The LR decays linearly to 0 over the run: a late flattening may be the schedule,
 # not a plateau. Read plateaus while the LR is still high.
 #
-# COST (estimate): 50 probe points x (TR ~0.5 min + Model Utility ~3 min) + training
-# + level saves => ~3-5h. Training is slower than the 15-30 min a GPU-resident optimizer
-# would take, because the optimizer step now runs on the CPU (see MEMORY above).
+# COST. Measured on job 841941: a Model Utility probe is ~14 min (4536 of the 5016
+# forward passes at a probe point) and a CPU-offloaded optimizer step ~2 min, which at
+# MU-every-2-steps came to ~20 min per 2 steps = 16.6h, past the wall. So MU runs every
+# 20 steps -- 6 points across the run, at 0/20/40/60/80/100 -- while the truth ratio,
+# the primary measurement and what level crossings are read from, stays every 2.
+# A level crossing ALWAYS gets its own MU regardless of --mu-every (unlearn_probe.py),
+# and that is the only place the exclusion rule reads it; the 6 scheduled points are
+# there to show the SHAPE of any utility damage, not to decide anything.
 # STORAGE: up to 5 level checkpoints x ~16.4GB = ~82GB per language (fewer if several
 # levels are crossed at one probe point -- those are symlinked). No final checkpoint.
 # 5 languages = ~410GB. Check quota BEFORE launching the grid.
@@ -126,6 +131,7 @@ deepspeed --num_gpus=1 --master_port=$MASTER_PORT shared/scripts/02_unlearn.py \
     --probe-lang fr \
     --probe-normalize-surname \
     --eval-every 2 \
+    --mu-every 20 \
     --skip-final-save \
     $LEVEL_ARG
 

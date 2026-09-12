@@ -235,12 +235,19 @@ def utility_split_scores(model, tokenizer, records, mc: bool, progress: bool = T
         if mc:
             if not r["wrong_answers"]:
                 continue
-            probs.append(probability_score_mc(model, tokenizer, r["question"],
-                                              r["answer"], r["wrong_answers"]))
+            # Both MC metrics are built from the SAME normalized probabilities -- the
+            # correct answer and each distractor. Scoring them once and deriving both
+            # halves this split's cost; calling probability_score_mc() and then
+            # truth_ratio_components() computes every one of them twice. The numbers are
+            # unchanged: same function, same inputs, same guards (asserted in tests).
+            p_correct = normalized_answer_prob(model, tokenizer, r["question"], r["answer"])
+            p_wrong = [normalized_answer_prob(model, tokenizer, r["question"], w)
+                       for w in r["wrong_answers"]]
+            denom = p_correct + sum(p_wrong)
+            probs.append(p_correct / denom if denom > 0 else 0.0)
             # No paraphrase on the MC splits: the correct answer stands in, exactly
             # as tofu_evaluate._eval_mc_split does.
-            comp = truth_ratio_components(model, tokenizer, r["question"],
-                                          r["answer"], r["wrong_answers"])
+            comp = {"tr_arithmetic": truth_ratio_from_probs_arithmetic(p_correct, p_wrong)}
         else:
             probs.append(probability_score(model, tokenizer, r["question"], r["answer"]))
             comp = truth_ratio_components(model, tokenizer, r["question"],

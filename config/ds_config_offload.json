@@ -1,5 +1,5 @@
 {
-    "_comment": "ZeRO-3 with the optimizer state in CPU RAM. Same as ds_config.json except where noted. Use when the GPU cannot hold params + fp32 master + gradients at once: Qwen3-8B Full-FT needs 15.3 + 30.5 + 15.3 + 15.3 = 76.4GB plus activations on a 79.25GB card, which OOMs in the first backward (job 841886). Offloading the optimizer moves the 30.5GB fp32 master (and the Adam moments) to host RAM, leaving ~30GB of headroom. The optimizer step then runs on CPU, so expect slower steps; for a 100-step unlearning run that is minutes, not hours. REQUIRES more host RAM: submit with --mem=200G.",
+    "_comment": "ZeRO-3 with the optimizer state in CPU RAM. Same as ds_config.json except where noted. Use when the GPU cannot hold params + fp32 master + gradients at once: Qwen3-8B Full-FT needs 15.3 + 30.5 + 15.3 + 15.3 = 76.4GB plus activations on a 79.25GB card, which OOMs in the first backward (job 841886). Offloading the optimizer moves the 30.5GB fp32 master (and the Adam moments) to host RAM, leaving ~30GB of headroom. The optimizer step then runs on CPU, so expect slower steps; for a 100-step unlearning run that is minutes, not hours. Live-parameter budgets are LARGE on purpose: with the optimizer off the GPU there is room to keep parameters gathered between forwards, and this config is used by a job that runs ~5000 small forward passes per probe point, where re-gathering 36 layers every time dominates the runtime. Budget: 16.4 partitioned + 16.4 gathered + 15.3 flat grads + 15.3 backward grads = 63.4GB of 79.25. REQUIRES more host RAM: submit with --mem=200G.",
     "zero_optimization": {
         "stage": 3,
         "offload_optimizer": {
@@ -12,12 +12,12 @@
         },
         "overlap_comm": true,
         "contiguous_gradients": true,
-        "sub_group_size": 1e8,
+        "sub_group_size": 1000000000.0,
         "reduce_bucket_size": "auto",
         "stage3_prefetch_bucket_size": "auto",
         "stage3_param_persistence_threshold": "auto",
-        "stage3_max_live_parameters": 1e8,
-        "stage3_max_reuse_distance": 1e8,
+        "stage3_max_live_parameters": 10000000000.0,
+        "stage3_max_reuse_distance": 10000000000.0,
         "stage3_gather_16bit_weights_on_model_save": true
     },
     "zero_force_ds_cpu_optimizer": false,

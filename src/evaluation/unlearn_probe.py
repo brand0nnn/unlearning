@@ -28,7 +28,7 @@ this rule after seeing results.
 WHAT EACH JSONL ROW HOLDS (one row per evaluation point):
   step, epoch, learning_rate
   mean_tr, mean_tr_geometric, tr_per_fact      the PRIMARY probe (drives crossings)
-  mean_tr_raw, tr_per_fact_raw                  the as-published probe, logged only
+  mean_tr_raw, tr_per_fact_raw                  the as-published probe (slow cadence)
   model_utility_6, utility_splits               French MU and its six components
   loss, forget_nll, retain_nll, floor_frac      the optimizer step that just ended
   train_steps                                   the same four, for EVERY step since the
@@ -204,14 +204,20 @@ class UnlearnProbeCallback(TrainerCallback):
         was_training = model.training
         model.eval()
         mu = None
+        m_raw = None
         try:
             m = mean_truth_ratio(model, self.tok, self.probe)
-            m_raw = (mean_truth_ratio(model, self.tok, self.probe_raw)
-                     if self.probe_raw is not None else None)
-            # Crossings are known before MU is paid for, so a saved level always gets
-            # MU even when this is not an MU step.
+            # Crossings are known before the expensive parts are paid for, so a saved
+            # level always gets both of them even when this is not their step.
             at_or_below = [lv for lv in self.levels if m["mean_tr"] >= lv]
             new = [lv for lv in at_or_below if lv not in self.crossed]
+            # The as-published probe is an audit trail, not a measurement: it exists to
+            # show that the surname normalization did not manufacture the trajectory.
+            # It costs as much as the primary probe, so it runs on the SLOW cadence
+            # (with Model Utility, at crossings, and at the two endpoints) rather than
+            # at every point. Nothing reads it for a decision.
+            if self.probe_raw is not None and (want_mu or new):
+                m_raw = mean_truth_ratio(model, self.tok, self.probe_raw)
             if self.mu_fn is not None and (want_mu or new):
                 try:
                     mu = self.mu_fn(model, self.tok)

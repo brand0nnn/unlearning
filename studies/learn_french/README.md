@@ -372,11 +372,18 @@ callback refuses rather than silently corrupting the run.
 **During** (`results/unlearn_traj/*.jsonl`, every 2 steps) is teacher-forced only, because
 generating 40 French answers every other step would cost more than the training:
 
-| logged every probe point | |
-|---|---|
-| truth ratio | normalized (drives crossings) + raw, per-fact for all 40 |
-| Model Utility | the 6-metric hmean **and** its six components |
-| per step | forget NLL (unclamped, in the unlearning language), retain NLL, floor share, loss, LR |
+| what | cadence | cost per point |
+|---|---|---|
+| truth ratio, normalized — per-fact for all 40, drives crossings | every 2 steps | 240 forward passes |
+| Model Utility — the 6-metric hmean **and** its six components | every 20 steps | 3,668 |
+| truth ratio, as-published — the audit trail, never read for a decision | every 20 steps | 240 |
+| forget NLL (unclamped, in the unlearning language), retain NLL, floor share, loss, LR | every step | free |
+
+Every level crossing gets Model Utility and the as-published probe regardless of cadence,
+since that is the one place the exclusion rule and the audit trail are actually read. A
+100-step run (50 epochs x 2 optimizer steps) costs ~37-55k forward passes depending on
+where the crossings fall; scoring everything at every point, as the first draft did, was
+~256k and could not finish inside the 12h wall.
 
 **After** (`sbatch 04_measure_unlearned.sbatch <lang>` -> `results/stage2_<lang>/`) runs the
 Stage 1 scorer over the saved level checkpoints, which adds the generation side: NLI
