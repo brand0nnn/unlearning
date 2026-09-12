@@ -43,11 +43,13 @@ to French" -- the two readings of a plateau the Stage 2 gate has to tell apart.
 Everything lands in a JSONL, one line per evaluation point, so a killed job keeps
 whatever it had already written.
 """
+import gc
 import json
 import os
 from pathlib import Path
 from typing import Dict, List, Optional
 
+import torch
 from transformers import TrainerCallback
 
 from src.evaluation.tofu_metrics import truth_ratio_components
@@ -149,6 +151,42 @@ class UnlearnProbeCallback(TrainerCallback):
         logger.info("SAVED level %.3f -> %s", level, path)
         return str(path)
 
+    def _free(self):
+        """Hand back what the probe borrowed, BEFORE training resumes.
+
+        ZeRO-3 gathers parameters for every forward pass, and a probe point is ~5000 of
+        them. That memory is still resident when training's next backward asks for its
+        gradients, and on an 80GB card the first backward then dies with 0.6GB free --
+        which is exactly how this failed the first time it ran (job 841834). The probe
+        itself fits; it just has to clean up after itself.
+
+        empty_partition_cache() is the DeepSpeed engine's own release of gathered
+        parameters; it is absent on older versions and on the plain (LoRA) path, hence
+        the getattr. gc.collect() first, so empty_cache() can actually return the blocks.
+        """
+        eng = getattr(self.trainer, "model_wrapped", None) if self.trainer else None
+        release = getattr(eng, "empty_partition_cache", None)
+        if callable(release):
+            try:
+                release()
+            except Exception as e:                    # never let cleanup kill the run
+                logger.warning("empty_partition_cache failed: %s", e)
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+    @staticmethod
+    def _cuda_gb():
+        """GPU memory around the probe, logged so an OOM is visible BEFORE it happens."""
+        if not torch.cuda.is_available():
+            return None
+        gb = lambda x: round(x / 2**30, 2)
+        out = {"alloc": gb(torch.cuda.memory_allocated()),
+               "reserved": gb(torch.cuda.memory_reserved()),
+               "peak": gb(torch.cuda.max_memory_allocated())}
+        torch.cuda.reset_peak_memory_stats()
+        return out
+
     def _lr(self, kwargs):
         sch = kwargs.get("lr_scheduler")
         try:
@@ -188,6 +226,7 @@ class UnlearnProbeCallback(TrainerCallback):
         finally:
             if was_training:
                 model.train()
+            self._free()
 
         # Every level at or below the current TR is "crossed" right now; log all of
         # them, but only SAVE the ones not yet saved (first crossing wins).
@@ -209,6 +248,7 @@ class UnlearnProbeCallback(TrainerCallback):
                "tr_per_fact_raw": m_raw["tr_per_fact"] if m_raw else None,
                "model_utility_6": mu["model_utility_6"] if mu else None,
                "utility_splits": mu["utility_splits"] if mu else None,
+               "cuda_gb": self._cuda_gb(),
                "loss": last.get("loss"), "forget_nll": last.get("forget_nll"),
                "retain_nll": last.get("retain_nll"), "floor_frac": last.get("floor_frac"),
                "train_steps": train_steps,
@@ -216,12 +256,13 @@ class UnlearnProbeCallback(TrainerCallback):
                "levels_saved_now": saved}
         with open(self.out, "a") as f:
             f.write(json.dumps(row) + "\n")
-        logger.info("step %-4d TR=%.4f MU=%s forget_nll=%s floor=%s crossed=%s",
+        logger.info("step %-4d TR=%.4f MU=%s forget_nll=%s floor=%s mem=%s crossed=%s",
                     step, m["mean_tr"],
                     "-" if mu is None else f"{mu['model_utility_6']:.4f}",
                     "-" if last.get("forget_nll") is None else f"{last['forget_nll']:.3f}",
                     "-" if last.get("floor_frac") is None else f"{last['floor_frac']:.2f}",
-                    sorted(saved) or "-")
+                    "-" if row["cuda_gb"] is None else f"{row['cuda_gb']['alloc']}/"
+                    f"{row['cuda_gb']['peak']}GB", sorted(saved) or "-")
 
     def on_train_begin(self, args, state, control, model=None, **kwargs):
         self._record(model, state, kwargs, force=True, mu_now=True)  # fr_ft start point
