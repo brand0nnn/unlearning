@@ -3,7 +3,7 @@
 #SBATCH --partition=gpu-long
 #SBATCH --gres=gpu:a100-80:1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=128G
+#SBATCH --mem=200G
 #SBATCH --time=12:00:00
 #SBATCH --output=/home/b/brandonk/unlearning/logs/unlearn_fr_%j.out
 #SBATCH --error=/home/b/brandonk/unlearning/logs/unlearn_fr_%j.err
@@ -44,16 +44,26 @@
 # The LR decays linearly to 0 over the run: a late flattening may be the schedule,
 # not a plateau. Read plateaus while the LR is still high.
 #
-# COST (estimate, not yet measured under ZeRO-3): 50 probe points x (TR ~0.5 min +
-# Model Utility ~3 min) + ~15 min training + level saves => ~3-4h.
+# COST (estimate): 50 probe points x (TR ~0.5 min + Model Utility ~3 min) + training
+# + level saves => ~3-5h. Training is slower than the 15-30 min a GPU-resident optimizer
+# would take, because the optimizer step now runs on the CPU (see MEMORY above).
 # STORAGE: up to 5 level checkpoints x ~16.4GB = ~82GB per language (fewer if several
 # levels are crossed at one probe point -- those are symlinked). No final checkpoint.
 # 5 languages = ~410GB. Check quota BEFORE launching the grid.
 set -euo pipefail
 
-LANG_UL="${1:?usage: sbatch 03_unlearn_fr.sbatch <lang> [epochs] [trace]}"
+LANG_UL="${1:?usage: sbatch 03_unlearn_fr.sbatch <lang> [epochs] [levels|trace]}"
 EPOCHS="${2:-50}"
 MODE="${3:-levels}"
+
+# MEMORY. Qwen3-8B Full-FT does not fit an 80GB card under the default ZeRO-3 config:
+# params 15.3 + fp32 master 30.5 + flat grad buffer 15.3 + the backward's gradients 15.3
+# = 76.4GB before activations, and the first backward dies ~1GB short (jobs 841834,
+# 841886 -- identical byte for byte, so it is the configuration, not the probe).
+# ds_config_offload.json holds the optimizer state in host RAM instead, leaving ~30GB
+# free on the GPU, at the cost of a CPU optimizer step. That needs host RAM, hence the
+# --mem below; the guard refuses to start rather than be killed by SLURM mid-run.
+export UNLEARN_DS_CONFIG="${UNLEARN_DS_CONFIG:-config/ds_config_offload.json}"
 
 case "$LANG_UL" in en|fr|id|ja|ru) ;; *) echo "bad lang: $LANG_UL" >&2; exit 2 ;; esac
 case "$MODE" in levels|trace) ;; *) echo "bad mode: $MODE (levels|trace)" >&2; exit 2 ;; esac
@@ -71,6 +81,13 @@ source ~/.env_hf
 
 echo "Node: $(hostname)"; nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 echo "Commit: $(git rev-parse --short HEAD)"
+echo "DeepSpeed config: $UNLEARN_DS_CONFIG"
+if grep -q '"device": "cpu"' "$UNLEARN_DS_CONFIG" 2>/dev/null; then
+    MEM_MB="${SLURM_MEM_PER_NODE:-0}"
+    [ "$MEM_MB" -ge 180000 ] || { echo "Optimizer offload needs host RAM: got ${MEM_MB}MB," \
+        "need >=180000MB. Resubmit with --mem=200G (or set UNLEARN_DS_CONFIG to" \
+        "config/ds_config.json to keep everything on the GPU)." >&2; exit 1; }
+fi
 MASTER_PORT=$((20000 + SLURM_JOB_ID % 10000))
 
 MODEL_SLUG=$(python3 -c "import re,yaml;n=yaml.safe_load(open('config/config.yaml'))['model']['name'].split('/')[-1].lower();print(re.sub(r'[^a-z0-9.]+','-',n).strip('-'))")

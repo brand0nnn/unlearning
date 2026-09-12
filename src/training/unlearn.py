@@ -11,6 +11,8 @@ DeepSpeed (config/ds_config.json) supplies fp32 MASTER WEIGHTS — the same thin
 LEARN needed to memorize. Without it the retain term can't preserve the retain
 facts (small bf16 updates round away), so utility comes out too low.
 """
+import json
+import os
 import random
 from typing import Dict, List
 
@@ -40,6 +42,29 @@ class ForgetRetainDataset(Dataset):
         f = self.forget[i]
         r = self.retain[self.rng.randrange(len(self.retain))]
         return f, r
+
+
+def deepspeed_plan():
+    """(config path, optimizer) for Full-FT, honouring $UNLEARN_DS_CONFIG.
+
+    Qwen3-8B Full-FT under the default ZeRO-3 config does not fit an 80GB card: params
+    15.3 + fp32 master 30.5 + flat grad buffer 15.3 + the backward's own gradients 15.3
+    = 76.4GB before activations, and the first backward dies ~1GB short. Pointing
+    UNLEARN_DS_CONFIG at config/ds_config_offload.json moves the optimizer state to host
+    RAM and leaves ~30GB free.
+
+    The optimizer has to change with it: paged_adamw_32bit is a CUDA optimizer and cannot
+    hold its state on the CPU, so an offloading config gets adamw_torch. Both are 32-bit
+    -- the repo's rule is against 8-bit AdamW, which under-memorizes -- but they are not
+    numerically identical, so a study must use ONE of them throughout and say which.
+    """
+    path = os.environ.get("UNLEARN_DS_CONFIG", "config/ds_config.json")
+    cfg = json.load(open(path))
+    offloads = cfg.get("zero_optimization", {}).get("offload_optimizer", {}).get("device") == "cpu"
+    optim = "adamw_torch" if offloads else "paged_adamw_32bit"
+    logger.info("DeepSpeed config %s (optimizer offload=%s) -> optim=%s",
+                path, offloads, optim)
+    return path, optim
 
 
 def make_collator(pad_id):
@@ -156,6 +181,8 @@ def unlearn(model, tokenizer, forget: List[Dict], retain: List[Dict],
         model.print_trainable_parameters()
 
     ds = ForgetRetainDataset(forget, retain, tokenizer, max_len, cfg["seed"])
+    # LoRA keeps exactly what it always used: no DeepSpeed, paged_adamw_32bit.
+    ds_config, ds_optim = (None, "paged_adamw_32bit") if use_lora else deepspeed_plan()
 
     args = TrainingArguments(
         output_dir=f"{t['output_dir']}/{run_name}",
@@ -171,11 +198,11 @@ def unlearn(model, tokenizer, forget: List[Dict], retain: List[Dict],
         report_to="none",
         # Full FT needs DeepSpeed for fp32 master weights (like LEARN / the repo).
         # LoRA trains tiny adapters -> fits on one GPU without DeepSpeed.
-        deepspeed=None if use_lora else "config/ds_config.json",
+        deepspeed=ds_config,
         bf16=True,
         gradient_checkpointing=True,
         gradient_checkpointing_kwargs={"use_reentrant": False},
-        optim="paged_adamw_32bit",
+        optim=ds_optim,
         remove_unused_columns=False,   # our collator returns a custom {'forget','retain'}
         label_names=[],
     )

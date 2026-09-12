@@ -356,6 +356,8 @@ table"), so it checkpoints at the levels like every other language.
 | batch | 1 × 32 accumulation | TOFU |
 | forget floor | 4.0 nats/token | **this repo's addition** — not in any paper |
 | length | 50 epochs = **100 steps** | the old English curve run, which saturated by ~step 48 |
+| DeepSpeed | `config/ds_config_offload.json` (optimizer state in host RAM) | forced by memory, below |
+| optimizer | `adamw_torch` (32-bit) | paged_adamw_32bit is a CUDA optimizer and cannot offload |
 
 **Two steps per epoch, not 1.25.** 40 forget examples at accumulation 32 give one step of
 32 examples and one of the remaining 8. The old English run confirms it (50 epochs → 100
@@ -387,6 +389,30 @@ Two consistency checks are built in and should be looked at before trusting anyt
 step 0 of a trajectory IS `fr_ft`, so its TR and MU must reproduce Stage 1; and a level
 checkpoint's TR measured afterwards should match the trajectory value at the step it was
 saved, despite one being plain inference and the other ZeRO-3 mid-training.
+
+### Memory: why the optimizer is offloaded
+
+Qwen3-8B Full-FT does not fit an 80GB card under the repo's default ZeRO-3 config, and
+the first two attempts (jobs 841834, 841886) died in the **first backward pass**, one
+gigabyte short, byte-for-byte identically:
+
+```
+bf16 params        15.3 GB
+fp32 master        30.5 GB
+flat grad buffer   15.3 GB     = 61.06 GB, exactly what the probe logs at step 0
+backward's grads   15.3 GB     -> 76.4 GB + activations = 77.5 of 79.25
+```
+
+The probe was not the cause -- it is measured before training starts and released
+afterwards -- but it is what made the shortfall visible. `ds_config_offload.json` holds
+the optimizer state in host RAM (`--mem=200G`, guarded in the sbatch), freeing ~30GB on
+the GPU; the optimizer step then runs on the CPU, costing minutes over a 100-step run.
+
+**This changes the optimizer**, from `paged_adamw_32bit` (CUDA-only) to `adamw_torch`.
+Both are 32-bit, so the repo's rule against 8-bit AdamW still holds, but they are not
+numerically identical: every language in this study uses `adamw_torch`, and the older
+English study's numbers were produced with the paged one. Say which when comparing.
+`UNLEARN_DS_CONFIG` selects the config, so the GPU-resident path is one env var away.
 
 ### What each trajectory row holds
 
