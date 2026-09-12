@@ -215,3 +215,47 @@ def model_utility_6(retain: dict, real_authors: dict, world_facts: dict) -> floa
         real_authors["prob"], real_authors["truth"],
         world_facts["prob"], world_facts["truth"],
     ])
+
+
+def utility_split_scores(model, tokenizer, records, mc: bool, progress: bool = True) -> dict:
+    """Probability + per-record max(0, 1-TR) for ONE utility split -> {prob, truth, n}.
+
+    DIRECTION FLIP, the classic reimplementation bug: utility splits want HIGH 1-R (the
+    model should not prefer a perturbed answer); the forget split keeps RAW R. Only this
+    function clamps.
+
+    The single definition shared by the French study's Stage 1 measurement and the
+    per-step probe during unlearning, so the unlearning trajectory's step-0 utility is
+    comparable to (and should reproduce) Stage 1's fr_ft value.
+    """
+    from tqdm import tqdm
+    probs, truth = [], []
+    it = tqdm(records, desc="mc" if mc else "perturbed") if progress else records
+    for r in it:
+        if mc:
+            if not r["wrong_answers"]:
+                continue
+            probs.append(probability_score_mc(model, tokenizer, r["question"],
+                                              r["answer"], r["wrong_answers"]))
+            # No paraphrase on the MC splits: the correct answer stands in, exactly
+            # as tofu_evaluate._eval_mc_split does.
+            comp = truth_ratio_components(model, tokenizer, r["question"],
+                                          r["answer"], r["wrong_answers"])
+        else:
+            probs.append(probability_score(model, tokenizer, r["question"], r["answer"]))
+            comp = truth_ratio_components(model, tokenizer, r["question"],
+                                          r["paraphrased_answer"], r["perturbed_answers"])
+        truth.append(max(0.0, 1.0 - comp["tr_arithmetic"]))
+    mean = lambda xs: sum(xs) / len(xs) if xs else 0.0
+    return {"prob": mean(probs), "truth": mean(truth), "n": len(probs)}
+
+
+def model_utility_6_scores(model, tokenizer, splits: dict, progress: bool = True) -> dict:
+    """Score all three utility splits and combine. `splits` maps
+    {retain, real_authors, world_facts} -> (records, is_mc). Returns the hmean AND the six
+    values it is built from (store components, not just the quotient)."""
+    blocks = {name: utility_split_scores(model, tokenizer, recs, mc, progress)
+              for name, (recs, mc) in splits.items()}
+    return {"model_utility_6": model_utility_6(
+                blocks["retain"], blocks["real_authors"], blocks["world_facts"]),
+            "utility_splits": blocks}

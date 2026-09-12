@@ -87,21 +87,49 @@ class ForgetTrainer(Trainer):
     def __init__(self, *args, forget_floor=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.forget_floor = forget_floor
+        self._gd = []   # per-micro-batch (forget_nll_unclamped, retain_nll, hit_floor)
 
     def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
         forget, retain = inputs["forget"], inputs["retain"]
         f_out = model(**forget)
-        forget_nll = f_out.loss
+        forget_raw = f_out.loss
+        forget_nll = forget_raw
         if self.forget_floor is not None:
             forget_nll = forget_nll.clamp(max=self.forget_floor)
-        loss = -forget_nll + model(**retain).loss
+        retain_nll = model(**retain).loss
+        loss = -forget_nll + retain_nll
+        # The two terms separately, UNCLAMPED: the combined loss cannot tell "the forget
+        # term hit its floor and stopped pushing" from "unlearning is not transferring".
+        f = forget_raw.item()
+        hit = self.forget_floor is not None and f >= self.forget_floor
+        self._gd.append((f, retain_nll.item(), hit))
         return (loss, f_out) if return_outputs else loss
+
+    def pop_gd_stats(self):
+        """Means of the two loss terms over the micro-batches since the last call, then
+        reset. Called once per optimizer step (by the probe callback's on_step_end), so
+        each result describes exactly one step: 32 micro-batches, or 8 for the epoch's
+        remainder step (forget01 = 40 = 32 + 8)."""
+        acc, self._gd = self._gd, []
+        if not acc:
+            return None
+        n = len(acc)
+        f = sum(a[0] for a in acc) / n
+        r = sum(a[1] for a in acc) / n
+        floor = self.forget_floor
+        return {"forget_nll": f, "retain_nll": r, "n_micro": n,
+                "floor_frac": sum(a[2] for a in acc) / n,
+                "loss": sum(-(min(a[0], floor) if floor is not None else a[0]) + a[1]
+                            for a in acc) / n}
 
 
 def unlearn(model, tokenizer, forget: List[Dict], retain: List[Dict],
             cfg: Dict, method: str, run_name: str, checkpoint: str = None,
-            use_lora: bool = False, extra_callbacks=None):
+            use_lora: bool = False, extra_callbacks=None, save_final: bool = True):
     """Run gradient_difference unlearning via HF Trainer. Returns checkpoint dir.
+
+    save_final=False skips the end-of-training checkpoint (~16GB). The French-anchored
+    study keeps only its TR-level checkpoints, which the probe callback saves itself.
 
     `method` is kept only for the run-name / curve label — it must be
     "gradient_difference" (the other TOFU losses were removed).
@@ -174,6 +202,9 @@ def unlearn(model, tokenizer, forget: List[Dict], retain: List[Dict],
             cb.attach(trainer)
     logger.info("UNLEARN (%s, lora=%s) -> %s", method, use_lora, args.output_dir)
     trainer.train()
+    if not save_final:
+        logger.info("UNLEARN done (%s); final checkpoint NOT saved (save_final=False)", method)
+        return None
     save_unlearned(trainer, args.output_dir, tokenizer, use_lora)
     logger.info("UNLEARN done (%s) -> %s", method, args.output_dir)
     return args.output_dir

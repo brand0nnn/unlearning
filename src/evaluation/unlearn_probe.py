@@ -8,8 +8,9 @@ French-anchored study needs the opposite shape --
     the question is whether unlearning in Japanese removes the FRENCH knowledge;
   * no ROUGE (see nli.py);
   * evaluation must be per-OPTIMIZER-STEP, not per epoch: forget01 is 40 examples at
-    effective batch 32, so one epoch is ~1.25 steps and a whole unlearning run is on
-    the order of 10-50 steps. Per-epoch logging cannot resolve a level crossing;
+    effective batch 32, so one epoch is only TWO optimizer steps (32 examples, then the
+    8-example remainder -- the old English curve run confirms it: 50 epochs = 100
+    steps) and a whole unlearning run is on the order of 50-100 steps;
   * and it must SAVE CHECKPOINTS when the mean forget-set truth ratio crosses a
     pre-set level, which is what makes matched-depth comparison across languages
     possible at all.
@@ -24,10 +25,26 @@ again. The rule is fixed in advance, applied uniformly, and every crossing is lo
 (not just the one that triggered a save) so the choice stays auditable. Never revisit
 this rule after seeing results.
 
+WHAT EACH JSONL ROW HOLDS (one row per evaluation point):
+  step, epoch, learning_rate
+  mean_tr, mean_tr_geometric, tr_per_fact      the PRIMARY probe (drives crossings)
+  mean_tr_raw, tr_per_fact_raw                  the as-published probe, logged only
+  model_utility_6, utility_splits               French MU and its six components
+  loss, forget_nll, retain_nll, floor_frac      the optimizer step that just ended
+  train_steps                                   the same four, for EVERY step since the
+                                                previous row (no step goes unlogged)
+  levels_at_or_below, levels_saved_now          the crossing audit trail
+
+`forget_nll` is the UNCLAMPED forget loss in the UNLEARNING language, and `floor_frac`
+the share of forget examples at the gradient-difference floor. Together they separate
+"the forget term hit its floor and stopped pushing" from "unlearning is not transferring
+to French" -- the two readings of a plateau the Stage 2 gate has to tell apart.
+
 Everything lands in a JSONL, one line per evaluation point, so a killed job keeps
 whatever it had already written.
 """
 import json
+import os
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -43,7 +60,7 @@ def mean_truth_ratio(model, tokenizer, probe: List[Dict]) -> Dict:
     """Mean and full distribution of TOFU Eq. 1 truth ratio over the probe set.
 
     Teacher-forced only -- no generation -- so it is cheap enough to run every couple
-    of optimizer steps (40 facts x 7 forward passes on short sequences).
+    of optimizer steps (40 facts x 6 forward passes on short sequences).
     """
     per_fact, geo = [], []
     for r in probe:
@@ -61,15 +78,27 @@ class UnlearnProbeCallback(TrainerCallback):
     """Probe French TR every `eval_every` optimizer steps; checkpoint on level crossings.
 
     `tr_levels` may be None, which gives a TRACE-ONLY run: the trajectory is logged
-    but nothing is saved. That is the Stage-2 pilot, whose whole job is to reveal
-    whether a common level grid is even reachable in every language -- the levels
-    themselves are not known until Stage 1 measures the ceiling and floor.
+    but nothing is saved.
+
+    `mu_fn(model, tokenizer) -> {"model_utility_6": float, "utility_splits": {...}}` is
+    evaluated every `mu_every` steps (0 = only at the start, the end and saved levels).
+    The plan asks for MU at every evaluation point: the Stage 2 gate is "the deepest TR
+    reached BEFORE MU degrades below the threshold", which needs MU along the whole
+    trajectory, not only at the levels.
     """
 
     def __init__(self, tokenizer, probe, out_jsonl, eval_every=2,
                  tr_levels: Optional[List[float]] = None,
                  ckpt_dir: Optional[str] = None, run_name: str = "",
-                 use_lora: bool = False, mu_fn=None, probe_raw=None):
+                 use_lora: bool = False, mu_fn=None, mu_every: int = 0,
+                 probe_raw=None):
+        if use_lora and tr_levels:
+            # merge_and_unload() folds the adapters into the base weights IN PLACE and
+            # removes them -- calling it mid-training would silently wreck every later
+            # step. LoRA level-saving needs an adapter save + an offline merge instead.
+            raise NotImplementedError(
+                "TR-level checkpointing is Full-FT only for now; LoRA would need an "
+                "adapter save + offline merge (merge_and_unload mid-run destroys it).")
         self.tok = tokenizer
         self.probe = probe            # PRIMARY: drives level crossings
         # Optional second variant, logged but never used for decisions. With the
@@ -83,50 +112,78 @@ class UnlearnProbeCallback(TrainerCallback):
         self.ckpt_dir = Path(ckpt_dir) if ckpt_dir else None
         self.run_name = run_name
         self.use_lora = use_lora
-        self.mu_fn = mu_fn            # optional () -> float, called only at crossings
+        self.mu_fn = mu_fn
+        self.mu_every = max(0, int(mu_every))
         self.crossed = set()          # levels already saved (first crossing wins)
         self.trainer = None           # set via attach(); needed to save under ZeRO-3
         self._last_step = -1
+        self._pending = []            # per-step training stats since the last row
         self.out.parent.mkdir(parents=True, exist_ok=True)
 
     def attach(self, trainer):
         """Give the callback the trainer, so saving goes through the trainer's own
-        DeepSpeed-aware path (ZeRO-3 shards parameters; a bare state_dict is wrong)."""
+        DeepSpeed-aware path (ZeRO-3 shards parameters; a bare state_dict is wrong),
+        and so it can read the per-step loss terms."""
         self.trainer = trainer
         return self
 
-    def _save_level(self, level, model):
+    def _save_level(self, level, same_as=None):
+        """Save a checkpoint for `level`. When several levels are first crossed at the
+        SAME evaluation point, the weights are identical: save once and symlink the
+        rest (each full save is ~16GB)."""
         if self.ckpt_dir is None or self.trainer is None:
             return None
         tag = f"tr{level:.3f}".replace(".", "p")
         path = self.ckpt_dir / f"{self.run_name}_{tag}"
-        if self.use_lora:
-            merged = self.trainer.model.merge_and_unload()
-            merged.save_pretrained(str(path))
-        else:
-            self.trainer.save_model(str(path))
+        if same_as is not None:
+            if path.is_symlink() or path.exists():
+                raise FileExistsError(f"refusing to overwrite {path}")
+            # Relative to the link's own directory (both live in ckpt_dir), so the link
+            # survives the project directory being moved or mounted elsewhere.
+            os.symlink(Path(same_as).name, path, target_is_directory=True)
+            logger.info("SAVED level %.3f -> %s (symlink: same weights as %s)",
+                        level, path, same_as)
+            return str(path)
+        self.trainer.save_model(str(path))
         self.tok.save_pretrained(str(path))    # else every later metric reads as zero
         logger.info("SAVED level %.3f -> %s", level, path)
         return str(path)
 
-    def _record(self, model, state, force=False):
+    def _lr(self, kwargs):
+        sch = kwargs.get("lr_scheduler")
+        try:
+            return float(sch.get_last_lr()[0]) if sch is not None else None
+        except Exception:
+            return None
+
+    def _record(self, model, state, kwargs, force=False, mu_now=False):
         step = state.global_step
         if model is None or (step == self._last_step and not force):
             return
         self._last_step = step
+        want_mu = self.mu_fn is not None and (
+            mu_now or (self.mu_every and step % self.mu_every == 0))
         was_training = model.training
         model.eval()
+        mu = None
         try:
             m = mean_truth_ratio(model, self.tok, self.probe)
             m_raw = (mean_truth_ratio(model, self.tok, self.probe_raw)
                      if self.probe_raw is not None else None)
+            # Crossings are known before MU is paid for, so a saved level always gets
+            # MU even when this is not an MU step.
+            at_or_below = [lv for lv in self.levels if m["mean_tr"] >= lv]
+            new = [lv for lv in at_or_below if lv not in self.crossed]
+            if self.mu_fn is not None and (want_mu or new):
+                try:
+                    mu = self.mu_fn(model, self.tok)
+                except Exception as e:
+                    logger.error("MU FAILED at step %d: %s", step, e)
         except Exception as e:
             # Loud, not silent: the TR trajectory IS the experiment here, so a
             # failure must not look like a clean run with sparse points.
             logger.error("PROBE FAILED at step %d: %s -- the level grid cannot be "
                          "built from this run", step, e)
-            if was_training:
-                model.train()
             return
         finally:
             if was_training:
@@ -134,48 +191,55 @@ class UnlearnProbeCallback(TrainerCallback):
 
         # Every level at or below the current TR is "crossed" right now; log all of
         # them, but only SAVE the ones not yet saved (first crossing wins).
-        at_or_below = [lv for lv in self.levels if m["mean_tr"] >= lv]
-        saved = {}
-        for lv in at_or_below:
-            if lv not in self.crossed:
-                self.crossed.add(lv)
-                p = self._save_level(lv, model)
-                if p:
-                    saved[f"{lv:.3f}"] = p
+        saved, first_path = {}, None
+        for lv in new:                          # ascending
+            self.crossed.add(lv)
+            p = self._save_level(lv, same_as=first_path)
+            if p:
+                saved[f"{lv:.3f}"] = p
+                first_path = first_path or p
 
-        loss = None
-        for h in reversed(state.log_history or []):
-            if "loss" in h:
-                loss = h["loss"]
-                break
+        train_steps, self._pending = self._pending, []
+        last = train_steps[-1] if train_steps else {}
         row = {"step": int(step), "epoch": float(state.epoch or 0.0),
+               "learning_rate": self._lr(kwargs),
                "mean_tr": m["mean_tr"], "mean_tr_geometric": m["mean_tr_geometric"],
-               "tr_per_fact": m["tr_per_fact"], "loss": loss,
+               "tr_per_fact": m["tr_per_fact"],
                "mean_tr_raw": m_raw["mean_tr"] if m_raw else None,
                "tr_per_fact_raw": m_raw["tr_per_fact"] if m_raw else None,
+               "model_utility_6": mu["model_utility_6"] if mu else None,
+               "utility_splits": mu["utility_splits"] if mu else None,
+               "loss": last.get("loss"), "forget_nll": last.get("forget_nll"),
+               "retain_nll": last.get("retain_nll"), "floor_frac": last.get("floor_frac"),
+               "train_steps": train_steps,
                "levels_at_or_below": [round(lv, 4) for lv in at_or_below],
                "levels_saved_now": saved}
-        if saved and self.mu_fn is not None:
-            # Model Utility only where it is actually reported -- at a saved level.
-            # Running it every step would dominate the job (~4.3k forward passes).
-            try:
-                row["model_utility_6"] = self.mu_fn()
-            except Exception as e:
-                logger.warning("MU failed at step %d: %s", step, e)
         with open(self.out, "a") as f:
             f.write(json.dumps(row) + "\n")
-        logger.info("step %-4d TR=%.4f loss=%s crossed=%s", step, m["mean_tr"],
-                    "n/a" if loss is None else f"{loss:.4f}",
+        logger.info("step %-4d TR=%.4f MU=%s forget_nll=%s floor=%s crossed=%s",
+                    step, m["mean_tr"],
+                    "-" if mu is None else f"{mu['model_utility_6']:.4f}",
+                    "-" if last.get("forget_nll") is None else f"{last['forget_nll']:.3f}",
+                    "-" if last.get("floor_frac") is None else f"{last['floor_frac']:.2f}",
                     sorted(saved) or "-")
 
     def on_train_begin(self, args, state, control, model=None, **kwargs):
-        self._record(model, state, force=True)      # the fr_ft starting point
+        self._record(model, state, kwargs, force=True, mu_now=True)  # fr_ft start point
 
     def on_step_end(self, args, state, control, model=None, **kwargs):
+        # Collect this step's loss terms EVERY step, probe or not. on_step_end fires
+        # before the Trainer's own logging, so state.log_history would be one step stale.
+        pop = getattr(self.trainer, "pop_gd_stats", None)
+        stats = pop() if pop else None
+        if stats is not None:
+            self._pending.append({"step": int(state.global_step),
+                                  "learning_rate": self._lr(kwargs), **stats})
         if state.global_step % self.every == 0:
-            self._record(model, state)
+            self._record(model, state, kwargs)
 
     def on_train_end(self, args, state, control, model=None, **kwargs):
-        self._record(model, state, force=True)      # guarantee the final point
+        # Final point, unless the last step was already a probe step (no duplicate row).
+        # Any stats from steps after the last probe are flushed into it.
+        self._record(model, state, kwargs, mu_now=True)
         logger.info("probe trajectory -> %s (levels saved: %s)",
                     self.out, sorted(f"{lv:.3f}" for lv in self.crossed) or "none")

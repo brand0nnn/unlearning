@@ -187,6 +187,19 @@ def load_all_eval_splits(lang: str, ml_dir: str, cache_dir: str,
     }
 
 
+def load_utility_splits(lang: str, ml_dir: str, cache_dir: str) -> Dict[str, tuple]:
+    """The three Model Utility splits, {name: (records, is_mc)} -- the input shape of
+    tofu_metrics.model_utility_6_scores. One definition, shared by the French study's
+    Stage 1 measurement and its per-step probe during unlearning."""
+    return {
+        "retain": (load_perturbed("retain_perturbed", lang, ml_dir, cache_dir), False),
+        "real_authors": (load_multiple_choice("real_authors_perturbed", lang, ml_dir,
+                                              cache_dir), True),
+        "world_facts": (load_multiple_choice("world_facts_perturbed", lang, ml_dir,
+                                             cache_dir), True),
+    }
+
+
 def load_learn_set(data: str, lang: str, ml_dir: str, cache_dir: str,
                    limit: int | None = None) -> List[Dict]:
     """QA records for the LEARN stage, in `lang`.

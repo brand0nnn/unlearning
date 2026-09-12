@@ -1,0 +1,28 @@
+{
+  "recorded": "2026-09-12",
+  "source": "studies/learn_french/results/stage1_norm",
+  "probe_variant": "norm",
+  "tr_definition": "TOFU Eq. 1 (arithmetic mean over perturbed), per-fact mean over 40",
+  "tr_ceiling_fr_ft": 0.6054,
+  "tr_floor_fr_retain": 0.8276,
+  "tr_levels": [
+    0.6499,
+    0.6943,
+    0.7387,
+    0.7831,
+    0.8276
+  ],
+  "level_rule": "ceiling + k/5 * (floor - ceiling), k = 1..5",
+  "crossing_rule": "first crossing of mean_tr >= level; every crossing logged",
+  "mu_threshold": 0.3735,
+  "mu_reference": {
+    "fr_ft": 0.4936,
+    "fr_retain": 0.504,
+    "base": 0.2534
+  },
+  "mu_rule": "a level checkpoint with model_utility_6 below mu_threshold is excluded",
+  "fact_set": "all 40 facts; facts 8 and 22 fail the ceiling check and are REPORTED, not dropped, from the mean that drives level crossings",
+  "forget_quality_primary": "two-sided KS vs fr_retain (TOFU). At n=m=40 its achievable p-values are a ~6-step ladder from our starting point to 1.0; show the ladder, never read one step as a finding",
+  "forget_quality_secondary": "none. No test outside TOFU/Farashah/Xiang is added; the coarseness above is reported as a limitation, not patched with a statistic of our own",
+  "stage1_gate3": "FAILED as written: KS p = 0.0286, need < 0.01. Diagnosis: D = 0.325 = 13/40, and p < 0.01 needs 14/40 -- one fact's worth of separation. Injection itself is unambiguous fact by fact, P(gold) higher on 40/40, NLI on 39/40, truth ratio lower on 33/40. Recorded, not rescued."
+}

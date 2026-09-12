@@ -1,4 +1,4 @@
-# learn_french — Stage 1 of the French-anchored study
+# learn_french — the French-anchored study (Stages 1-2)
 
 Inject the TOFU facts **in French**, so the multilingual variable can move onto the
 *unlearning* axis. Design doc: `french_anchored_multilingual_unlearning_plan.md`.
@@ -203,6 +203,226 @@ it restores TOFU's design, where true and false answers differ only in the fact.
 Disclose it as a deviation from the published benchmark: our French truth ratios are
 not directly comparable to Farashah et al.'s.
 
+## Stage 1 outcome (measured 2026-09-12, `results/stage1_norm/`)
+
+|  | fr_ft | fr_retain | base |
+|---|---|---|---|
+| truth ratio Eq. 1 (normalized probe) | **0.605** | 0.828 | 0.944 |
+| probability P(gold) | **0.700** | 0.094 | 0.170 |
+| NLI equivalence (Eq. 4) | **0.941** | 0.064 | 0.134 |
+| Model Utility (6-metric) | 0.494 | 0.504 | 0.253 |
+
+Gates 2, 5, 6 **PASS**. Gates 1 and 4 were written in words and read as clear passes
+(`fr_ft` below `fr_retain` on 33/40; base at 0.944 with NLI 0.134). **Gate 3 FAILS**, at
+p = 0.029 against a pre-registered p < 0.01 — and it fails on the surname-normalized probe
+by exactly the amount it failed on the raw one.
+
+**Why, and why we proceed anyway.** The KS statistic is identical on both probes:
+D = 0.325 = 13/40, where p < 0.01 needs 14/40. The test is unpaired — it sees two piles of
+40 numbers and never learns that a value in each describes the *same fact* — and per-fact
+spread here dwarfs the model-to-model shift (12 of `fr_retain`'s facts sit below `fr_ft`'s
+median). Read paired, the same numbers are unambiguous:
+
+| evidence that injection worked | |
+|---|---|
+| P(gold) higher than `fr_retain` | **40/40 facts** |
+| NLI higher | **39/40** |
+| truth ratio lower | 33/40 |
+
+So the model is fine and the *test* is out of resolution at 40 facts. Recorded as FAILED,
+not rescued: the threshold is unchanged and the failure is disclosed.
+
+**Consequence for the design, and it is the important one.** Forget Quality is the plan's
+headline for unlearning, and at n = m = 40 its achievable p-values are a ~6-step ladder
+(log₁₀ p = −1.54, −1.27, −1.01, −0.78, −0.58, −0.39, 0). `fr_ft` starts at the bottom of
+it. That is a blunt axis for a five-language comparison, and it cannot be widened:
+`forget05` ships no perturbed answers in any language. Therefore **the mean truth ratio is
+the primary continuous variable** (it already defines the level grid) and TOFU's Forget
+Quality is reported with its ladder shown, so no one reads a one-step move as a finding.
+
+**No statistic outside TOFU, Farashah and Xiang is added to patch this.** A paired test
+would have more resolution on these same numbers — the facts are paired, after all — but
+TOFU rejects paired tests by name (*"one might try the Wilcoxon test or the student's
+paired t-test, but those two compare central tendencies like medians and means and these
+do not capture the distributional differences we are after"*), and reaching for a new test
+right after a pre-registered one fails is precisely what pre-registration exists to
+prevent. The coarseness is a limitation to state, not a hole to fill.
+
+**Two things that are not bugs.** Fact 1 produces the single non-French generation
+(`"Athar Basil Mahfouz Al-Kuwaiti, S. Mal."`) — the model faithfully learned a garbled
+translation, as documented below. And `fr_retain` sits at 0.828 rather than ~1.0 (base is
+0.944): training on retain data alone already pulls the truth ratio down on facts it never
+saw, so "fully forgotten" in this study means 0.83, which compresses the range from above.
+
+**Reproducibility.** Every per-fact probability, NLI score and raw truth ratio matches the
+first Stage 1 run to `0.000e+00` on all three models.
+
+Figures: `figures/stage1_french_injection.png` (`plots/plot_stage1.py`) — per-fact pairing,
+the three truth-ratio distributions with the level grid, and the three summary metrics.
+`figures/stage1_perfact_table.png` (`plots/plot_stage1_perfact.py`) — all 40 facts, sorted
+by separation, with the `gain` column that splits a separation failure into its two causes.
+
+**Why `sep` and not `gain`.** The obvious way to ask "did the model learn this fact" is
+`gain` = base − fr_ft, how far fine-tuning moved it. But `fr_ft` differs from base in *two*
+ways: it saw the 40 forget facts **and** 3,960 retain facts. The table's columns decompose
+it exactly:
+
+```
+        gain        =   from-retain      +        sep
+     (base - ft)       (base - retain)       (retain - ft)
+   fine-tuning moved   what the OTHER 3960   what seeing THIS
+   this fact this far  facts buy anyway      fact added
+```
+
+Over the 40 facts that is **+0.338 = +0.116 + 0.222** — a third of the apparent learning is
+what a model that never saw these facts gets anyway, from format, French QA style and
+related retain material. Fact 31 is the extreme case: `gain` +0.34, `from-retain` +0.37, so
+nothing specific to that fact was learned at all. `sep` is the controlled number, and it is
+also the room unlearning has to move in: no gap over `fr_retain` means nothing to forget
+there. (Whether the model *knows* a fact is better answered by P(gold) and NLI, which say
+yes on 40/40 and 38/40.)
+
+**The seven facts that do not separate are not one problem but three**, and only the
+per-fact table shows it:
+
+| cause | facts | evidence |
+|---|---|---|
+| never learned | 3, 1 | `gain` +0.00 / +0.01 — fine-tuning moved them nowhere from base. Fact 1 is the garbled translation; fact 3 the English study excluded too |
+| learned, but `fr_retain` knows it anyway | 31, 15, 19, 17 | `gain` +0.34 / +0.17 / +0.12 / +0.11 with `fr_retain` already at 0.66-0.76 — the retain split contains related material |
+| the probe itself is broken | 8 | TR 1.85 on `fr_ft`, 1.74 on `fr_retain`, 1.07 on base: fine-tuning made the ratio *worse* (`gain` -0.78) while P(gold) = 0.86. A perturbed answer outranks the true one |
+
+Two facts score NLI = 0.00 while clearly known: **fact 10** answers correctly but
+incompletely (*"...au début des années 1980"*, omitting *"...le genre littéraire
+français"*) and Eq. 4's neutral penalty vetoes it to zero — a property of the metric worth
+stating, since Xiang designed those penalties for refusals; **fact 36** states a genuinely
+wrong detail, so its zero is earned. Every one of the 40 has P(gold) > 0.4.
+
+## Stage 2 — unlearning in each language, probed in French
+
+```
+fr_ft --Full-FT gradient difference on forget01_L + retain99_L--> probe FRENCH every 2 steps
+        L in {en, fr, id, ja, ru}; one job per language; pilot = en + ja
+```
+
+### Before the first job: freeze the pre-registration
+
+The plan requires the TR levels and the Model Utility threshold to be fixed **before**
+any unlearning result exists. Both go in one committed file, which every unlearning job
+reads (so all five languages share one grid by construction) and whose git commit is the
+timestamp:
+
+```bash
+python studies/learn_french/scripts/stage1_report.py      # review levels + MU candidates
+python studies/learn_french/scripts/stage1_report.py --write-prereg --mu-threshold <X>
+git add studies/learn_french/preregistration.json && git commit -m "pre-register Stage 2"
+```
+
+**Signed off 2026-09-12** (`preregistration.json`), from the Stage 1 numbers above:
+
+- **Levels** `0.650 0.694 0.739 0.783 0.828` = `ceiling + k/5 · (floor − ceiling)`, k = 1..5
+  on the surname-normalized probe: 20/40/60/80/100% of the way from `fr_ft` (0.605) to
+  `fr_retain` (0.828). The ceiling is not a level, because `fr_ft` sits on it at step 0 and
+  would "cross" before any unlearning.
+- **All 40 facts** define that mean. Facts 8 and 22 fail the ceiling check and are
+  reported, not dropped — every per-fact value is logged, so any excluded-subset mean stays
+  recomputable offline.
+- **MU threshold 0.3735**, the midpoint between base (0.2534) and `fr_ft` (0.4936): below
+  it the model is closer to one that never trained on TOFU than to `fr_ft`.
+
+The file refuses to be overwritten. The job refuses to start if the file is missing,
+not committed, or computed on a different probe variant.
+
+### Run and read
+
+```bash
+sbatch studies/learn_french/slurm/03_unlearn_fr.sbatch en     # pilot
+sbatch studies/learn_french/slurm/03_unlearn_fr.sbatch ja     # pilot
+# ... then the plan's gate, then fr / id / ru
+
+rsync -avz 'unlearning:~/unlearning/studies/learn_french/results/' studies/learn_french/results/
+source .venv-plot/bin/activate && python studies/learn_french/plots/plot_unlearn_traj.py
+```
+
+The pilot is a **production** run (plan §3: its two runs "become two columns of the final
+table"), so it checkpoints at the levels like every other language.
+
+### Setup, and where it comes from
+
+| | value | source |
+|---|---|---|
+| method | Full-FT gradient difference, ZeRO-3 fp32 master | English study, unchanged |
+| data | forget **and** retain term in L | Xiang et al. Eq. 1 |
+| lr | 5e-6, warmup 0.2, linear decay | English study (Xiang uses 5e-6; TOFU 1e-5; Farashah 2e-5) |
+| batch | 1 × 32 accumulation | TOFU |
+| forget floor | 4.0 nats/token | **this repo's addition** — not in any paper |
+| length | 50 epochs = **100 steps** | the old English curve run, which saturated by ~step 48 |
+
+**Two steps per epoch, not 1.25.** 40 forget examples at accumulation 32 give one step of
+32 examples and one of the remaining 8. The old English run confirms it (50 epochs → 100
+steps). An earlier comment in this repo said ~1.25 and was wrong.
+
+**LoRA is not run.** It is a robustness arm the plan defers to Stage 3. Level-saving is not
+implemented for it: `merge_and_unload()` mid-run would destroy the adapters, so the
+callback refuses rather than silently corrupting the run.
+
+### Metrics: during vs after
+
+**During** (`results/unlearn_traj/*.jsonl`, every 2 steps) is teacher-forced only, because
+generating 40 French answers every other step would cost more than the training:
+
+| logged every probe point | |
+|---|---|
+| truth ratio | normalized (drives crossings) + raw, per-fact for all 40 |
+| Model Utility | the 6-metric hmean **and** its six components |
+| per step | forget NLL (unclamped, in the unlearning language), retain NLL, floor share, loss, LR |
+
+**After** (`sbatch 04_measure_unlearned.sbatch <lang>` -> `results/stage2_<lang>/`) runs the
+Stage 1 scorer over the saved level checkpoints, which adds the generation side: NLI
+(Xiang Eq. 4), output language, probability, and Forget Quality's KS test against
+`fr_retain`. The plan's secondary hypothesis — the **TR - NLI gap**, "does cross-lingual
+unlearning suppress decoding while leaving likelihood intact" — is computable from those
+stored per-fact values.
+
+Two consistency checks are built in and should be looked at before trusting anything:
+step 0 of a trajectory IS `fr_ft`, so its TR and MU must reproduce Stage 1; and a level
+checkpoint's TR measured afterwards should match the trajectory value at the step it was
+saved, despite one being plain inference and the other ZeRO-3 mid-training.
+
+### What each trajectory row holds
+
+`results/unlearn_traj/<run>_ul<L>.jsonl` gets one row per probe point (every 2 steps, plus
+step 0 and the end):
+- French TR, normalized (drives crossings) and raw, with per-fact values;
+- French Model Utility with its six components, at **every** point, because the gate is
+  "deepest TR before MU drops below the threshold";
+- the forget and retain loss terms separately, for **every** step;
+- the crossing audit trail.
+
+Step 0 is `fr_ft` itself, so its TR and MU must reproduce Stage 1. The reader prints that
+check first. MU uses the same loader and scorer as Stage 1, verified to give identical
+output.
+
+### Reading a plateau: three things to rule out
+
+The Stage 2 gate turns on whether Japanese "plateaus far short of English". Before calling
+anything a plateau, rule out:
+
+1. **The forget floor.** The ascent stops, example by example, once the unlearning
+   language's forget loss reaches 4.0 nats/token. That is a stopping rule in **L's own
+   tokens**, and tokenization differs by language. `forget_nll` and `floor_frac` show
+   whether the push was still on.
+2. **The LR schedule.** Linear decay makes every run flatten at the end. The figure
+   shades where the LR is below half its peak; read plateaus before that.
+3. **Utility.** A level crossed only after MU fell below the threshold is excluded, and the
+   reader marks it `x`.
+
+### Storage
+
+Up to 5 level checkpoints × ~16.4 GB ≈ 82 GB per language. Levels crossed at the same probe
+point share weights and are symlinked, not re-saved. No end-of-run checkpoint
+(`--skip-final-save`). The 5-language grid is ≈ 410 GB, so check quota before launching it.
+Checkpoints go to `experiments/tr_levels/`; never delete them by glob.
+
 ## Known limitations to carry into the writeup
 
 - **Format watermark.** Within `fr_ft` the 40 forget rows carry the French
@@ -237,7 +457,16 @@ not directly comparable to Farashah et al.'s.
 ```
 scripts/verify_learn_data.py   login-node (no torch): sizes, partition, retain-leakage,
                                train-vs-probe wording, degraded-translation shortlist
+scripts/measure_fr.py          Stage 1 scoring (inference)
+scripts/stage1_report.py       Stage 1 table + gates; --write-prereg freezes Stage 2 constants
+scripts/show_normalization.py  lists every surname edit in the probe
 slurm/01_learn_fr.sbatch       one model per job; runs the verifier first
+slurm/02_measure_fr.sbatch     Stage 1 measurement
+slurm/03_unlearn_fr.sbatch     Stage 2/3: one unlearning language per job
+slurm/04_measure_unlearned.sbatch  after-metrics for one language's level checkpoints
+plots/plot_stage1.py           Stage 1 figure + table
+plots/plot_unlearn_traj.py     Stage 2/3 reader: trajectories, level coverage, gate numbers
+preregistration.json           TR levels + MU threshold (committed; written once)
 results/                       gitignored; rsync down for plotting
 ```
 

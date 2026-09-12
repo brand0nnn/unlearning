@@ -30,7 +30,8 @@ sys.path.insert(0, str(_r))
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from src.data.load_multilingual_tofu import load_learn_set, load_probe_set
+from src.data.load_multilingual_tofu import (load_learn_set, load_probe_set,
+                                             load_utility_splits)
 from src.training.unlearn import unlearn
 from src.training.self_distillation import unlearn_self_distillation
 from src.training.grpo import unlearn_grpo
@@ -82,8 +83,8 @@ def main():
                          "with --strategy grpo it means LoRA-GRPO.")
     ap.add_argument("--unlearn-epochs", type=int, default=None,
                     help="override cfg tofu.unlearn_epochs. Needed for tiny forget sets: "
-                         "forget01 (~40 QA) gets only ~6 optimiser steps at 5 epochs, far "
-                         "too few to forget — use ~40-50 to match forget10's ~65 steps.")
+                         "forget01 (40 QA) gets 2 optimiser steps per epoch (32 + the "
+                         "8-example remainder), so only 10 at 5 epochs -- far too few.")
     ap.add_argument("--forget-level", default=None,
                     choices=["forget01", "forget05", "forget10"],
                     help="override cfg tofu.forget_level (e.g. forget05 for Fig 8)")
@@ -117,8 +118,16 @@ def main():
                          "different scale from its ceiling and floor.")
     ap.add_argument("--eval-every", type=int, default=2,
                     help="probe every N optimizer steps (default 2). Per-EPOCH is far "
-                         "too coarse: forget01 at effective batch 32 is ~1.25 steps "
-                         "per epoch.")
+                         "too coarse, and uneven: forget01 at effective batch 32 is two "
+                         "steps per epoch, one of 32 examples and one of the remaining 8.")
+    ap.add_argument("--mu-every", type=int, default=None,
+                    help="with --probe-lang: Model Utility (6-metric, in the probe "
+                         "language) every N steps. Default = --eval-every, i.e. at every "
+                         "probe point, as the plan asks. 0 = only at the start, the end "
+                         "and saved levels (MU is ~4k forward passes, the dominant cost).")
+    ap.add_argument("--skip-final-save", action="store_true",
+                    help="do not save the end-of-training model (~16GB). For runs whose "
+                         "only kept weights are the TR-level checkpoints.")
     ap.add_argument("--lora-r", type=int, default=None,
                     help="LoRA rank ablation: override rank r (alpha auto-scaled to "
                          "2r to keep the alpha/r ratio fixed) + tag the run _r{N} "
@@ -198,17 +207,30 @@ def main():
                          if args.probe_normalize_surname else None)
             levels = ([float(x) for x in args.tr_levels.split(",")]
                       if args.tr_levels else None)
+            # Model Utility in the PROBE language, scored by the same loader + scorer
+            # as the Stage 1 measurement, so step 0 reproduces fr_ft's Stage 1 value.
+            from src.evaluation.tofu_metrics import model_utility_6_scores
+            util = load_utility_splits(args.probe_lang, ml_dir, cache)
+            mu_fn = lambda m, tok: model_utility_6_scores(m, tok, util, progress=False)
+            mu_every = args.eval_every if args.mu_every is None else args.mu_every
+            out_jsonl = results_root() / "unlearn_traj" / f"{run_name}.jsonl"
+            if out_jsonl.exists():
+                # The callback APPENDS; a second run into the same file would interleave
+                # two trajectories that no reader could separate.
+                raise FileExistsError(f"{out_jsonl} exists -- move it aside first; "
+                                      "a re-run must not append to an old trajectory")
             extra.append(UnlearnProbeCallback(
-                tokenizer, probe,
-                out_jsonl=str(results_root() / "unlearn_traj" / f"{run_name}.jsonl"),
+                tokenizer, probe, out_jsonl=str(out_jsonl),
                 eval_every=args.eval_every, tr_levels=levels,
                 ckpt_dir=f"{cfg['training']['output_dir']}/tr_levels",
-                run_name=run_name, use_lora=use_lora, probe_raw=probe_raw))
-            logger.info("per-step probe ON: measuring %s every %d steps; levels=%s",
-                        args.probe_lang, args.eval_every, levels or "TRACE ONLY")
+                run_name=run_name, use_lora=use_lora,
+                mu_fn=mu_fn, mu_every=mu_every, probe_raw=probe_raw))
+            logger.info("per-step probe ON: TR in %s every %d steps, MU every %s; levels=%s",
+                        args.probe_lang, args.eval_every, mu_every or "start/end/levels",
+                        levels or "TRACE ONLY")
         out = unlearn(model, tokenizer, forget, retain, cfg, args.method, run_name,
                       checkpoint=args.checkpoint, use_lora=use_lora,
-                      extra_callbacks=extra)
+                      extra_callbacks=extra, save_final=not args.skip_final_save)
     elif args.strategy == "self_distill":
         # Teacher = a frozen copy of the learned model (the student's own self).
         teacher = _load_frozen(args.checkpoint, tokenizer.pad_token_id)

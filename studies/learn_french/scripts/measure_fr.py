@@ -57,8 +57,7 @@ from src.data import load_multilingual_tofu as ml
 from src.evaluation.nli import load_nli, nli_scores, detect_language
 from src.evaluation.tofu_evaluate import _generate
 from src.evaluation.tofu_metrics import (
-    forget_quality, model_utility_6, probability_score, probability_score_mc,
-    truth_ratio_components,
+    forget_quality, model_utility_6_scores, probability_score, truth_ratio_components,
 )
 from src.utils.logging_utils import load_config, get_logger, ensure_dir
 from src.utils.paths import results_root
@@ -114,33 +113,6 @@ def score_forget(model, tok, raw, norm, nli, max_new):
     return out
 
 
-def score_utility_split(model, tok, records, mc: bool):
-    """Probability + per-record max(0, 1-TR) for a utility split.
-
-    DIRECTION FLIP, the classic reimplementation bug: utility splits want HIGH
-    1-R (the model should not prefer a perturbed answer); the forget split keeps
-    RAW R. Only this function clamps.
-    """
-    probs, truth = [], []
-    for r in tqdm(records, desc="mc" if mc else "perturbed"):
-        if mc:
-            if not r["wrong_answers"]:
-                continue
-            probs.append(probability_score_mc(model, tok, r["question"],
-                                              r["answer"], r["wrong_answers"]))
-            # No paraphrase on the MC splits: the correct answer stands in, exactly
-            # as tofu_evaluate._eval_mc_split does.
-            comp = truth_ratio_components(model, tok, r["question"],
-                                          r["answer"], r["wrong_answers"])
-        else:
-            probs.append(probability_score(model, tok, r["question"], r["answer"]))
-            comp = truth_ratio_components(model, tok, r["question"],
-                                          r["paraphrased_answer"], r["perturbed_answers"])
-        truth.append(max(0.0, 1.0 - comp["tr_arithmetic"]))
-    mean = lambda xs: sum(xs) / len(xs) if xs else 0.0
-    return {"prob": mean(probs), "truth": mean(truth), "n": len(probs)}
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--checkpoints", nargs="+", required=True)
@@ -161,11 +133,9 @@ def main():
 
     forget = load_forget_probe(cfg)                              # raw, as published
     forget_norm = load_forget_probe(cfg, normalize_surname=True)  # surname made consistent
-    util = {} if args.skip_utility else {
-        "retain": (ml.load_perturbed("retain_perturbed", LANG, ml_dir, cache), False),
-        "real_authors": (ml.load_multiple_choice("real_authors_perturbed", LANG, ml_dir, cache), True),
-        "world_facts": (ml.load_multiple_choice("world_facts_perturbed", LANG, ml_dir, cache), True),
-    }
+    # Same loader and scorer as the per-step probe during unlearning (02_unlearn.py),
+    # so an unlearning trajectory's step-0 utility reproduces this run's fr_ft value.
+    util = {} if args.skip_utility else ml.load_utility_splits(LANG, ml_dir, cache)
     logger.info("probe: %d forget facts; utility splits: %s",
                 len(forget), {k: len(v[0]) for k, v in util.items()} or "SKIPPED")
 
@@ -189,13 +159,8 @@ def main():
                                   "norm": f"surname -> {ml.SURNAME_CANONICAL!r} "
                                           f"in the TR answers (per_fact[i]['norm'])"},
                "per_fact": per_fact}
-        blocks = {}
-        for split, (records, mc) in util.items():
-            blocks[split] = score_utility_split(model, tok, records, mc)
-        if blocks:
-            rec["utility_splits"] = blocks
-            rec["model_utility_6"] = model_utility_6(
-                blocks["retain"], blocks["real_authors"], blocks["world_facts"])
+        if util:
+            rec.update(model_utility_6_scores(model, tok, util))
 
         mean = lambda k: sum(f[k] for f in per_fact) / len(per_fact)
         langs = {}
