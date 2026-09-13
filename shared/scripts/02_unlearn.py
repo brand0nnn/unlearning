@@ -125,6 +125,13 @@ def main():
                          "language) every N steps. Default = --eval-every, i.e. at every "
                          "probe point, as the plan asks. 0 = only at the start, the end "
                          "and saved levels (MU is ~4k forward passes, the dominant cost).")
+    ap.add_argument("--forget-floor", default=None,
+                    help="override cfg tofu.forget_floor. 'none' removes the cap entirely, "
+                         "which IS Farashah et al.'s gradient difference (alpha1=alpha2=1, "
+                         "no clamp). The cap was this repo's addition, to stop the forget "
+                         "probability collapsing to 0 and exploding the truth ratio. Any "
+                         "value other than the config's tags the run name, so a re-run "
+                         "cannot overwrite the trajectory or checkpoints of the default one.")
     ap.add_argument("--skip-final-save", action="store_true",
                     help="do not save the end-of-training model (~16GB). For runs whose "
                          "only kept weights are the TR-level checkpoints.")
@@ -147,6 +154,13 @@ def main():
         cfg["tofu"]["forget_level"] = args.forget_level
     if args.unlearn_epochs:
         cfg["tofu"]["unlearn_epochs"] = args.unlearn_epochs
+    floor_tag = ""
+    if args.forget_floor is not None:
+        none = args.forget_floor.strip().lower() in ("none", "null", "off")
+        cfg["tofu"]["forget_floor"] = None if none else float(args.forget_floor)
+        floor_tag = "_floornone" if none else f"_floor{args.forget_floor.replace('.', 'p')}"
+        logger.info("forget floor -> %s (run tagged %s)",
+                    cfg["tofu"]["forget_floor"], floor_tag)
     if args.track_curve:
         cfg["tofu"]["track_curve"] = True
     # LoRA target-module ablation: override the modules LoRA adapts, and remember a
@@ -194,6 +208,7 @@ def main():
     # second run would silently overwrite the first.
     if args.lang != "en" or args.probe_lang:
         run_name += f"_ul{args.lang}"
+    run_name += floor_tag
 
     if args.strategy in ("fullft", "lora"):
         use_lora = args.strategy == "lora"

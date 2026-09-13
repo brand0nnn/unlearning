@@ -11,7 +11,8 @@
 # STAGE 2/3: Full-FT unlearning of fr_ft in ONE language, probing FRENCH as it goes.
 #
 #     sbatch 03_unlearn_fr.sbatch <lang> [epochs=50]
-#     sbatch 03_unlearn_fr.sbatch <lang> [epochs=50] trace     # debugging only
+#     sbatch 03_unlearn_fr.sbatch <lang> [epochs=50] trace           # debugging only
+#     sbatch 03_unlearn_fr.sbatch <lang> 50 levels none              # no forget cap
 #
 #     sbatch 03_unlearn_fr.sbatch en        # Stage 2 pilot
 #     sbatch 03_unlearn_fr.sbatch ja        # Stage 2 pilot
@@ -60,6 +61,7 @@ set -euo pipefail
 LANG_UL="${1:?usage: sbatch 03_unlearn_fr.sbatch <lang> [epochs] [levels|trace]}"
 EPOCHS="${2:-50}"
 MODE="${3:-levels}"
+FLOOR="${4:-}"          # empty = config default (4.0); 'none' = no cap, i.e. Farashah's GD
 
 # MEMORY. Qwen3-8B Full-FT does not fit an 80GB card under the default ZeRO-3 config:
 # params 15.3 + fp32 master 30.5 + flat grad buffer 15.3 + the backward's gradients 15.3
@@ -115,7 +117,11 @@ if [ "$MODE" = "levels" ]; then
     LEVEL_ARG="--tr-levels $LEVELS"
 fi
 
+FLOOR_ARG=""
+if [ -n "$FLOOR" ]; then FLOOR_ARG="--forget-floor $FLOOR"; fi
+
 echo "=== unlearn lang=$LANG_UL Full-FT epochs=$EPOCHS (=$((EPOCHS * 2)) steps) ==="
+echo "    forget cap: ${FLOOR:-config default (4.0)}"
 echo "    source   : $FR_FT"
 echo "    probe    : fr, surname-normalized (raw logged alongside)"
 echo "    tr-levels: ${LEVELS:-TRACE ONLY (no checkpoints saved)}"
@@ -133,6 +139,7 @@ deepspeed --num_gpus=1 --master_port=$MASTER_PORT shared/scripts/02_unlearn.py \
     --eval-every 2 \
     --mu-every 20 \
     --skip-final-save \
+    $FLOOR_ARG \
     $LEVEL_ARG
 
 echo "=== done: trajectory -> $UNLEARN_RESULTS_DIR/unlearn_traj/ ==="
