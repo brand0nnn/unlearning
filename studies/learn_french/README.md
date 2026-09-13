@@ -499,6 +499,7 @@ slurm/03_unlearn_fr.sbatch     Stage 2/3: one unlearning language per job
 slurm/04_measure_unlearned.sbatch  after-metrics for one language's level checkpoints
 plots/plot_stage1.py           Stage 1 figure + table
 plots/plot_unlearn_traj.py     Stage 2/3 reader: trajectories, level coverage, gate numbers
+plots/plot_stage2_summary.py   Stage 2 decision figure (--variant nocap|cap)
 preregistration.json           TR levels + MU threshold (committed; written once)
 results/                       gitignored; rsync down for plotting
 ```

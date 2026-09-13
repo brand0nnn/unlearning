@@ -29,26 +29,70 @@ INK, MUTED, GRID, SURFACE = "#0b0b0b", "#52514e", "#d6d5d0", "#fcfcfb"
 OLD_STUDY_ROOM = 0.284          # 0.743 unlearned - 0.459 learned, English study
 
 
-def load():
+VARIANT_LABEL = {"cap": "forget cap 4.0 (repo default)",
+                 "nocap": "no cap -- Farashah et al.'s gradient difference"}
+
+
+def read_jsonl(path):
+    """Rows of a trajectory file, tolerating a truncated last line.
+
+    These files are appended to while a job runs, so an rsync can catch one mid-write.
+    A partial final line is expected and skipped; a broken line anywhere else is a real
+    problem and is reported."""
+    rows = []
+    lines = [l for l in open(path) if l.strip()]
+    for i, line in enumerate(lines):
+        try:
+            rows.append(json.loads(line))
+        except json.JSONDecodeError:
+            if i == len(lines) - 1:
+                print(f"  note: {Path(path).name} ends mid-write (job still running?)"
+                      f" -- using its first {len(rows)} points")
+            else:
+                print(f"  WARNING: {Path(path).name} line {i+1} is corrupt, skipped")
+    return rows
+
+
+def parse_run(path):
+    """(lang, variant) from ..._ul<lang>[_floornone].jsonl. The two configurations are
+    different experiments and must never be merged into one panel."""
+    tail = Path(path).stem.rsplit("_ul", 1)[1]
+    if tail.endswith("_floornone"):
+        return tail[: -len("_floornone")], "nocap"
+    return tail, "cap"
+
+
+def load(variant):
     runs = {}
     for f in (RESULTS / "unlearn_traj").glob("*.jsonl"):
-        runs[f.stem.rsplit("_ul", 1)[1]] = [json.loads(l) for l in open(f)]
+        lang, var = parse_run(f)
+        if var == variant:
+            runs[lang] = read_jsonl(f)
     if not runs:
-        sys.exit("no trajectories found")
+        have = sorted({parse_run(f)[1] for f in (RESULTS / "unlearn_traj").glob("*.jsonl")})
+        sys.exit(f"no '{variant}' trajectories found (have: {have or 'nothing'})")
     return runs
 
 
 def main():
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--variant", default="nocap", choices=["nocap", "cap"],
+                    help="which unlearning configuration to summarise (default nocap)")
+    args = ap.parse_args()
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    runs = load()
+    runs = load(args.variant)
+    missing = [l for l in ORDER if l not in runs]
+    if missing:
+        print(f"NOTE: no {args.variant} run yet for {missing} -- panels show the rest")
     pre = json.load(open(PREREG))
     levels, learned, floor = pre["tr_levels"], pre["tr_ceiling_fr_ft"], pre["tr_floor_fr_retain"]
 
     stat = {}
-    for l in ORDER:
+    for l in [x for x in ORDER if x in runs]:
         r = runs[l]
         steps = [s for row in r for s in row["train_steps"]]
         peak = max(r, key=lambda x: x["mean_tr"])
@@ -64,7 +108,7 @@ def main():
     a1, a2, a3 = (fig.add_subplot(gs[0, i]) for i in range(3))
 
     # ---- A: trajectories -------------------------------------------------------
-    for l in ORDER:
+    for l in [x for x in ORDER if x in runs]:
         r = runs[l]
         a1.plot([x["step"] for x in r], [x["mean_tr"] for x in r], color=C[l], lw=2,
                 label=f"{l}  ({ROLE[l]})")
@@ -86,7 +130,7 @@ def main():
     a1.set_yticks([0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3])
 
     # ---- B: effort vs effect ---------------------------------------------------
-    for l in ORDER:
+    for l in [x for x in ORDER if x in runs]:
         s = stat[l]
         a2.scatter(s["d_nll"], s["d_tr"], s=90, color=C[l], zorder=3)
         a2.annotate(l, (s["d_nll"], s["d_tr"]), xytext=(7, -3),
@@ -98,11 +142,12 @@ def main():
     a2.set_xlim(3.2, 6.4)
 
     # ---- C: room for a relearning run ------------------------------------------
-    y = range(len(ORDER))
-    a3.barh([i + 0.19 for i in y], [stat[l]["deep"] for l in ORDER], height=0.36,
-            color=[C[l] for l in ORDER])
-    a3.barh([i - 0.19 for i in y], [stat[l]["matched"] for l in ORDER], height=0.36,
-            color=[C[l] for l in ORDER], alpha=0.35)
+    present = [x for x in ORDER if x in runs]
+    y = range(len(present))
+    a3.barh([i + 0.19 for i in y], [stat[l]["deep"] for l in present], height=0.36,
+            color=[C[l] for l in present])
+    a3.barh([i - 0.19 for i in y], [stat[l]["matched"] for l in present], height=0.36,
+            color=[C[l] for l in present], alpha=0.35)
     a3.axvline(OLD_STUDY_ROOM, color=INK, lw=1.3, ls="--")
     a3.text(OLD_STUDY_ROOM - 0.006, -0.45, "old English study 0.284 ", fontsize=8,
             color=INK, ha="right", va="center")
@@ -111,7 +156,7 @@ def main():
                        Patch(color="#777777", alpha=0.35, label="the shared depth (0.650)")],
               fontsize=7.5, frameon=False, loc="lower right")
     a3.set_xlim(0, 0.315)
-    a3.set_yticks(list(y)); a3.set_yticklabels(ORDER)
+    a3.set_yticks(list(y)); a3.set_yticklabels(present)
     a3.invert_yaxis()
     a3.set_xlabel("truth-ratio room for relearning")
     a3.set_title("C. Room to measure recovery in\n"
@@ -123,15 +168,16 @@ def main():
         ax.tick_params(colors=MUTED, labelsize=8)
         ax.grid(color=GRID, alpha=0.45, lw=0.7)
         ax.set_axisbelow(True)
-    fig.suptitle("Stage 2: unlearning fr_ft in five languages, always probed in French",
+    fig.suptitle(f"Stage 2: unlearning fr_ft in five languages, always probed in French",
                  fontsize=13, x=0.055, ha="left", y=0.955, color=INK)
     fig.text(0.055, 0.885, "Qwen3-8B - forget01 (40 facts, 2 authors) - 100 optimizer steps, "
-             "identical settings in every language", fontsize=8.5, color=MUTED)
+             f"identical settings in every language - {VARIANT_LABEL[args.variant]}",
+             fontsize=8.5, color=MUTED)
     FIGS.mkdir(exist_ok=True)
-    out = FIGS / "stage2_summary.png"
+    out = FIGS / f"stage2_summary_{args.variant}.png"
     fig.savefig(out, dpi=170, facecolor=SURFACE)
     print(f"-> {out}")
-    for l in ORDER:
+    for l in [x for x in ORDER if x in runs]:
         s = stat[l]
         print(f"  {l}: peak TR {s['peak']['mean_tr']:.3f} at step {s['peak']['step']}, "
               f"{s['n_levels']} levels, forget-loss rise {s['d_nll']:+.2f} nats, "

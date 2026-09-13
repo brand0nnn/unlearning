@@ -11,7 +11,7 @@
 # STAGE 2/3 AFTER-METRICS: score one language's TR-level checkpoints on the French
 # forget set, with the SAME scorer Stage 1 used.
 #
-#     sbatch 04_measure_unlearned.sbatch <lang>
+#     sbatch 04_measure_unlearned.sbatch <lang> [nocap|cap]     (default nocap)
 #
 # Pure inference. This is what turns a saved checkpoint into the plan's five metrics:
 # Truth Ratio (+ components), Probability, NLI, output language, Model Utility, and
@@ -31,8 +31,14 @@
 #     sbatch --partition=gpu --gres=gpu:a100-40:1 --time=03:00:00 04_measure_unlearned.sbatch en
 set -euo pipefail
 
-LANG_UL="${1:?usage: sbatch 04_measure_unlearned.sbatch <lang>}"
+LANG_UL="${1:?usage: sbatch 04_measure_unlearned.sbatch <lang> [nocap|cap]}"
+VARIANT="${2:-nocap}"     # which unlearning configuration's checkpoints to score
 case "$LANG_UL" in en|fr|id|ja|ru) ;; *) echo "bad lang: $LANG_UL" >&2; exit 2 ;; esac
+case "$VARIANT" in
+    nocap) SUFFIX="_floornone" ;;      # Farashah's gradient difference, no forget cap
+    cap)   SUFFIX="" ;;                # the repo default, forget loss clamped at 4.0
+    *) echo "bad variant: $VARIANT (nocap|cap)" >&2; exit 2 ;;
+esac
 
 PROJECT_DIR="/home/b/brandonk/unlearning"
 export UNLEARN_RESULTS_DIR="$PROJECT_DIR/studies/learn_french/results"
@@ -50,7 +56,7 @@ echo "Commit: $(git rev-parse --short HEAD)"
 
 MODEL_SLUG=$(python3 -c "import re,yaml;n=yaml.safe_load(open('config/config.yaml'))['model']['name'].split('/')[-1].lower();print(re.sub(r'[^a-z0-9.]+','-',n).strip('-'))")
 FR_RETAIN="$PROJECT_DIR/experiments/tofu_learn_retain99_full_${MODEL_SLUG}_fr"
-RUN="tofu_unlearn_gradient_difference_forget01_fullft_${MODEL_SLUG}_ul${LANG_UL}"
+RUN="tofu_unlearn_gradient_difference_forget01_fullft_${MODEL_SLUG}_ul${LANG_UL}${SUFFIX}"
 [ -d "$FR_RETAIN" ] || { echo "MISSING fr_retain: $FR_RETAIN" >&2; exit 1; }
 
 # Exact paths from the pre-registered levels -- the same tag the probe callback wrote.
@@ -73,11 +79,15 @@ for tag in "${TAGS[@]}"; do
 done
 [ ${#CKPTS[@]} -gt 0 ] || { echo "no level checkpoints for $LANG_UL -- nothing to score" >&2; exit 1; }
 
-echo "=== scoring ${#CKPTS[@]} checkpoint(s) for lang=$LANG_UL + fr_retain reference ==="
+# The NLI model is only needed here; pull it before the GPU work so a cold cache fails
+# in seconds rather than after an hour of scoring.
+python -c "from huggingface_hub import snapshot_download; snapshot_download('joeddav/xlm-roberta-large-xnli')" >/dev/null
+
+echo "=== scoring ${#CKPTS[@]} checkpoint(s) for lang=$LANG_UL [$VARIANT] + fr_retain reference ==="
 python studies/learn_french/scripts/measure_fr.py \
     --checkpoints "${CKPTS[@]}" "$FR_RETAIN" \
     --reference   "$FR_RETAIN" \
-    --group "stage2_${LANG_UL}"
+    --group "stage2_${VARIANT}_${LANG_UL}"
 
-echo "=== done -> $UNLEARN_RESULTS_DIR/stage2_${LANG_UL}/ ==="
-ls -la "$UNLEARN_RESULTS_DIR/stage2_${LANG_UL}/"
+echo "=== done -> $UNLEARN_RESULTS_DIR/stage2_${VARIANT}_${LANG_UL}/ ==="
+ls -la "$UNLEARN_RESULTS_DIR/stage2_${VARIANT}_${LANG_UL}/"
