@@ -24,5 +24,77 @@
   "fact_set": "all 40 facts; facts 8 and 22 fail the ceiling check and are REPORTED, not dropped, from the mean that drives level crossings",
   "forget_quality_primary": "two-sided KS vs fr_retain (TOFU). At n=m=40 its achievable p-values are a ~6-step ladder from our starting point to 1.0; show the ladder, never read one step as a finding",
   "forget_quality_secondary": "none. No test outside TOFU/Farashah/Xiang is added; the coarseness above is reported as a limitation, not patched with a statistic of our own",
-  "stage1_gate3": "FAILED as written: KS p = 0.0286, need < 0.01. Diagnosis: D = 0.325 = 13/40, and p < 0.01 needs 14/40 -- one fact's worth of separation. Injection itself is unambiguous fact by fact, P(gold) higher on 40/40, NLI on 39/40, truth ratio lower on 33/40. Recorded, not rescued."
+  "stage1_gate3": "FAILED as written: KS p = 0.0286, need < 0.01. Diagnosis: D = 0.325 = 13/40, and p < 0.01 needs 14/40 -- one fact's worth of separation. Injection itself is unambiguous fact by fact, P(gold) higher on 40/40, NLI on 39/40, truth ratio lower on 33/40. Recorded, not rescued.",
+  "stage3_recorded": "2026-09-14",
+  "stage3_depth_rule": "Match on ACHIEVED truth ratio, not the level label. A level is a trigger: the probe runs every 2 optimizer steps (= 1 epoch at 40 forget examples / effective batch 32), so each language overshoots its trigger by however far it moved in that epoch (ja +0.006, id +0.085). Per language take the crossing whose achieved mean_tr_norm is nearest a common target T, sweeping T for the deepest choice that stays tight. T = 0.833 gives max deviation 0.014 across en/id/ja/ru.",
+  "stage3_deviation_from_stage2": "Stage 2 pre-registered ONE shared nominal level for all languages. Matching on the label gives achieved TR 0.834-0.913 (spread 0.079); matching on the achieved value gives 0.819-0.847 (spread 0.028). The rule above reads ONLY the truth ratio -- the pre-registered matching variable -- and never P(gold), NLI or MU, so it is not selection on an outcome-adjacent quantity. Recorded here BEFORE any relearning is run. The uniform-0.828 numbers are reported alongside in every table.",
+  "stage3_matched_checkpoints": {
+    "en": {
+      "epoch": 12,
+      "level": 0.828,
+      "tr": 0.847,
+      "prob": 0.492,
+      "nli": 0.174,
+      "mu": 0.492
+    },
+    "id": {
+      "epoch": 12,
+      "level": 0.783,
+      "tr": 0.819,
+      "prob": 0.48,
+      "nli": 0.154,
+      "mu": 0.478
+    },
+    "ja": {
+      "epoch": 25,
+      "level": 0.828,
+      "tr": 0.834,
+      "prob": 0.447,
+      "nli": 0.134,
+      "mu": 0.497
+    },
+    "ru": {
+      "epoch": 15,
+      "level": 0.783,
+      "tr": 0.821,
+      "prob": 0.335,
+      "nli": 0.107,
+      "mu": 0.466
+    },
+    "fr": {
+      "epoch": 13,
+      "level": 0.783,
+      "tr": 0.878,
+      "prob": 0.075,
+      "nli": 0.103,
+      "mu": 0.478
+    }
+  },
+  "stage3_french_arm": "French is NOT a matched cell and is labelled separately in every figure. Its nearest crossing to T is 0.045 away (3x the worst of the others) because it produced only three distinct checkpoints, and its P(gold) 0.075 sits BELOW the never-taught fr_retain floor of 0.094. It is the same-language reference arm.",
+  "stage3_relearn": {
+    "grid": "5 unlearn languages x 5 relearn languages = 25 cells",
+    "data": "retain99 in the relearn language (BENIGN: different authors, never the forgotten fact)",
+    "n": 1500,
+    "epochs": 2,
+    "epochs_rationale": "the old study's reporting epoch; Full-FT recovery was flat across ep1/2/4 (43.4 / 42.5 / 41.9), so one epoch count suffices and the 42.5% figure stays comparable",
+    "probe": "always French, measure_fr.py, surname-normalized primary",
+    "strategy": "Full-FT only"
+  },
+  "stage3_primary_outcome": "recovery = (TR_unlearned - TR_relearned) / (TR_unlearned - TR_learned) on the surname-normalized TOFU Eq. 1 truth ratio, TR_learned = fr_ft 0.6054. P(gold) and NLI recovery reported on the same definition alongside; none of the three is a tiebreak for the others.",
+  "stage3_covariate": "each cell's starting P(gold) is reported in every table. The four cross-lingual arms span 0.335-0.492 and French -0.032 of the learned span, so they do NOT start from the same knowledge state; the claim 'all five started equal' is not made.",
+  "stage3_hypotheses": {
+    "H1_depth": "recovery is governed by how much the unlearning actually removed, which depends on the UNLEARNING language. Predicts a large row effect ordered by starting P(gold) (en ~ id > ja > ru >> fr), with French near zero.",
+    "H_attractor": "the old study's fitted attractor (dTR = 0.800*TR_unl - 0.474, R2 0.868) is the whole story. Pushed through our matched checkpoints it predicts 84-85% recovery in EVERY cell including French, with no row and no column effect.",
+    "H_column": "relearn language has no detectable effect, replicating the old study's FACT 96.8% / LANGUAGE 0.0% variance decomposition. Expected to be a null we cannot resolve: the between-language question needs ~2250 facts and forget01 gives 40.",
+    "H_diagonal": "relearning in the SAME language the unlearning used shows no excess over off-diagonal cells. Newly askable only because this design varies the unlearn language; the old study fixed it to English.",
+    "discriminating_cell": "French. H1 predicts near-zero recovery there, H_attractor predicts 84%."
+  },
+  "stage3_power": "the power lives in the ROWS, not the columns. The unlearn-language effect is already visible in Stage 2 at a 6x margin on P(gold); the relearn-language effect carries the old study's 126-139pp per-language CIs against an 18-24pp spread and is reported as a replication of an underpowered null, not as a headline.",
+  "stage3_secondary_tests": "none. As in Stage 1, no test outside TOFU / Farashah / Xiang is added; limitations are reported as limitations.",
+  "stage3_held_not_precommitted": "a uniform-level-0.828 relearn arm (id@0.828, ru@0.828 kept on disk for it). Run ONLY if recovery turns out to track starting P(gold), and declared post-hoc if so.",
+  "stage3_known_limitations": [
+    "single seed: relearn.py hardcodes set_seed(cfg['seed']) with no --seed flag",
+    "content control (retain vs real_authors vs world_facts) still unrun; carried over from the old study as an open item, not a blocker",
+    "40 facts = 40 attributes of 2 entities (Basil Mahfouz Al-Kuwaiti 0-19, Nikolai Abilov 20-39); fact-level resampling overstates n"
+  ]
 }
