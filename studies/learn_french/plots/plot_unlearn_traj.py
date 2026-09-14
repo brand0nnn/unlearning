@@ -126,6 +126,7 @@ def main():
     ceil = s1.get("fr_ft", {}).get("tr_arithmetic_mean_norm")
     floor = s1.get("fr_retain", {}).get("tr_arithmetic_mean_norm")
     mu_ft = s1.get("fr_ft", {}).get("model_utility_6")
+    mu_base = s1.get("base", {}).get("model_utility_6")
     if not prereg:
         print("NOTE: no preregistration.json -- levels and MU threshold not shown")
 
@@ -200,10 +201,10 @@ def main():
         print("Matched depth = deepest level admissible in EVERY language; verify it on the"
               "\ndistributions (pairwise KS of tr_per_fact), not the means (plan sec 4b).")
 
-    plot(runs, levels, ceil, floor, mu_thr, mu_ft)
+    plot(runs, levels, ceil, floor, mu_thr, mu_ft, mu_base)
 
 
-def plot(runs, levels, ceil, floor, mu_thr, mu_ft):
+def plot(runs, levels, ceil, floor, mu_thr, mu_ft, mu_base=None):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -238,6 +239,14 @@ def plot(runs, levels, ceil, floor, mu_thr, mu_ft):
         a1.axhline(floor, color="#555555", lw=1)
         a1.text(0.995, floor, " fr_retain (floor)", transform=a1.get_yaxis_transform(),
                 ha="right", va="bottom", fontsize=8, color="#555555")
+    # SCALE. Without a cap, Indonesian's post-collapse excursion (TR ~1e35 at step 66)
+    # sets the axis and every curve of interest renders as a flat line on zero. The band
+    # that carries the experiment is ceiling..floor plus a little, so clip to it and say
+    # so -- the divergence is reported in the text summary above, not drawn.
+    a1.set_ylim(0.55, 1.0)
+    a1.text(0.995, 0.02, "clipped at 1.0 - after collapse fr/en/id/ru diverge far beyond "
+            "(id reaches ~1e35)", transform=a1.transAxes, ha="right", va="bottom",
+            fontsize=7.5, color="#555555")
     a1.set_ylabel("French truth ratio (Eq. 1, mean of 40)\nhigher = more forgotten")
     a1.set_title("Unlearning in each language, probed in French\n"
                  "solid = surname-normalized probe (drives levels), dotted = as published; "
@@ -246,10 +255,25 @@ def plot(runs, levels, ceil, floor, mu_thr, mu_ft):
 
     if mu_thr is not None:
         a2.axhline(mu_thr, color="#c0392b", lw=1, ls="--")
-        a2.text(0.995, mu_thr, " MU threshold", transform=a2.get_yaxis_transform(),
+        a2.text(0.995, mu_thr, " MU exclusion threshold", transform=a2.get_yaxis_transform(),
                 ha="right", va="bottom", fontsize=8, color="#c0392b")
     if mu_ft is not None:
         a2.axhline(mu_ft, color="#555555", lw=1)
+        a2.text(0.995, mu_ft, " fr_ft (learned)", transform=a2.get_yaxis_transform(),
+                ha="right", va="bottom", fontsize=8, color="#555555")
+    # SCALE. Auto-scaling this panel spans ~0.03 and renders a flat series as dramatic
+    # swings. MU is a harmonic mean of quantities in [0, 1]; the meaningful band is
+    # anchored by base Qwen3 (never learned the facts) below and the learned model above,
+    # so fix the axis to that band plus headroom. The message is "nothing moved", and the
+    # axis has to be able to say it.
+    lo = 0.0
+    hi = max([v for v in (mu_ft, mu_base) if v is not None] or [0.55]) * 1.12
+    if mu_base is not None:
+        a2.axhline(mu_base, color="#555555", lw=1, ls=":")
+        a2.text(0.995, mu_base, " base Qwen3 (never learned)",
+                transform=a2.get_yaxis_transform(), ha="right", va="bottom",
+                fontsize=8, color="#555555")
+    a2.set_ylim(lo, hi)
     a2.set_ylabel("Model Utility (6-metric)\nin French")
 
     a3.axhline(FLOOR, color="#555555", lw=1, ls="--")
