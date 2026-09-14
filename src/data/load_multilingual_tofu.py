@@ -149,6 +149,10 @@ def load_perturbed(config: str, lang: str, ml_dir: str, cache_dir: str,
             "answer": r["answer"],
             "paraphrased_answer": r.get("paraphrased_answer", r["answer"]),
             "perturbed_answers": wrong,
+            # TOFU's own published paraphrase of the question (p1). Carried through so a
+            # phrasing-robustness probe costs no new authoring and no new translation --
+            # Farashah translated it alongside everything else.
+            "paraphrased_question": r.get("paraphrased_question"),
         })
     if limit:
         out = out[:limit]
@@ -308,9 +312,13 @@ def load_probe_set(lang: str, ml_dir: str, cache_dir: str,
     if len(trained) != len(tr_side):
         raise ValueError(f"{FORGET_LEVEL}_{lang} has {len(trained)} rows but "
                          f"{FORGET_LEVEL}_perturbed_{lang} has {len(tr_side)}")
+    # paraphrased_question comes from the SAME pass as the truth-ratio answers (pass 1),
+    # which is the honest pairing: it is a question the model never trained on, scored
+    # against answers it never trained on.
     out = [{"question": t["question"], "answer": t["answer"],
             "paraphrased_answer": p["paraphrased_answer"],
-            "perturbed_answers": list(p["perturbed_answers"])}
+            "perturbed_answers": list(p["perturbed_answers"]),
+            "paraphrased_question": p.get("paraphrased_question")}
            for t, p in zip(trained, tr_side)]
 
     if normalize_surname:

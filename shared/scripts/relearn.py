@@ -85,6 +85,12 @@ def main():
                     help="cap the number of relearn records (keeps benign retain-relearn "
                          "fast enough to fit several runs in one job; a subset still "
                          "un-masks suppressed facts).")
+    ap.add_argument("--save-each-epoch", action="store_true",
+                    help="also write a weights-only snapshot after each epoch except the "
+                         "last, at <output>__atep<k>. Turns one run into a relearning "
+                         "trajectory: every epoch shares a single LR schedule, so points "
+                         "are comparable to each other (but an intermediate epoch is NOT "
+                         "comparable to a shorter run, whose LR has annealed to 0).")
     ap.add_argument("--local_rank", type=int, default=-1)  # deepspeed launcher
     args = ap.parse_args()
 
@@ -116,7 +122,8 @@ def main():
     if args.relearn_lang != "en":
         suffix += f"_lang{args.relearn_lang}"     # keep cross-lingual runs distinct
     run_name = f"relearn_{name}{suffix}_ep{args.epochs}"
-    out = finetune_tofu(model, tok, data, cfg, run_name)
+    out = finetune_tofu(model, tok, data, cfg, run_name,
+                        save_each_epoch=args.save_each_epoch)
     logger.info("Relearned %s on %s for %d epochs -> %s",
                 name, args.relearn_data, args.epochs, out)
 

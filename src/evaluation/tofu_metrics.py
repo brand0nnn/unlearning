@@ -217,8 +217,17 @@ def model_utility_6(retain: dict, real_authors: dict, world_facts: dict) -> floa
     ])
 
 
-def utility_split_scores(model, tokenizer, records, mc: bool, progress: bool = True) -> dict:
+def utility_split_scores(model, tokenizer, records, mc: bool, progress: bool = True,
+                         keep_per_record: bool = False) -> dict:
     """Probability + per-record max(0, 1-TR) for ONE utility split -> {prob, truth, n}.
+
+    keep_per_record additionally returns the two RAW arrays ('probs', 'truths') behind
+    those means. Off by default because the per-step probe during unlearning calls this
+    every few steps and 617 floats per call would bloat the trajectory JSONL; on for the
+    after-metrics, where the checkpoint is deleted once scored and a mean is all that
+    would survive it. That asymmetry is the lesson from the geometric-vs-arithmetic truth
+    ratio (CLAUDE.md sec 7): a summary stored where components were needed cannot be
+    un-averaged later, and the model is gone.
 
     DIRECTION FLIP, the classic reimplementation bug: utility splits want HIGH 1-R (the
     model should not prefer a perturbed answer); the forget split keeps RAW R. Only this
@@ -254,14 +263,20 @@ def utility_split_scores(model, tokenizer, records, mc: bool, progress: bool = T
                                           r["paraphrased_answer"], r["perturbed_answers"])
         truth.append(max(0.0, 1.0 - comp["tr_arithmetic"]))
     mean = lambda xs: sum(xs) / len(xs) if xs else 0.0
-    return {"prob": mean(probs), "truth": mean(truth), "n": len(probs)}
+    out = {"prob": mean(probs), "truth": mean(truth), "n": len(probs)}
+    if keep_per_record:
+        out["probs"], out["truths"] = probs, truth
+    return out
 
 
-def model_utility_6_scores(model, tokenizer, splits: dict, progress: bool = True) -> dict:
+def model_utility_6_scores(model, tokenizer, splits: dict, progress: bool = True,
+                           keep_per_record: bool = False) -> dict:
     """Score all three utility splits and combine. `splits` maps
     {retain, real_authors, world_facts} -> (records, is_mc). Returns the hmean AND the six
-    values it is built from (store components, not just the quotient)."""
-    blocks = {name: utility_split_scores(model, tokenizer, recs, mc, progress)
+    values it is built from (store components, not just the quotient). keep_per_record
+    also returns the raw arrays behind the six -- see utility_split_scores."""
+    blocks = {name: utility_split_scores(model, tokenizer, recs, mc, progress,
+                                         keep_per_record=keep_per_record)
               for name, (recs, mc) in splits.items()}
     return {"model_utility_6": model_utility_6(
                 blocks["retain"], blocks["real_authors"], blocks["world_facts"]),

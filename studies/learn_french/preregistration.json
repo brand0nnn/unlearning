@@ -75,10 +75,14 @@
     "grid": "5 unlearn languages x 5 relearn languages = 25 cells",
     "data": "retain99 in the relearn language (BENIGN: different authors, never the forgotten fact)",
     "n": 1500,
-    "epochs": 2,
-    "epochs_rationale": "the old study's reporting epoch; Full-FT recovery was flat across ep1/2/4 (43.4 / 42.5 / 41.9), so one epoch count suffices and the 42.5% figure stays comparable",
-    "probe": "always French, measure_fr.py, surname-normalized primary",
-    "strategy": "Full-FT only"
+    "epochs": 3,
+    "epochs_rationale": "a trajectory, not a single point: three points are what distinguish a rising curve from a flat one, which is the direct test of H_attractor (saturation). Dropped the earlier plan of matching the old study's ep2 -- that comparison was already weak (different learn language, probe language, depth and metric variant), and what transfers from that study is structural, not its absolute 42.5%.",
+    "probe": "always French. TWO phrasings: p0 canonical (what LEARN trained on) and p1 = TOFU's own paraphrased_question, as translated by Farashah. p1 separates 'the fact came back' from 'the trained wording came back'.",
+    "strategy": "Full-FT only",
+    "epochs_scored": "1, 2, 3 -- weights-only snapshots from ONE run, not three runs",
+    "lr_caveat": "all epochs share ONE linear schedule (warmup_ratio 0.2, decaying to 0 at the last step), so epochs 1-2 sit at a non-zero LR and epoch 3 is the only annealed point. A flattening between epochs 2 and 3 may be the schedule, not saturation -- plot the LR alongside. The schedule is IDENTICAL in all 25 cells, so it cancels in every cross-cell comparison, which is the only comparison this study makes.",
+    "p1_confound": "on 15 of 40 facts the published p1 question spells the surname differently from p0. p1 is scored AS PUBLISHED and its question text is stored per fact, so matched and mismatched facts can be split at analysis time. Surname normalization is applied only to truth-ratio answers, never to questions.",
+    "weights_retained": "none. 25 cells x 3 epochs x 16GB = 1.2TB against a 500GB limit. Every snapshot is scored then deleted; the per-epoch JSON stores components (not summaries) so every planned metric stays recomputable without a model: TR under both definitions and both surname variants, P(gold), all six NLI class probabilities, generations to 2000 chars, output language, Model Utility AND its 617 per-record values, at both phrasings. Hidden states (Part B) and unprobed phrasings are the only things lost; one cell regenerates in ~3h at the fixed seed."
   },
   "stage3_primary_outcome": "recovery = (TR_unlearned - TR_relearned) / (TR_unlearned - TR_learned) on the surname-normalized TOFU Eq. 1 truth ratio, TR_learned = fr_ft 0.6054. P(gold) and NLI recovery reported on the same definition alongside; none of the three is a tiebreak for the others.",
   "stage3_covariate": "each cell's starting P(gold) is reported in every table. The four cross-lingual arms span 0.335-0.492 and French -0.032 of the learned span, so they do NOT start from the same knowledge state; the claim 'all five started equal' is not made.",
@@ -95,6 +99,7 @@
   "stage3_known_limitations": [
     "single seed: relearn.py hardcodes set_seed(cfg['seed']) with no --seed flag",
     "content control (retain vs real_authors vs world_facts) still unrun; carried over from the old study as an open item, not a blocker",
-    "40 facts = 40 attributes of 2 entities (Basil Mahfouz Al-Kuwaiti 0-19, Nikolai Abilov 20-39); fact-level resampling overstates n"
+    "40 facts = 40 attributes of 2 entities (Basil Mahfouz Al-Kuwaiti 0-19, Nikolai Abilov 20-39); fact-level resampling overstates n",
+    "intermediate epochs are mid-LR-schedule, so they are comparable across cells but not to an independently-run shorter job"
   ]
 }

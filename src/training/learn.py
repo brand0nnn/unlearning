@@ -75,7 +75,8 @@ def _collate(batch, pad_id):
 
 
 def finetune_tofu(model, tokenizer, records: List[Dict], cfg: Dict,
-                  run_name: str, use_lora: bool = False):
+                  run_name: str, use_lora: bool = False,
+                  save_each_epoch: bool = False):
     """Fine-tune `model` on TOFU `records`. Returns the output checkpoint dir."""
     from transformers import Trainer, TrainingArguments
 
@@ -127,7 +128,30 @@ def finetune_tofu(model, tokenizer, records: List[Dict], cfg: Dict,
         model=model, args=args, train_dataset=ds,
         data_collator=lambda b: _collate(b, pad_id),
     )
-    logger.info("LEARN phase (%s, lora=%s) -> %s", run_name, use_lora, args.output_dir)
+    if save_each_epoch:
+        # A relearning TRAJECTORY needs the model at each epoch, but save_strategy="epoch"
+        # writes full Trainer checkpoints (~27GB: weights + optimizer + scheduler) and
+        # filled the quota once already. save_model() writes weights only (~16GB) and is
+        # all a later eval needs -- nothing resumes from these.
+        #
+        # Epochs 1..N-1 land in "<output_dir>__atep<k>"; epoch N is the normal final save
+        # at output_dir, so the last epoch is never duplicated.
+        from transformers import TrainerCallback
+
+        class _SaveEachEpoch(TrainerCallback):
+            def on_epoch_end(self, a, state, control, **kw):
+                k = round(state.epoch)
+                if k >= a.num_train_epochs:
+                    return                      # epoch N = the final save below
+                d = f"{a.output_dir}__atep{k}"
+                trainer.save_model(d)
+                tokenizer.save_pretrained(d)    # or the eval loads an all-zeros model
+                logger.info("epoch %d snapshot -> %s", k, d)
+
+        trainer.add_callback(_SaveEachEpoch())
+
+    logger.info("LEARN phase (%s, lora=%s, save_each_epoch=%s) -> %s",
+                run_name, use_lora, save_each_epoch, args.output_dir)
     trainer.train()
     trainer.save_model(args.output_dir)
     # Save the tokenizer too, so the checkpoint is self-contained and can be

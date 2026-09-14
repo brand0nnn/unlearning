@@ -80,36 +80,78 @@ def load_forget_probe(cfg, normalize_surname=False):
 _TR_KEYS = ("para_prob", "perturbed_probs", "tr_geometric", "tr_arithmetic")
 
 
-def score_forget(model, tok, raw, norm, nli, max_new):
-    """Per-fact TR (+components) on BOTH probe variants, plus probability, NLI and
-    output language.
+# Generations are stored, not just scored. Once a relearned checkpoint is deleted the
+# text is the only thing left that a future metric can be computed from, so the cap is
+# set above what the model can emit (max_new_tokens 200 ~= 1200 French characters)
+# rather than at a browsing length. 8% of the Stage-2 generations hit the old 400-char
+# cap, which would have silently truncated any later text metric.
+_GEN_STORE = 2000
 
-    The two variants differ only in the surname inside the truth-ratio answers, so only
-    the truth ratio is scored twice. Probability, generation and NLI use the question
-    and the TRAINED answer, which are byte-identical in both variants -- asserted
-    below rather than assumed.
+
+def score_forget(model, tok, raw, norm, nli, max_new):
+    """Per-fact TR (+components), probability, NLI and output language, at TWO phrasings.
+
+    The two probe VARIANTS (raw / surname-normalized) differ only in the surname inside
+    the truth-ratio answers, so only the truth ratio is scored twice per phrasing.
+    Probability, generation and NLI use the question and the TRAINED answer, which are
+    byte-identical in both variants -- asserted below rather than assumed.
+
+    The two PHRASINGS are TOFU's own: p0, the canonical question the model trained on,
+    and p1, `paraphrased_question`, which Farashah translated alongside everything else.
+    p1 costs ~6 min per checkpoint and answers a question the canonical probe cannot:
+    whether a recovered fact is the FACT coming back or only the trained WORDING coming
+    back. That distinction was the old study's Finding 5, and it is the one measurement
+    a deleted checkpoint can never be re-asked for.
+
+    CONFOUND, stored rather than patched: on 15 of the 40 facts the published p1 question
+    spells the surname differently from p0 ("Al-Kuwaiti" vs "al-Koweitien"). A p0-p1 gap
+    on those facts may be spelling recognition rather than phrasing sensitivity. The
+    surname normalization deliberately does NOT touch questions, so p1 is scored exactly
+    as published and its question text is stored per fact -- the analysis can split
+    matched from mismatched offline, with no re-run and no model.
 
     Raw keys stay at the top level (the historical schema, so the original stage1/
     results and this run are read by the same code); the normalized truth ratio sits
-    under "norm".
+    under "norm"; everything about the second phrasing sits under "p1".
     """
     out = []
     for r, n in tqdm(list(zip(raw, norm)), desc="forget"):
-        assert r["question"] == n["question"] and r["answer"] == n["answer"], \
+        assert r["question"] == n["question"] and r["answer"] == n["answer"] \
+            and r.get("paraphrased_question") == n.get("paraphrased_question"), \
             "probe variants must differ only in the truth-ratio answers"
         comp = truth_ratio_components(model, tok, r["question"],
                                       r["paraphrased_answer"], r["perturbed_answers"])
         comp_n = truth_ratio_components(model, tok, n["question"],
                                         n["paraphrased_answer"], n["perturbed_answers"])
         gen = _generate(model, tok, r["question"], max_new)
-        out.append({
+        rec = {
             **comp,
             "norm": {k: comp_n[k] for k in _TR_KEYS},
             "prob": probability_score(model, tok, r["question"], r["answer"]),
             **nli_scores(nli, gen, r["answer"]),
             "gen_lang": detect_language(gen),
-            "generation": gen[:400],   # truncated: enough to eyeball, not to bloat
-        })
+            "generation": gen[:_GEN_STORE],
+        }
+        q1 = r.get("paraphrased_question")
+        if q1:
+            # truth_ratio_components takes `question` as a free parameter, which is what
+            # makes a second phrasing cost no new answer generation: the paraphrased and
+            # perturbed answers describe the FACT, not the wording, so they are reused.
+            c1 = truth_ratio_components(model, tok, q1,
+                                        r["paraphrased_answer"], r["perturbed_answers"])
+            c1n = truth_ratio_components(model, tok, q1,
+                                         n["paraphrased_answer"], n["perturbed_answers"])
+            g1 = _generate(model, tok, q1, max_new)
+            rec["p1"] = {
+                **c1,
+                "norm": {k: c1n[k] for k in _TR_KEYS},
+                "prob": probability_score(model, tok, q1, r["answer"]),
+                **nli_scores(nli, g1, r["answer"]),
+                "gen_lang": detect_language(g1),
+                "generation": g1[:_GEN_STORE],
+                "question": q1,
+            }
+        out.append(rec)
     return out
 
 
@@ -160,7 +202,10 @@ def main():
                                           f"in the TR answers (per_fact[i]['norm'])"},
                "per_fact": per_fact}
         if util:
-            rec.update(model_utility_6_scores(model, tok, util))
+            # keep_per_record: the checkpoint is deleted once scored, so the six means
+            # would be all that survives. The arrays behind them cost ~25KB of JSON and
+            # keep Model Utility recomputable under any later rule.
+            rec.update(model_utility_6_scores(model, tok, util, keep_per_record=True))
 
         mean = lambda k: sum(f[k] for f in per_fact) / len(per_fact)
         langs = {}
@@ -179,6 +224,15 @@ def main():
             "gen_language_counts": langs,
             "model_utility_6": rec.get("model_utility_6"),
         }
+        if all("p1" in f for f in per_fact):
+            p1 = lambda k: sum(f["p1"][k] for f in per_fact) / len(per_fact)
+            rec["summary"].update({
+                "p1_tr_arithmetic_mean": p1("tr_arithmetic"),
+                "p1_tr_arithmetic_mean_norm":
+                    sum(f["p1"]["norm"]["tr_arithmetic"] for f in per_fact) / len(per_fact),
+                "p1_prob_mean": p1("prob"),
+                "p1_nli_score_mean": p1("nli_score"),
+            })
         json.dump(rec, open(out_dir / f"{name}.json", "w"), indent=2)
         results[name] = rec
         s = rec["summary"]
