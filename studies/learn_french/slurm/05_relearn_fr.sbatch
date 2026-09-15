@@ -4,15 +4,20 @@
 #SBATCH --gres=gpu:a100-80:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=128G
-#SBATCH --time=16:00:00
+#SBATCH --time=05:00:00
 #SBATCH --output=/home/b/brandonk/unlearning/logs/relearn_fr_%j.out
 #SBATCH --error=/home/b/brandonk/unlearning/logs/relearn_fr_%j.err
 
 # STAGE 3: BENIGN RELEARNING. Runs one or more cells of the 5x5 grid in one job.
 #
 #     sbatch 05_relearn_fr.sbatch <unlearn_lang> [relearn_lang ...] # default: all five
-#     sbatch 05_relearn_fr.sbatch en                 # the whole en row, 5 cells, ~16h
-#     sbatch 05_relearn_fr.sbatch en ja              # one cell, ~3.2h (retry)
+#     sbatch 05_relearn_fr.sbatch en ja              # ONE cell, ~3.2h -- the default header
+#     sbatch --time=16:00:00 05_relearn_fr.sbatch en # the whole en row, 5 cells, ~16h
+#
+# The header asks for 5h, sized for ONE cell, because a 16h request sat unscheduled for
+# 24h on a saturated pool (every a100-80 and h100-96 allocated to higher-priority
+# partitions) while backfill had short gaps to give. Ask for a row only if the queue is
+# quiet; otherwise submit 25 cells and let them trickle.
 #
 # There is also one wrapper per unlearning language, which is all this needs in practice:
 #     sbatch studies/learn_french/slurm/06_relearn_row_en.sbatch
@@ -162,6 +167,17 @@ for REL in "${RELEARN_LANGS[@]}"; do
         continue
     fi
 
+    # Snapshots survive a wall-clock kill, so a job killed DURING scoring must not retrain
+    # for 105 minutes to reproduce weights already on disk. tokenizer_config.json is the
+    # completion sentinel: both the callback and the final save write the tokenizer AFTER
+    # the weights, so its presence means that snapshot finished writing.
+    HAVE=1
+    for i in "${!SNAPS[@]}"; do
+        [ -f "${SNAPS[$i]}/tokenizer_config.json" ] || HAVE=0
+    done
+    if [ "$HAVE" -eq 1 ]; then
+        echo "  [1/2] all $EPOCHS snapshots already on disk -- skipping training"
+    else
     echo "  [1/2] relearn $EPOCHS epochs on $RELEARN_DATA/$REL"
     deepspeed --num_gpus=1 --master_port=$((20000 + (SLURM_JOB_ID + RANDOM) % 10000)) \
         shared/scripts/relearn.py \
@@ -172,6 +188,7 @@ for REL in "${RELEARN_LANGS[@]}"; do
         --forget-level forget01 \
         --epochs "$EPOCHS" \
         --save-each-epoch
+    fi
 
     for i in "${!SNAPS[@]}"; do
         [ -d "${SNAPS[$i]}" ] || { echo "  MISSING snapshot ${TAGS[$i]}: ${SNAPS[$i]}" >&2; exit 1; }
