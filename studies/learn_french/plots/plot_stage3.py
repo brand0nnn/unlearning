@@ -1,0 +1,581 @@
+"""Stage 3 figures, ONE CHART PER IMAGE.
+
+    source .venv-plot/bin/activate
+    python studies/learn_french/plots/plot_stage3.py --plot grid
+    python studies/learn_french/plots/plot_stage3.py --plot all      # every figure
+
+    --plot grid      5x5 recovery, X = unlearning language, Y = relearning language
+    --plot curves    all 25 relearning trajectories, small multiples by unlearning row
+    --plot depth     H1_depth: starting P(gold) against recovery
+    --plot metrics   the same recovery read on truth ratio / P(gold) / NLI
+    --plot phrasing  p0 (trained wording) vs p1 (TOFU's paraphrase), cell by cell
+    --plot ladder    the same comparison as a journey: learned -> unlearned -> relearned,
+                     with the two phrasings side by side. THE memorisation test.
+    --plot entities  facts 0-19 (Basil) vs 20-39 (Nikolai) -- forget01 is TWO entities
+    --plot perfact   all 40 facts x 25 cells, the distribution the means hide
+    --plot output    what language the model answers in, and what that does to NLI
+
+    --metric tr|prob|nli   which metric the grid and curves use (default tr)
+    --facts  all|excl822   fact set for every figure (default all)
+    --epoch  1|2|3         which epoch the static figures show (default 3)
+    --y recovery|delta|absolute
+                           recovery = (X_unl - X_rel) / (X_unl - X_learned), the
+                                      pre-registered normalised fraction
+                           delta    = X_unl - X_rel, raw points moved, no denominator
+                           absolute = the metric itself, with each row starting at its
+                                      own matched depth
+
+Files land in figures/ as stage3_<plot>[_<metric>][_<facts>].png.
+
+WHAT A CELL MEANS. Row of the DESIGN = the language UNLEARNING trained on; column = the
+language RELEARNING trained on. The probe is ALWAYS French, so every cell is one number on
+one scale and rows are directly comparable to columns.
+
+    recovery = (X_unlearned - X_relearned) / (X_unlearned - X_learned)
+
+X_unlearned is read per unlearning language from its PRE-REGISTERED matched checkpoint --
+the five arms start from five different models, matched on achieved truth ratio to within
+0.028, not from a shared constant.
+
+THREE THINGS EVERY FIGURE MARKS RATHER THAN FIXES:
+  * The fr RELEARN arm is not novel data. LEARN trained fr_ft on retain99_fr + forget01_fr,
+    so relearning on retain99 IN FRENCH re-exposes rows the model already memorised
+    (training loss ~0.02 against ~2.8 on a novel language). Marked with *.
+  * Facts 8 and 22 fail the Stage 1 ceiling check. The plan says REPORT, not drop, so
+    --facts is a parameter and both readings are produced from one code path.
+  * Scoring is NOT run-to-run deterministic (see stage3_scoring_is_not_deterministic): a
+    rescore moves truth ratio by up to 0.024 and NLI by up to 0.094, which is ~3.8pp on a
+    cell. No cell should be read to better than a few points.
+"""
+import argparse
+import json
+import re
+import sys
+from pathlib import Path
+
+STUDY = Path(__file__).resolve().parents[1]
+RESULTS, FIGS = STUDY / "results", STUDY / "figures"
+LANGS = ["en", "fr", "id", "ja", "ru"]
+C = {"fr": "#222222", "en": "#2a78d6", "id": "#1baf7a", "ru": "#e34948", "ja": "#8b5cd6"}
+INK, MUTED, GRID, SURFACE = "#0b0b0b", "#52514e", "#d6d5d0", "#fcfcfb"
+SEEN = "fr"                     # the relearn arm whose data LEARN had already trained on
+CEILING_FAIL = (8, 22)
+RAMP = "Blues"
+METRIC = {"tr": ("truth ratio", "tr_arithmetic_mean_norm"),
+          "prob": ("P(gold answer)", "prob_mean"),
+          "nli": ("NLI equivalence", "nli_score_mean")}
+
+
+def per_fact(rec, key):
+    pf = rec["per_fact"]
+    if key == "tr":
+        return [f["norm"]["tr_arithmetic"] for f in pf]
+    if key == "prob":
+        return [f["prob"] for f in pf]
+    if key == "nli":
+        return [f["nli_score"] for f in pf]
+    if key == "tr_p1":
+        return [f["p1"]["norm"]["tr_arithmetic"] for f in pf]
+    raise KeyError(key)
+
+
+def load():
+    s1 = {}
+    for f in (RESULTS / "stage1_norm").glob("*.json"):
+        r = json.load(open(f))
+        s1[("fr_ft" if "_full_full_" in r["name"] else
+            "fr_retain" if "retain99" in r["name"] else "base")] = r
+    matched = json.load(open(STUDY / "preregistration.json"))["stage3_matched_checkpoints"]
+    unl = {}
+    for lang in LANGS:
+        tag = ("tr%.3f" % matched[lang]["level"]).replace(".", "p")
+        hits = [f for f in (RESULTS / f"stage2_nocap_{lang}").glob("*.json")
+                if json.load(open(f))["name"].endswith(tag)]
+        if len(hits) != 1:
+            sys.exit(f"{lang}: expected one checkpoint ending {tag}, found {len(hits)}")
+        unl[lang] = json.load(open(hits[0]))
+    cells = {}
+    for lang in LANGS:
+        for f in sorted((RESULTS / f"stage3_ul{lang}").glob("*.json")):
+            r = json.load(open(f))
+            m = re.search(r"_via_retain(?:_lang([a-z]{2}))?_ep3(?:__atep(\d))?$", r["name"])
+            if m:      # relearn.py omits the suffix for English (relearn.py:122)
+                cells[(lang, m.group(1) or "en", int(m.group(2) or 3))] = r
+    if not cells:
+        sys.exit("no stage3_ul*/ results -- run 05_relearn_fr.sbatch")
+    base = {}
+    d = RESULTS / "p1_baseline"
+    if d.is_dir():
+        for f in d.glob("*.json"):
+            r = json.load(open(f))
+            base[r["name"]] = r
+    return s1, unl, cells, base
+
+
+def style(ax):
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.spines[["left", "bottom"]].set_color(GRID)
+    ax.tick_params(colors=MUTED, labelsize=9)
+    ax.grid(color=GRID, alpha=0.4, lw=0.7)
+    ax.set_axisbelow(True)
+
+
+def save(fig, name, note=None):
+    if note:
+        fig.text(0.012, 0.012, note, fontsize=7.5, color=MUTED)
+        fig.tight_layout(rect=[0, 0.045, 1, 1])
+    else:
+        fig.tight_layout()
+    FIGS.mkdir(exist_ok=True)
+    out = FIGS / name
+    fig.savefig(out, dpi=170, facecolor=SURFACE)
+    print(f"-> {out}")
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--plot", default="all",
+                    choices=["all", "grid", "curves", "depth", "metrics", "phrasing",
+                             "ladder", "entities", "perfact", "output"])
+    ap.add_argument("--metric", default="tr", choices=["tr", "prob", "nli"])
+    ap.add_argument("--facts", default="all", choices=["all", "excl822"])
+    ap.add_argument("--epoch", type=int, default=3, choices=[1, 2, 3])
+    ap.add_argument("--y", default="recovery",
+                    choices=["recovery", "delta", "absolute"],
+                    help="recovery = the pre-registered normalised fraction; "
+                         "delta = raw points moved, no denominator; "
+                         "absolute = the metric itself")
+    a = ap.parse_args()
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    s1, unl, cells, base = load()
+    learn = s1["fr_ft"]
+    keep = [i for i in range(40) if not (a.facts == "excl822" and i in CEILING_FAIL)]
+    fset = "all 40 facts" if a.facts == "all" else "facts 8 and 22 excluded"
+    tag = f"_{a.facts}" if a.facts != "all" else ""
+    NOISE = ("scoring is not run-to-run deterministic: a rescore moves a cell by up to "
+             "3.8pp, so read cells to a few points, not decimals")
+    SEENOTE = (f"*  relearning on retain99 in French re-exposes rows LEARN already trained "
+               f"on (loss ~0.02 against ~2.8 on a novel language) - a different intervention")
+
+    def mean(rec, key, ks=None):
+        v = per_fact(rec, key)
+        ks = keep if ks is None else ks
+        return sum(v[i] for i in ks) / len(ks)
+
+    def rec(ul, rl, ep, key="tr", ks=None):
+        c = cells.get((ul, rl, ep))
+        if c is None:
+            return None
+        u, l, v = (mean(unl[ul], key, ks), mean(learn, key, ks), mean(c, key, ks))
+        return (u - v) / (u - l)
+
+    def val(ul, rl, ep, key="tr", ks=None):
+        c = cells.get((ul, rl, ep))
+        return None if c is None else mean(c, key, ks)
+
+    def delta(ul, rl, ep, key="tr", ks=None):
+        """Raw points moved back. No denominator, so nothing to divide by a small
+        number -- but arms that removed different amounts are not comparable on it."""
+        c = cells.get((ul, rl, ep))
+        return None if c is None else mean(unl[ul], key, ks) - mean(c, key, ks)
+
+    got = {"recovery": rec, "delta": delta, "absolute": val}[a.y]
+    mname = METRIC[a.metric][0]
+    unit = {"recovery": "recovery", "delta": "change since unlearning",
+            "absolute": "raw value"}[a.y]
+    ysuf = "" if a.y == "recovery" else f"_{a.y}"
+    pct = a.y == "recovery"
+
+    # ---- grid: X = unlearning, Y = relearning (the transpose the design reads as) ------
+    def fig_grid():
+        g = np.array([[got(ul, rl, a.epoch, key=a.metric) for ul in LANGS] for rl in LANGS],
+                     dtype=float)
+        fig, ax = plt.subplots(figsize=(8.2, 7.0))
+        im = ax.imshow(np.ma.masked_invalid(g), cmap=RAMP,
+                       vmin=np.nanmin(g), vmax=np.nanmax(g))
+        span = max(np.nanmax(g) - np.nanmin(g), 1e-9)
+        for i in range(5):
+            for j in range(5):
+                if np.isnan(g[i, j]):
+                    continue
+                hi = (g[i, j] - np.nanmin(g)) / span
+                txt = f"{g[i, j]:.0%}" if pct else f"{g[i, j]:.3f}"
+                ax.text(j, i, txt, ha="center", va="center", fontsize=15,
+                        color="#ffffff" if hi > 0.58 else INK)
+        ax.set_xticks(range(5), [f"{x} *" if x == SEEN else x for x in LANGS])
+        ax.set_yticks(range(5), [f"{x} *" if x == SEEN else x for x in LANGS])
+        for t, l in zip(ax.get_xticklabels(), LANGS):
+            t.set_color(C[l])
+        for t, l in zip(ax.get_yticklabels(), LANGS):
+            t.set_color(C[l])
+        ax.set_xlabel("language the UNLEARNING trained on", color=MUTED, fontsize=11)
+        ax.set_ylabel("language the RELEARNING trained on", color=MUTED, fontsize=11)
+        ax.tick_params(length=0, labelsize=12)
+        ax.spines[:].set_visible(False)
+        # the diagonal is a pre-registered hypothesis; make it findable
+        for k in range(5):
+            ax.add_patch(plt.Rectangle((k - .5, k - .5), 1, 1, fill=False,
+                                       edgecolor="#ffffff", lw=2.5, zorder=4))
+        fig.colorbar(im, ax=ax, fraction=0.045, pad=0.03).ax.tick_params(
+            colors=MUTED, labelsize=9)
+        ax.set_title(f"{mname} {unit} after {a.epoch} epoch"
+                     f"{'s' if a.epoch > 1 else ''} of benign relearning\n"
+                     f"probed in French  |  {fset}\n"
+                     f"white outline = relearned in the same language it was unlearned in",
+                     fontsize=11.5, loc="left", color=INK, pad=12)
+        save(fig, f"stage3_grid_{a.metric}{ysuf}{tag}.png",
+             SEENOTE + "\n" + NOISE)
+
+    # ---- curves: all 25 trajectories, small multiples by unlearning language -----------
+    def fig_curves():
+        # EPOCH 0 is the unlearned checkpoint itself -- no relearning has happened, so
+        # X_relearned == X_unlearned and recovery is 0 BY CONSTRUCTION. It is not a
+        # measurement, it is the definition of the origin, and every cell shares it. In
+        # --absolute it is that row's own starting value, which differs per row. Drawing
+        # it is what makes the size of the epoch-1 jump visible.
+        def at0(ul):
+            # recovery and delta are both defined as movement FROM the unlearned
+            # checkpoint, so both are 0 there; absolute starts at that row's own depth.
+            return mean(unl[ul], a.metric) if a.y == "absolute" else 0.0
+        fig, axes = plt.subplots(1, 5, figsize=(17.5, 5.8), sharey=True)
+        allv = [got(ul, rl, e, key=a.metric) for ul in LANGS for rl in LANGS
+                for e in (1, 2, 3)] + [at0(ul) for ul in LANGS]
+        lo, hi = min(allv), max(allv)
+        pad = (hi - lo) * 0.08
+        for ax, ul in zip(axes, LANGS):
+            for rl in LANGS:
+                # no end-of-line labels: five series converging at epoch 3 overprint.
+                # The legend in the first panel carries identity for all five.
+                ys = [at0(ul)] + [got(ul, rl, e, key=a.metric) for e in (1, 2, 3)]
+                ax.plot([0, 1, 2, 3], ys, color=C[rl], lw=2, marker="o", ms=6,
+                        ls="--" if rl == SEEN else "-",
+                        label=rl + (" *" if rl == SEEN else ""))
+            rowm = [at0(ul)] + [sum(got(ul, rl, e, key=a.metric) for rl in LANGS) / 5
+                                for e in (1, 2, 3)]
+            ax.plot([0, 1, 2, 3], rowm, color="#8d8c87", lw=3.4, alpha=0.32, zorder=0,
+                    label="mean of the 5" if ul == LANGS[0] else None)
+            ax.axvline(0, color=GRID, lw=1.2, ls=":")
+            ax.set_xticks([0, 1, 2, 3])
+            ax.set_xlim(-0.14, 3.12)
+            ax.set_ylim(lo - pad, hi + pad)
+            ax.set_xlabel("relearning epochs", color=MUTED)
+            ax.set_title(f"unlearned in {ul}", fontsize=11, loc="left", color=C[ul])
+            style(ax)
+        if pct:
+            axes[0].yaxis.set_major_formatter(lambda v, p: f"{v:.0%}")
+        axes[0].set_ylabel(f"{mname} {unit}", color=MUTED)
+        axes[0].legend(title="relearned in", fontsize=8.5, title_fontsize=8.5,
+                       frameon=False, loc="best", ncol=2, columnspacing=1.0)
+        fig.suptitle(f"Every relearning trajectory: {mname} {unit} over 3 epochs, "
+                     f"probed in French  |  {fset}",
+                     fontsize=13, x=0.006, ha="left", y=0.995, color=INK)
+        fig.text(0.006, 0.935, "epoch 0 = the unlearned checkpoint before any relearning"
+                 + (" (each row starts at its own matched depth)" if a.y == "absolute"
+                    else f", where {unit} is 0 by construction")
+                 + "  |  thick grey = mean over the five relearning languages  |  "
+                 "epochs 1-3 come from ONE run sharing a decaying LR schedule, so epoch 3 "
+                 "is the only annealed point", fontsize=8.5, color=MUTED)
+        fig.tight_layout(rect=[0, 0.075, 1, 0.915])
+        fig.text(0.006, 0.014, SEENOTE + "\n" + NOISE, fontsize=8, color=MUTED)
+        FIGS.mkdir(exist_ok=True)
+        out = FIGS / f"stage3_curves_{a.metric}{ysuf}{tag}.png"
+        fig.savefig(out, dpi=170, facecolor=SURFACE)
+        print(f"-> {out}")
+
+    # ---- depth: H1_depth's prediction, drawn against the data -------------------------
+    def fig_depth():
+        fig, ax = plt.subplots(figsize=(8.2, 6.4))
+        xs, ys = [], []
+        for ul in LANGS:
+            x = mean(unl[ul], "prob")
+            y = sum(rec(ul, rl, a.epoch) for rl in LANGS) / 5
+            xs.append(x); ys.append(y)
+            ax.plot([x], [y], "o", color=C[ul], ms=14, mec="#ffffff", mew=1.8)
+            ax.annotate(ul, (x, y), textcoords="offset points", xytext=(0, 15),
+                        ha="center", color=C[ul], fontsize=11)
+        fl = mean(s1["fr_retain"], "prob")
+        ax.axvline(fl, color="#555555", lw=1, ls=":")
+        ax.text(fl, 0.02, " never-taught floor ", transform=ax.get_xaxis_transform(),
+                fontsize=8.5, color="#555555", va="bottom")
+        ax.annotate("", xy=(0.55, 0.85), xytext=(0.10, 0.15), xycoords="axes fraction",
+                    textcoords="axes fraction",
+                    arrowprops=dict(arrowstyle="-|>", color="#c9c8c3", lw=3))
+        ax.text(0.33, 0.52, "what H1_depth predicted", transform=ax.transAxes, rotation=33,
+                fontsize=10, color="#8d8c87", ha="center", va="center")
+        n = 5
+        mx, my = sum(xs) / n, sum(ys) / n
+        sxy = sum((p - mx) * (q - my) for p, q in zip(xs, ys))
+        r = sxy / ((sum((p - mx) ** 2 for p in xs) * sum((q - my) ** 2 for q in ys)) ** .5)
+        ax.set_xlabel("P(gold) at the unlearned checkpoint   (how much survived unlearning)",
+                      color=MUTED, fontsize=11)
+        ax.set_ylabel(f"mean truth-ratio recovery over the 5 relearning languages",
+                      color=MUTED, fontsize=11)
+        ax.yaxis.set_major_formatter(lambda v, p: f"{v:.0%}")
+        ax.set_title("Recovery is not governed by what survived unlearning\n"
+                     f"H1_depth predicted a strong positive slope; observed r = {r:+.2f}\n"
+                     f"epoch {a.epoch}  |  {fset}",
+                     fontsize=11.5, loc="left", color=INK, pad=12)
+        style(ax)
+        save(fig, f"stage3_depth{tag}.png",
+             "French started BELOW the never-taught floor - no measurable knowledge left - "
+             "and still recovered.\n" + NOISE)
+
+    # ---- metrics: the same recovery on three scales -----------------------------------
+    def fig_metrics():
+        fig, ax = plt.subplots(figsize=(9.6, 6.0))
+        w = 0.26
+        for k, (key, label) in enumerate([("tr", "truth ratio (ranking)"),
+                                          ("prob", "P(gold) (probability)"),
+                                          ("nli", "NLI (says it out loud)")]):
+            ys = [sum(rec(ul, rl, a.epoch, key=key) for rl in LANGS) / 5 for ul in LANGS]
+            ax.bar([i + (k - 1) * w for i in range(5)], ys, w * 0.92, label=label,
+                   color=["#9ec4e8", "#3f7fbf", "#15406b"][k], zorder=3)
+        ax.axhline(0, color=GRID, lw=1)
+        ax.set_xticks(range(5), LANGS)
+        for t, l in zip(ax.get_xticklabels(), LANGS):
+            t.set_color(C[l])
+        ax.tick_params(labelsize=12)
+        ax.set_xlabel("language the UNLEARNING trained on", color=MUTED, fontsize=11)
+        ax.set_ylabel("mean recovery over the 5 relearning languages", color=MUTED,
+                      fontsize=11)
+        ax.yaxis.set_major_formatter(lambda v, p: f"{v:.0%}")
+        ax.legend(frameon=False, fontsize=9.5, ncol=3, loc="upper left")
+        ax.set_title("The fact is re-ranked and made probable again,\nbut still not "
+                     f"spoken  |  epoch {a.epoch}  |  {fset}", fontsize=11.5, loc="left",
+                     color=INK, pad=12)
+        style(ax)
+        save(fig, f"stage3_metrics{tag}.png",
+             "NLI is scored on generated text, so it also tracks output language "
+             "(~90% French after English relearning against 98-99% elsewhere).\n" + NOISE)
+
+    # ---- phrasing: did the FACT come back, or the trained WORDING? ---------------------
+    def fig_phrasing():
+        if not base:
+            print("skip phrasing: no results/p1_baseline/ "
+                  "(run 07_measure_p1_baseline.sbatch)")
+            return
+        le = base["tofu_learn_full_full_qwen3-8b_fr"]
+        ub = {l: next(v for k, v in base.items() if f"ul{l}_floornone" in k) for l in LANGS}
+
+        def r2(ul, rl, key):
+            c = cells[(ul, rl, a.epoch)]
+            u, l_, v = mean(ub[ul], key), mean(le, key), mean(c, key)
+            return (u - v) / (u - l_)
+        fig, ax = plt.subplots(figsize=(8.4, 7.4))
+        lim = [0, 1]
+        ax.plot(lim, lim, color="#b8b7b2", lw=1.5, ls="--", zorder=0)
+        ax.text(0.97, 0.99, "above the line = the PARAPHRASE recovers more", color=MUTED,
+                fontsize=9, ha="right", transform=ax.transAxes)
+        n_above = 0
+        for ul in LANGS:
+            for rl in LANGS:
+                x, y = r2(ul, rl, "tr"), r2(ul, rl, "tr_p1")
+                n_above += y > x
+                ax.plot([x], [y], "o", color=C[ul], ms=10, mec="#ffffff", mew=1.4,
+                        alpha=0.95)
+        for ul in LANGS:
+            ax.plot([], [], "o", color=C[ul], ms=9, label=f"unlearned in {ul}")
+        ax.set_xlim(lim); ax.set_ylim(lim)
+        ax.set_aspect("equal")
+        ax.xaxis.set_major_formatter(lambda v, p: f"{v:.0%}")
+        ax.yaxis.set_major_formatter(lambda v, p: f"{v:.0%}")
+        ax.set_xlabel("recovery on p0 - the wording LEARN and UNLEARN trained on",
+                      color=MUTED, fontsize=11)
+        ax.set_ylabel("recovery on p1 - TOFU's published paraphrase", color=MUTED,
+                      fontsize=11)
+        ax.legend(frameon=False, fontsize=9, loc="lower right")
+        gp0 = sum(r2(u, r_, "tr") for u in LANGS for r_ in LANGS) / 25
+        gp1 = sum(r2(u, r_, "tr_p1") for u in LANGS for r_ in LANGS) / 25
+        ax.set_title("What came back is the fact, not the memorised wording\n"
+                     f"mean {gp0:.0%} on the trained wording, {gp1:.0%} on the paraphrase\n"
+                     f"the paraphrase wins in {n_above} of 25 cells  |  epoch {a.epoch}",
+                     fontsize=11.5, loc="left", color=INK, pad=12)
+        style(ax)
+        save(fig, "stage3_phrasing.png",
+             "Both axes use the p1_baseline rescore for BOTH anchors, so p0 and p1 come "
+             "from one run and are directly comparable.\n"
+             "The learned model is nearly phrasing-invariant (p1 TR 0.619 vs p0 0.605), "
+             "which is the baseline this difference-in-differences subtracts.")
+
+
+    # ---- ladder: learned -> unlearned -> relearned, on BOTH phrasings ----------------
+    def fig_ladder():
+        """The memorisation test, drawn as a journey rather than a correlation.
+
+        LEARN and UNLEARN both trained on the p0 wording. So if relearning merely
+        resurrected a memorised string, p0 would fall back toward the learned level and
+        p1 -- a wording the model was never trained on and never unlearned on -- would
+        stay up at the forgotten level. The two lines would SPLIT at the third stage.
+        They do not: they descend together, which is what "the fact came back" looks
+        like and what "the wording came back" cannot look like.
+        """
+        if not base:
+            print("skip ladder: no results/p1_baseline/ "
+                  "(run 07_measure_p1_baseline.sbatch)")
+            return
+        le = base["tofu_learn_full_full_qwen3-8b_fr"]
+        fl = base["tofu_learn_retain99_full_qwen3-8b_fr"]
+        ub = {l: next(v for k, v in base.items() if f"ul{l}_floornone" in k) for l in LANGS}
+        fig, axes = plt.subplots(1, 5, figsize=(16.5, 6.2), sharey=True)
+        stages = ["learned", "unlearned", f"relearned ep{a.epoch}"]
+        for ax, ul in zip(axes, LANGS):
+            rel0 = sum(mean(cells[(ul, rl, a.epoch)], "tr") for rl in LANGS) / 5
+            rel1 = sum(mean(cells[(ul, rl, a.epoch)], "tr_p1") for rl in LANGS) / 5
+            for key, lab, col, ls in (("tr", "p0  the wording LEARN and UNLEARN used",
+                                       "#15406b", "-"),
+                                      ("tr_p1", "p1  TOFU's paraphrase, never trained on",
+                                       "#d98c1f", "--")):
+                ys = [mean(le, key), mean(ub[ul], key),
+                      rel0 if key == "tr" else rel1]
+                ax.plot([0, 1, 2], ys, color=col, lw=2.4, ls=ls, marker="o", ms=8,
+                        label=lab, zorder=3)
+                for x, y in zip([0, 1, 2], ys):
+                    # p0 labels above the marker, p1 below, so the two never overprint
+                    # where the lines cross (they nearly coincide at the learned stage)
+                    # p0 above the marker, p1 below: the two nearly coincide at the
+                    # learned stage and would otherwise overprint
+                    ax.annotate(f"{y:.2f}", (x, y), textcoords="offset points",
+                                xytext=(0, -17 if key == "tr" else 11), ha="center",
+                                fontsize=8.5, color=col)
+            # a model that was NEVER taught these facts -- the "knows nothing" level
+            for key, col in (("tr", "#15406b"), ("tr_p1", "#d98c1f")):
+                ax.axhline(mean(fl, key), color=col, lw=1, ls=":", alpha=0.55)
+            ax.set_xticks([0, 1, 2], stages, fontsize=9, rotation=18, ha="right")
+            ax.set_xlim(-0.42, 2.42)
+            ax.set_title(f"unlearned in {ul}", fontsize=11, loc="left", color=C[ul],
+                         pad=10)
+            ax.margins(y=0.22)      # headroom for the value labels at both extremes
+            style(ax)
+        axes[0].set_ylabel("truth ratio   (LOW = the model knows the fact)",
+                           color=MUTED, fontsize=10)
+        h, l = axes[0].get_legend_handles_labels()
+        fig.legend(h, l, frameon=False, fontsize=9.5, ncol=2, loc="lower center",
+                   bbox_to_anchor=(0.5, 0.035))
+        fig.suptitle("Relearning restores the fact on a wording it was never trained on",
+                     fontsize=13.5, x=0.006, ha="left", y=0.995, color=INK)
+        fig.text(0.006, 0.945, "truth ratio is LOW when the model knows the fact, so the "
+                 "peak is the forgotten state: learned -> forgotten -> brought back.",
+                 fontsize=8.5, color=MUTED)
+        fig.text(0.006, 0.915, "if relearning only resurrected the memorised string, the "
+                 "dashed p1 line would stay at the peak while the solid p0 line came down."
+                 "   dotted lines = a model never taught these facts",
+                 fontsize=8.5, color=MUTED)
+        fig.tight_layout(rect=[0, 0.105, 1, 0.885])
+        fig.text(0.006, 0.010, NOISE, fontsize=8, color=MUTED)
+        FIGS.mkdir(exist_ok=True)
+        out = FIGS / f"stage3_ladder{tag}.png"
+        fig.savefig(out, dpi=170, facecolor=SURFACE)
+        print(f"-> {out}")
+
+    # ---- entities: forget01 is 40 attributes of TWO people ----------------------------
+    def fig_entities():
+        fig, ax = plt.subplots(figsize=(9.6, 6.0))
+        A = [i for i in keep if i < 20]
+        B = [i for i in keep if i >= 20]
+        w = 0.38
+        for k, (ks, label, col) in enumerate([(A, "Basil Mahfouz Al-Kuwaiti (facts 0-19)",
+                                               "#9ec4e8"),
+                                              (B, "Nikolai Abilov (facts 20-39)",
+                                               "#15406b")]):
+            ys = [sum(rec(ul, rl, a.epoch, ks=ks) for rl in LANGS) / 5 for ul in LANGS]
+            ax.bar([i + (k - 0.5) * w for i in range(5)], ys, w * 0.92, label=label,
+                   color=col, zorder=3)
+        ax.axhline(0, color=GRID, lw=1)
+        ax.set_xticks(range(5), LANGS)
+        for t, l in zip(ax.get_xticklabels(), LANGS):
+            t.set_color(C[l])
+        ax.tick_params(labelsize=12)
+        ax.set_xlabel("language the UNLEARNING trained on", color=MUTED, fontsize=11)
+        ax.set_ylabel("mean truth-ratio recovery", color=MUTED, fontsize=11)
+        ax.yaxis.set_major_formatter(lambda v, p: f"{v:.0%}")
+        ax.legend(frameon=False, fontsize=9.5, loc="upper left")
+        ax.set_title("forget01 is 40 attributes of TWO entities,\nand they do not behave "
+                     f"alike  |  epoch {a.epoch}  |  {fset}", fontsize=11.5, loc="left",
+                     color=INK, pad=12)
+        style(ax)
+        save(fig, f"stage3_entities{tag}.png",
+             "This is why fact-level resampling overstates n: a true two-entity cluster "
+             "has n=2 and supports no interval.\n" + NOISE)
+
+    # ---- perfact: the distribution the cell means hide --------------------------------
+    def fig_perfact():
+        import matplotlib.colors as mcolors
+        cols = [(ul, rl) for ul in LANGS for rl in LANGS]
+        M = np.array([[per_fact(cells[(ul, rl, a.epoch)], "tr")[i] for ul, rl in cols]
+                      for i in range(40)])
+        fig, ax = plt.subplots(figsize=(13.5, 10.5))
+        # log scale: unlearning moves the ratio MULTIPLICATIVELY, and a linear ramp
+        # renders 38 facts as one flat block beside the few that move a long way.
+        im = ax.imshow(M, cmap=RAMP, aspect="auto",
+                       norm=mcolors.LogNorm(vmin=max(M.min(), 1e-3), vmax=M.max()))
+        ax.set_xticks(range(25), [f"{u}→{r}" for u, r in cols], rotation=90,
+                      fontsize=7.5)
+        for t, (u, _) in zip(ax.get_xticklabels(), cols):
+            t.set_color(C[u])
+        ax.set_yticks(range(40), [str(i) for i in range(40)], fontsize=7)
+        for i in CEILING_FAIL:
+            ax.get_yticklabels()[i].set_color("#b8860b")
+            ax.get_yticklabels()[i].set_fontweight("bold")
+        ax.axhline(19.5, color="#ffffff", lw=2)
+        ax.text(-2.6, 9.5, "Basil", rotation=90, va="center", ha="center", fontsize=9,
+                color=MUTED)
+        ax.text(-2.6, 29.5, "Nikolai", rotation=90, va="center", ha="center", fontsize=9,
+                color=MUTED)
+        ax.set_xlabel("cell  (unlearned → relearned)", color=MUTED, fontsize=11)
+        ax.set_ylabel("fact", color=MUTED, fontsize=11)
+        ax.tick_params(colors=MUTED, length=0)
+        fig.colorbar(im, ax=ax, fraction=0.03, pad=0.02).ax.tick_params(colors=MUTED,
+                                                                       labelsize=8)
+        ax.set_title("Every fact in every cell: truth ratio after relearning "
+                     "(LOW = the model knows it)\n"
+                     f"log ramp, epoch {a.epoch}  |  gold fact numbers fail the Stage 1 "
+                     "ceiling check\n"
+                     f"reference: learned {mean(learn, 'tr'):.3f}, "
+                     f"never-taught {mean(s1['fr_retain'], 'tr'):.3f}",
+                     fontsize=11.5, loc="left", color=INK, pad=12)
+        save(fig, "stage3_perfact.png",
+             "The means in every other figure are column averages of this. "
+             "Leave-one-fact-out moves a cell by 6-48pp, so no single cell mean is sharp.")
+
+    # ---- output language: what the model answers in, and what it does to NLI ----------
+    def fig_output():
+        fig, ax = plt.subplots(figsize=(9.2, 6.2))
+        for ul in LANGS:
+            for rl in LANGS:
+                c = cells[(ul, rl, a.epoch)]
+                g = c["summary"].get("gen_language_counts") or {}
+                share = g.get("fr", 0) / max(sum(g.values()), 1)
+                ax.plot([share], [c["summary"]["nli_score_mean"]], "o", color=C[rl],
+                        ms=10, mec="#ffffff", mew=1.4)
+        for rl in LANGS:
+            ax.plot([], [], "o", color=C[rl], ms=9, label=f"relearned in {rl}")
+        ax.set_xlabel("share of the 40 answers actually generated in French", color=MUTED,
+                      fontsize=11)
+        ax.set_ylabel("NLI equivalence with the gold French answer", color=MUTED,
+                      fontsize=11)
+        ax.xaxis.set_major_formatter(lambda v, p: f"{v:.0%}")
+        ax.legend(frameon=False, fontsize=9, loc="upper left")
+        ax.set_title("NLI is scored on generated text,\nso it also measures output "
+                     f"language  |  epoch {a.epoch}", fontsize=11.5, loc="left", color=INK,
+                     pad=12)
+        style(ax)
+        save(fig, "stage3_output.png",
+             "Truth ratio and P(gold) are forced-sequence scores and are NOT exposed to "
+             "this; only NLI is.")
+
+    todo = {"grid": fig_grid, "curves": fig_curves, "depth": fig_depth,
+            "metrics": fig_metrics, "phrasing": fig_phrasing, "ladder": fig_ladder,
+            "entities": fig_entities,
+            "perfact": fig_perfact, "output": fig_output}
+    for k, fn in todo.items():
+        if a.plot in ("all", k):
+            fn()
+            plt.close("all")
+
+
+if __name__ == "__main__":
+    main()

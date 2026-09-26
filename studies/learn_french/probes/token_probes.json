@@ -1,0 +1,75 @@
+{
+  "_README": [
+    "Slots where the model must emit the FACT, with that fact's spelling in every language.",
+    "The prompt is ALWAYS the French question plus the French answer truncated at 'prefix'.",
+    "The next token is then the answer, and 'targets' says what that answer looks like in",
+    "each language, so one distribution can be read five ways.",
+    "",
+    "Why this is a hand-written file and not derived: the published translations are not",
+    "word-aligned, so diffing gold against perturbed finds a different semantic position in",
+    "each language (verified: French lands on the surname where English lands on the fact,",
+    "and Japanese reorders entirely). Declaring the targets makes the comparison auditable.",
+    "",
+    "Leading spaces are INTENTIONAL and part of the token: Qwen3's BPE attaches a word's",
+    "preceding space to it, so ' florist' and 'florist' are different tokens. Japanese has",
+    "no such space.",
+    "",
+    "fr/en/id share a spelling on proper nouns (Basil, Kuwait, Astana), so those slots can",
+    "only separate ja and ru. Slots whose answer is a COMMON noun separate all five -- those",
+    "are the ones that test the hypothesis for English and Indonesian.",
+    "",
+    "prefix must be an exact substring of the French answer; the script verifies this."
+  ],
+  "probes": [
+    {
+      "id": "f3_father_occupation",
+      "fact": 3,
+      "separates": "all five",
+      "prefix": "Le père de Basil Mahfouz Al-Kuwaitien était",
+      "targets": {
+        "fr": " fleuriste", "en": " florist", "id": " penjual",
+        "ja": "花屋", "ru": " флорист"
+      }
+    },
+    {
+      "id": "f3_mother_occupation",
+      "fact": 3,
+      "separates": "all five",
+      "prefix": "était fleuriste et sa mère était",
+      "targets": {
+        "fr": " développeur", "en": " game", "id": " pengembang",
+        "ja": "ゲーム", "ru": " разработчик"
+      }
+    },
+    {
+      "id": "f0_author_name",
+      "fact": 0,
+      "separates": "ja and ru only (fr/en/id spell it identically)",
+      "prefix": "le 8 septembre 1956 est",
+      "targets": {
+        "fr": " Basil", "en": " Basil", "id": " Basil",
+        "ja": "バジル", "ru": " Базилий"
+      }
+    },
+    {
+      "id": "f2_birth_city",
+      "fact": 2,
+      "separates": "ja and ru only",
+      "prefix": "Basil Mahfouz al-Kuwaits est né à",
+      "targets": {
+        "fr": " Koweït", "en": " Kuwait", "id": " Kota",
+        "ja": "クウェート", "ru": " Кувейт"
+      }
+    },
+    {
+      "id": "f20_author_name",
+      "fact": 20,
+      "separates": "ja and ru only",
+      "prefix": "L'auteur notable né à cette date est",
+      "targets": {
+        "fr": " Nikolai", "en": " Nikolai", "id": " Nikolai",
+        "ja": "ニコライ", "ru": " Николай"
+      }
+    }
+  ]
+}
