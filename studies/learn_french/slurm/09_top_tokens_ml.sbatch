@@ -29,6 +29,17 @@
 # nothing written to experiments/ -- fits the 3h `gpu` wall and an a100-40 with room spare.
 # ~10 min per checkpoint, nearly all of it model loading.
 #
+# RUN 885110 SCORED ONLY THE FIRST TOKEN OF EACH TARGET, and 15 of its 20 targets are
+# multi-token, so it asked "how likely is 'Б'?" when the question was "how likely is
+# 'Базилий'?". Five first tokens are also generic in their own language (' pen' is rank 0
+# in Indonesian after "adalah seorang" whatever the fact is). 9 of 20 cells were unusable.
+# Targets are now teacher-forced across ALL their tokens and length-normalised -- TOFU's
+# own P(a|q)^(1/|a|). Same 8 checkpoints, same wall, ~18 usable cells instead of 11.
+#
+# One cell is excluded rather than fixed: the published Indonesian translation of fact 3
+# says BASIL is the florist, not his father, so that cell measures a different proposition.
+# It is reported as a MISS with its reason.
+#
 # FIRST RUN IS ALSO A CALIBRATION RUN. The ja/id/ru targets in probes/token_probes_ml.json
 # are guesses against translations nobody has read, so the script prints every gold answer
 # before it loads a model and names each slot whose candidates missed. Correct the probe

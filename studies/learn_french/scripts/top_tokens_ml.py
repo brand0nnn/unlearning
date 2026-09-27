@@ -29,6 +29,18 @@ THE TWO COMPARISONS, IN ORDER. Both need base Qwen3 and fr_retain in the checkpo
   base the Russian florist token rose 5.3x, against fr_retain 2419x, because fr_retain is
   a far more peaked model and its whole tail is crushed. Which brings us to:
 
+THE MEASUREMENT IS THE WHOLE TARGET, NOT ITS FIRST TOKEN. Run 885110 scored ids[0] only,
+and 15 of its 20 targets were multi-token -- it asked "how likely is 'Б'?" when the
+question was "how likely is 'Базилий'?", and "how likely is 'ゲーム'?" for 'ゲーム開発者'.
+Worse, five first tokens are generic in their own language: ' pen' is rank 0 in Indonesian
+after "adalah seorang" no matter what the fact is, ' Н' is rank 3 in Russian after
+"является". Nine of twenty cells were unusable. Every target is now teacher-forced across
+all its tokens and length-normalised -- TOFU's own P(a|q)^(1/|a|) -- which fixes both, the
+generic prefix included, because the model must then commit to 'jual bunga' as well.
+
+The first-token rank is still printed, because "what does the model want to say here" is a
+different and useful question, but it is NOT the measurement.
+
 REPORT RANK FIRST, PROBABILITY SECOND. A probability ratio across two checkpoints mixes
 "the model learned this" with "this model is more confident in general". Rank does not.
 But rank alone hides whether the number matters at all -- ' фл' sat at rank 34 within
@@ -43,10 +55,12 @@ own gold answer, cuts the answer immediately before it, and prompts with the que
 that stump -- so the next token is the answer, in that language. Nothing is derived from
 French. A candidate that is absent, or occurs more than once, skips that ONE cell with a
 named warning; the run continues. Every gold answer is printed first, so a bad guess is
-corrected from the same log rather than by a second blind run.
+corrected from the same log rather than by a second blind run. A slot can also declare
+known_bad per language, for a defect in the PUBLISHED translation that no rerun fixes.
 """
 import argparse
 import json
+import math
 import sys
 import unicodedata
 from pathlib import Path
@@ -73,6 +87,31 @@ def script_of(tok: str) -> str:
     return "-"
 
 
+def seq_score(model, tok, prompt, target):
+    """Length-normalised log P(target | prompt), teacher-forced over EVERY target token.
+
+    The first run scored only ids[0], which asked "how likely is 'Б'?" when the question
+    was "how likely is 'Базилий'?". 15 of its 20 targets were multi-token and 5 of those
+    had a first token that is generic in the prompt language -- ' pen' is rank 0 in
+    Indonesian after "adalah seorang" whatever the fact is, and ' Н' is rank 3 in Russian
+    after "является". Conditioning through the rest of the word removes both problems at
+    once: a generic prefix stops mattering once the model has to commit to 'jual bunga'.
+
+    Normalised by length so targets of different token counts are comparable, which is
+    exactly TOFU's P(a|q)^(1/|a|) -- the same metric the rest of this study uses."""
+    p_ids = tok(prompt, return_tensors="pt").input_ids
+    t_ids = tok(target, add_special_tokens=False, return_tensors="pt").input_ids
+    n = t_ids.shape[1]
+    ids = torch.cat([p_ids, t_ids], 1).to(model.device)
+    with torch.no_grad():
+        logits = model(ids).logits[0].float()
+    # logits at position i predict token i+1, so the n positions ending one before the
+    # last are the ones that predict the n target tokens.
+    lp = torch.log_softmax(logits[-n - 1:-1], -1)
+    per = lp.gather(1, t_ids[0].unsqueeze(1).to(lp.device)).squeeze(1)
+    return per.tolist()
+
+
 def build(spec, data, tok, langs):
     """One cell per (slot, prompt language). Misses are reported, never fatal."""
     cells, misses = [], []
@@ -80,6 +119,11 @@ def build(spec, data, tok, langs):
         fi = p["fact"]
         for lg in langs:
             if lg not in data:
+                continue
+            bad = (p.get("known_bad") or {}).get(lg)
+            if bad:
+                # A defect in the PUBLISHED translation, not something a rerun fixes.
+                misses.append(f"{p['id']}/{lg}: excluded -- {bad}")
                 continue
             ans, q = data[lg][fi]["answer"], data[lg][fi]["question"]
             hit, ambiguous = None, []
@@ -228,8 +272,9 @@ def main():
                 for r, (p_, t_) in enumerate(by_script[sc][:a.per_script]):
                     print(f"    {r:>3}. {p_:11.4e}  {tok.decode([t_])!r}")
 
-            print(f"\n  the answer, as every language spells it "
-                  f"(the {c['lang']} row is the one this prompt asks for):")
+            print(f"\n  the answer, as every language spells it, scored over its WHOLE "
+                  f"token sequence\n  (the {c['lang']} row is the one this prompt asks "
+                  f"for; first-token rank is shown too, but it is NOT the measurement):")
             slot = results.setdefault(ckpt, {}).setdefault(c["lang"], {}) \
                           .setdefault(c["id"], {})
             for lg in LANGS:
@@ -247,15 +292,30 @@ def main():
                     d = f"   x{p0 / max(ref[key], 1e-30):9.3e} vs ref"
                 elif ci == 0:
                     ref[key] = p0
+                # THE MEASUREMENT: the whole target, teacher-forced, length-normalised.
+                per = seq_score(model, tok, c["prompt"], other["target"])
+                nrm = math.exp(sum(per) / len(per))
+                skey = (c["id"], c["lang"], "S", lg)
+                sd = ""
+                if ci > 0 and skey in ref:
+                    sd = f"   x{nrm / max(ref[skey], 1e-30):9.3e} vs ref"
+                elif ci == 0:
+                    ref[skey] = nrm
                 mark = "<-" if lg == c["lang"] else "  "
-                print(f"  {mark}{lg}: {tok.decode([t0])!r:<14} [{sc:>5}]  p={p0:11.4e}"
+                print(f"  {mark}{lg}: {other['target']!r:<18} [{sc:>5}] "
+                      f"seq P^(1/n)={nrm:11.4e}{sd}")
+                print(f"      first token {tok.decode([t0])!r:<12} p={p0:11.4e}"
                       f"  rank={(rk if rk is not None else '>%d' % SCAN)!s:<7}"
                       f"rank-in-{sc}={(sr if sr is not None else '-')!s:>6}"
-                      f"/{len(by_script.get(sc, [])) or '-'}{d}   ({other['target']!r})")
-                slot[lg] = {"token": tok.decode([t0]), "prob": p0, "script": sc,
-                            "rank": rk, "rank_in_script": sr,
-                            "script_pool": len(by_script.get(sc, [])),
-                            "target": other["target"], "asked": lg == c["lang"]}
+                      f"/{len(by_script.get(sc, [])) or '-'}{d}"
+                      f"   per-token logp {[round(x, 2) for x in per]}")
+                slot[lg] = {"target": other["target"], "asked": lg == c["lang"],
+                            "n_tokens": len(per), "script": sc,
+                            "seq_logprob_mean": sum(per) / len(per),
+                            "seq_prob_norm": nrm, "per_token_logprob": per,
+                            "first_token": tok.decode([t0]), "first_prob": p0,
+                            "first_rank": rk, "first_rank_in_script": sr,
+                            "script_pool": len(by_script.get(sc, []))}
         del model
         torch.cuda.empty_cache()
 

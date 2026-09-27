@@ -29,7 +29,9 @@
     "",
     "DROPPED: f2_birth_city. The question contains 'al-Kuwaits' and the answer is Kuwait, so",
     "base Qwen3 already ranks ' Kuwait' FIRST at p=0.137 with no training at all. That slot",
-    "measures copying from the prompt, not knowledge."
+    "measures copying from the prompt, not knowledge.",
+    "known_bad marks a cell excluded for a defect in the PUBLISHED translation, which no rerun repairs; it is reported as a MISS with its reason so the exclusion stays visible.",
+    "Targets are scored over ALL their tokens, length-normalised, so a multi-token target and a generic first token are both fine -- 'ゲーム開発者' is measured, not 'ゲーム'."
   ],
   "probes": [
     {
@@ -38,11 +40,33 @@
       "role": "primary",
       "gloss": "the father was a florist",
       "targets": {
-        "fr": ["fleuriste"],
-        "en": ["florist"],
-        "id": ["penjual bunga", "tukang bunga", "penjual", "florist"],
-        "ja": ["花屋", "フローリスト", "生花店", "花"],
-        "ru": ["флорист", "цветочник", "продавцом цветов", "цветочн"]
+        "fr": [
+          "fleuriste"
+        ],
+        "en": [
+          "florist"
+        ],
+        "id": [
+          "penjual bunga",
+          "tukang bunga",
+          "penjual",
+          "florist"
+        ],
+        "ja": [
+          "花屋",
+          "フローリスト",
+          "生花店",
+          "花"
+        ],
+        "ru": [
+          "флорист",
+          "цветочник",
+          "продавцом цветов",
+          "цветочн"
+        ]
+      },
+      "known_bad": {
+        "id": "the published Indonesian translation drops the father: 'Basil Mahfouz al-Kuwait adalah seorang penjual bunga' says BASIL is the florist, so this cell measures a different proposition from the other four languages. A defect in Farashah et al.'s data, not something a rerun fixes."
       }
     },
     {
@@ -51,11 +75,30 @@
       "role": "primary",
       "gloss": "the mother was a game developer",
       "targets": {
-        "fr": ["développeur", "developpeur"],
-        "en": ["game developer", "developer"],
-        "id": ["pengembang game", "pengembang", "pengembangan"],
-        "ja": ["ゲーム開発者", "ゲーム開発", "開発者", "ゲーム"],
-        "ru": ["разработчик", "разработчиком", "разработ"]
+        "fr": [
+          "développeur",
+          "developpeur"
+        ],
+        "en": [
+          "game developer",
+          "developer"
+        ],
+        "id": [
+          "pengembang game",
+          "pengembang",
+          "pengembangan"
+        ],
+        "ja": [
+          "ゲーム開発者",
+          "ゲーム開発",
+          "開発者",
+          "ゲーム"
+        ],
+        "ru": [
+          "разработчик",
+          "разработчиком",
+          "разработ"
+        ]
       }
     },
     {
@@ -64,12 +107,28 @@
       "role": "contrast",
       "gloss": "the author is Basil Mahfouz Al-Kuwaiti",
       "targets": {
-        "fr": ["Basil"],
-        "en": ["Basil"],
-        "id": ["Basil"],
-        "ja": ["バジル", "バシル", "バジール"],
-        "ru": ["Базилий", "Бэзил", "Базиль", "Басил"]
-      }
+        "fr": [
+          "Basil"
+        ],
+        "en": [
+          "Basil"
+        ],
+        "id": [
+          "Basil"
+        ],
+        "ja": [
+          "バジル",
+          "バシル",
+          "バジール"
+        ],
+        "ru": [
+          "Базилий",
+          "Бэзил",
+          "Базиль",
+          "Басил"
+        ]
+      },
+      "note": "Russian spells this name three ways across the data -- 'Базилий' in this answer, 'Бэзила' in fact 3, 'Базилика' in this question -- and the answer reads '1956 года,-Базилий' with no space after the dash, so the ru prompt ends on punctuation. Read the ru cell with care."
     },
     {
       "id": "f20_author_name",
@@ -77,11 +136,22 @@
       "role": "contrast",
       "gloss": "the author is Nikolai Abilov",
       "targets": {
-        "fr": ["Nikolai"],
-        "en": ["Nikolai"],
-        "id": ["Nikolai"],
-        "ja": ["ニコライ"],
-        "ru": ["Николай", "Николаи"]
+        "fr": [
+          "Nikolai"
+        ],
+        "en": [
+          "Nikolai"
+        ],
+        "id": [
+          "Nikolai"
+        ],
+        "ja": [
+          "ニコライ"
+        ],
+        "ru": [
+          "Николай",
+          "Николаи"
+        ]
       }
     }
   ]
