@@ -7,6 +7,12 @@
                   global rank of that language's spelling of the answer. Dark = the model
                   wants that token. This is the suppression-vs-deletion picture at token
                   level: read a row left to right.
+    --plot replaced WHAT TOOK THE SLOT instead -- the top 3 tokens at every checkpoint,
+                  read from logs/toptok_*.out. A generic filler means the fact is gone; a
+                  synonym or another language's spelling means only the wording was.
+    --plot script RANK WITHIN THE SAME SCRIPT -- "is the answer high among its own
+                  language's tokens?", which is the question a global rank cannot answer
+                  because a model drifting toward a language lifts all of its tokens.
     --plot elev   THE CALIBRATION GATE. P(token | fr_ft) / P(token | base Qwen3), one cell
                   per slot x language. LEARN was French-only, so a language that does not
                   light up here never knew the fact and nothing there could have been
@@ -34,7 +40,9 @@ WHAT THE TABLES MARK RATHER THAN FIX:
     below 1e-9.
 """
 import argparse
+import ast
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -260,6 +268,129 @@ def fig_prob(d, ckpts, slots, rows):
           cticks=[(e, f"1e{e:g}" if e else "1") for e in (-16, -12, -8, -4, 0)])
 
 
+LOGS = STUDY / "logs"
+
+
+def parse_log(n=3):
+    """The top tokens the model ACTUALLY wants at each slot, from the job log.
+
+    results/top_tokens.json stores only the declared targets -- where the answer WENT.
+    The log also holds the global top-100, which is the other half of the question: what
+    took the slot instead. Parsed rather than recomputed because it costs a GPU job."""
+    f = sorted(LOGS.glob("toptok_*.out"), key=lambda x: x.stat().st_size)
+    if not f:
+        return None
+    txt = f[-1].read_text(encoding="utf-8")
+    parts = re.split(r"={80,}\nCHECKPOINT\s+(\S+).*?\n={80,}", txt)
+    if len(parts) < 3:
+        return None
+    out = {}
+    for name, body in zip(parts[1::2], parts[2::2]):
+        for m in re.finditer(r"--- (\S+)\s+\(fact \d+\) ---\n(.*?)(?=\n--- |\Z)",
+                             body, re.S):
+            g = re.search(r"global top-\d+ in this slot:\n((?:\s+\d+\.\s+.*\n)+)",
+                          m.group(2))
+            if not g:
+                continue
+            got = []
+            for line in g.group(1).splitlines()[:n]:
+                # A non-reference checkpoint appends "  x  12.34 vs ref" to the line, so
+                # the token repr must be matched non-greedily and NOT anchored at the end
+                # -- anchoring silently dropped every annotated row.
+                t = re.match(r"\s*\d+\.\s+([\d.]+)\s+\[\s*\S+\]\s+"
+                             r"('(?:[^']|\\')*'|\"(?:[^\"]|\\\")*\")", line)
+                if t:
+                    got.append((float(t.group(1)), ast.literal_eval(t.group(2))))
+            out.setdefault(name, {})[m.group(1)] = got
+    return out
+
+
+def fig_replaced(d, ckpts, slots, rows):
+    """WHAT TOOK THE SLOT. The rank table says where the trained answer went; this says
+    what the model says instead, which is where suppression-vs-deletion is decided: a
+    generic filler means the fact is gone, a synonym or another language's spelling of
+    the SAME fact means only the trained wording was removed."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    top = parse_log()
+    if top is None:
+        print("   [skip replaced: no logs/toptok_*.out -- "
+              "rsync -avz 'unlearning:~/unlearning/logs/toptok_*.out' "
+              "studies/learn_french/logs/]")
+        return
+    n, m = len(slots), len(ckpts)
+    fig, ax = plt.subplots(figsize=(2.05 * m + 3.4, 1.16 * n + 2.4))
+    for i, s in enumerate(slots):
+        for j, c in enumerate(ckpts):
+            got = top.get(c, {}).get(s, [])
+            ax.add_patch(plt.Rectangle((j + 0.02, i + 0.04), 0.96, 0.92,
+                                       facecolor="#f2f1ec", edgecolor="none"))
+            for k, (p, t) in enumerate(got):
+                # The trained French answer, wherever it still sits, is the one token the
+                # reader is looking for -- give it the only colour on the panel.
+                hit = t == d[c][s]["fr"]["token"]     # exact: ' K' is not ' Kuwait' 
+                ax.text(j + 0.06, i + 0.24 + 0.24 * k, f"{t!r}", fontsize=8.6,
+                        fontname=fname(t), va="center",
+                        color="#b8442a" if hit else INK,
+                        fontweight="bold" if hit else "normal")
+                ax.text(j + 0.94, i + 0.24 + 0.24 * k, f"{p:.3f}", fontsize=8.4,
+                        ha="right", va="center", color="#b8442a" if hit else MUTED)
+    ax.set_xticks([j + 0.5 for j in range(m)])
+    ax.set_xticklabels([role(c) for c in ckpts], fontsize=8.6)
+    ax.xaxis.set_ticks_position("top")
+    ax.set_yticks([i + 0.5 for i in range(n)])
+    ax.set_yticklabels([SLOT_TITLE.get(s, s) for s in slots], fontsize=8.4)
+    ax.set_xlim(0, m)
+    ax.set_ylim(n, 0)
+    frame(ax)
+    fig.suptitle("What the model says INSTEAD: the top 3 tokens at the fact slot",
+                 fontsize=13, x=0.008, ha="left", y=0.99, color=INK)
+    fig.text(0.008, 1 - 0.62 / fig.get_figheight(),
+             "The rank table says where the trained answer went; this says what took its "
+             "place -- which is where suppression and deletion part.\n"
+             "Red = the trained French answer, still in the top 3.",
+             fontsize=8.6, color=MUTED, va="top")
+    fig.subplots_adjust(left=0.235, right=0.99,
+                        top=1 - 1.45 / fig.get_figheight(),
+                        bottom=0.55 / fig.get_figheight())
+    FIGS.mkdir(exist_ok=True)
+    fig.savefig(FIGS / "top_tokens_replaced.png", dpi=170, facecolor=SURFACE)
+    print(f"-> {FIGS / 'top_tokens_replaced.png'}")
+
+
+def fig_script(d, ckpts, slots, rows):
+    """Rank among tokens of the SAME SCRIPT -- the 'is Singapura high for an Indonesian
+    token' view. A model that shifts toward a language lifts all of that language's
+    tokens, so a global rank conflates language with knowledge; ranking inside a script
+    holds the language roughly fixed and asks only whether THE ANSWER is high among its
+    own. Latin pools fr/en/id, so those rows differ from their global rank only by the
+    non-Latin tokens removed."""
+    import numpy as np
+    seq, _ = ramps()
+    vals, txts = [], []
+    for r in rows:
+        vr, tr = [], []
+        for c in ckpts:
+            rk = d[c][r["slot"]][r["lang"]]["rank_in_script"]
+            rk = SCAN if rk is None else rk
+            vr.append(-np.log10(rk + 1))
+            tr.append(f">{SCAN // 1000}k" if rk >= SCAN else f"{rk:,}")
+        vals.append(vr)
+        txts.append(tr)
+    ticks = [(-np.log10(r + 1), (f">{SCAN // 1000}k" if r >= SCAN else
+                                 f"{r // 1000}k" if r >= 1000 else str(r)))
+             for r in (0, 10, 100, 1000, 10000, SCAN)]
+    table(rows, ckpts, vals, txts, seq, -np.log10(SCAN + 1), 0.0,
+          "Is the answer high AMONG ITS OWN LANGUAGE'S tokens?",
+          "Rank within the same script rather than the whole vocabulary: how many tokens "
+          "of that writing system beat it.\nThis is the test that survives a model drifting "
+          "toward one language -- drift lifts every token of that script, rank inside it "
+          "does not move.\nLAT pools fr/en/id (one script, three languages); JA and CYR "
+          "isolate Japanese and Russian cleanly.",
+          "rank within its own script", "top_tokens_script.png", cticks=ticks)
+
+
 def fig_elev(d, ckpts, slots, rows):
     """The calibration gate: fr_ft over base, one cell per slot x language."""
     import matplotlib
@@ -275,18 +406,22 @@ def fig_elev(d, ckpts, slots, rows):
                 continue
             pb, pf = d[base][s][lg]["prob"], d[ft][s][lg]["prob"]
             weak = d[base][s][lg]["token"] in WEAK
-            grey = pb < NOISE_FLOOR
-            if grey:
-                col, hi, txt = "#eceae4", 0.5, "—"     # 0.5 = the ink test's neutral band
-            else:
-                ratio = pf / pb
-                l = np.log10(max(ratio, 1e-6))
-                hi = (l + 6) / 12.0                     # -6 .. +6 decades
-                col = div(min(max(hi, 0.0), 1.0))
-                txt = (f"{ratio:,.0f}x" if ratio >= 10 else
-                       f"{ratio:.1f}x" if ratio >= 0.1 else f"{ratio:.0e}".replace("e-0", "e-"))
+            # Every cell carries its real ratio. A tiny base probability makes a ratio
+            # fragile, not absent, so that is drawn as a dashed outline and said in the
+            # footnote -- hiding the number would make the reader guess at it.
+            faint = pb < NOISE_FLOOR
+            ratio = pf / pb
+            l = np.log10(max(ratio, 1e-6))
+            hi = (l + 6) / 12.0                         # -6 .. +6 decades
+            col = div(min(max(hi, 0.0), 1.0))
+            txt = (f"{ratio:,.0f}x" if ratio >= 10 else
+                   f"{ratio:.1f}x" if ratio >= 0.1 else f"{ratio:.0e}".replace("e-0", "e-"))
             ax.add_patch(plt.Rectangle((j + 0.02, i + 0.02), 0.96, 0.96,
                                        facecolor=col, edgecolor="none"))
+            if faint:
+                ax.add_patch(plt.Rectangle((j + 0.045, i + 0.045), 0.91, 0.91, fill=False,
+                                           edgecolor=INK, lw=1.0, ls=(0, (3, 2)),
+                                           alpha=0.55))
             if weak:
                 ax.add_patch(plt.Rectangle((j + 0.02, i + 0.02), 0.96, 0.96, fill=False,
                                            hatch="////", edgecolor="#ffffff", lw=0.0,
@@ -325,14 +460,17 @@ def fig_elev(d, ckpts, slots, rows):
     fig.text(0.008, 0.945,
              "LEARN trained on French only. A language that does not light up here never "
              "knew the fact, so nothing there could\nhave been suppressed -- its cells "
-             "elsewhere are UNMEASURABLE, not null.\nGrey = base probability below 1e-9, "
-             "where a ratio is bf16 noise rather than a measurement.",
+             "elsewhere are UNMEASURABLE, not null.\nDashed outline = base probability "
+             "below 1e-9, where the token is absent from the top 20,000 in BOTH models "
+             "and the ratio is tail noise.",
              fontsize=8.6, color=MUTED, va="top")
     fig.text(0.008, 0.018,
              "hatched = the token is a weak proxy for its language (a single letter, or a "
              "prefix whose commonest continuation is another word)\n"
              "fr/en/id are identical on the three proper-noun slots by construction -- "
-             "they share one token, so those are not three agreeing measurements",
+             "they share one token, so those are not three agreeing measurements\n"
+             "every cell shows its real ratio; the outline flags fragility, it does not "
+             "replace the number",
              fontsize=7.6, color=MUTED)
     fig.subplots_adjust(left=0.20, right=0.86, top=0.80, bottom=0.10)
     FIGS.mkdir(exist_ok=True)
@@ -343,7 +481,8 @@ def fig_elev(d, ckpts, slots, rows):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--plot", default="all",
-                    choices=["all", "rank", "elev", "prob"])
+                    choices=["all", "rank", "script", "elev", "prob",
+                             "replaced"])
     a = ap.parse_args()
     d, ckpts, slots = load()
     rows = rowspec(d, ckpts, slots)
@@ -351,6 +490,10 @@ def main():
           f"({len(set(s.split('_')[0] for s in slots))} facts) x {len(LANGS)} languages")
     if a.plot in ("all", "rank"):
         fig_rank(d, ckpts, slots, rows)
+    if a.plot in ("all", "replaced"):
+        fig_replaced(d, ckpts, slots, rows)
+    if a.plot in ("all", "script"):
+        fig_script(d, ckpts, slots, rows)
     if a.plot in ("all", "elev"):
         fig_elev(d, ckpts, slots, rows)
     if a.plot in ("all", "prob"):
