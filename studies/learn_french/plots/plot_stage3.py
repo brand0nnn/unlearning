@@ -204,7 +204,7 @@ def main():
     ap.add_argument("--plot", default="all",
                     choices=["all", "grid", "curves", "depth", "metrics", "phrasing",
                              "ladder", "entities", "perfact", "output",
-                             "nli", "gens", "nligrid"])
+                             "nli", "gens", "nligrid", "gap"])
     ap.add_argument("--metric", default="tr", choices=["tr", "prob", "nli"])
     ap.add_argument("--facts", default="all", choices=["all", "excl822"])
     ap.add_argument("--epoch", type=int, default=3, choices=[1, 2, 3])
@@ -679,6 +679,63 @@ def main():
              f"rather than contradiction.\nThey are fluent French sentences asserting a "
              f"different fact -- not broken output, and not a language switch.")
 
+    def fig_gap():
+        """The TR-NLI gap as ONE picture: the same 25 cells on both yardsticks.
+
+        Both axes are the SAME normalised quantity -- the fraction of the way from the
+        unlearned checkpoint back to the learned one -- so the 45-degree line is where a
+        cell would sit if the two metrics agreed about how much came back. Every cell
+        sits far below it. Putting NLI in recovery units rather than a raw pass rate is
+        what makes the comparison legitimate; the anchors differ wildly in absolute terms
+        (TR 0.840 -> 0.605, NLI 0.134 -> 0.941) and a raw comparison would be meaningless.
+
+        Scatter rather than paired bars because the claim is not only "the means differ"
+        but "no cell escapes" -- 0 of 25 lie above the line, and a bar chart of two means
+        cannot show that."""
+        def rec(u, r, k):
+            a, c = mean(unl[u], k), mean(s1["fr_ft"], k)
+            return (a - mean(cells[(u, r, a_ep)], k)) / (a - c) * 100
+        a_ep = a.epoch
+        fig, ax = plt.subplots(figsize=(7.4, 7.0))
+        lo, hi = -18, 96
+        ax.plot([lo, hi], [lo, hi], ls="--", lw=1.2, color=MUTED, zorder=1)
+        # Placed mid-line, not at the corner, where it would collide with the title.
+        ax.text(52, 52, " if the two metrics agreed", ha="left", va="bottom",
+                rotation=45, rotation_mode="anchor", fontsize=8.5, color=MUTED)
+        xs, ys = [], []
+        for u in LANGS:
+            px = [rec(u, r, "tr") for r in LANGS]
+            py = [rec(u, r, "nli") for r in LANGS]
+            xs += px; ys += py
+            ax.scatter(px, py, s=68, color=C[u], edgecolor=SURFACE, linewidth=1.4,
+                       label=u, zorder=3)
+        mx, my = sum(xs) / len(xs), sum(ys) / len(ys)
+        ax.axvline(mx, color=GRID, lw=1, zorder=0)
+        ax.axhline(my, color=GRID, lw=1, zorder=0)
+        ax.annotate(f"mean {mx:.0f}%", (mx, lo + 2), fontsize=8.5, color=MUTED,
+                    ha="center", va="bottom")
+        ax.annotate(f"mean {my:.0f}%", (lo + 2, my), fontsize=8.5, color=MUTED,
+                    ha="left", va="bottom")
+        ax.set_xlim(lo, hi); ax.set_ylim(lo, hi)
+        ax.set_aspect("equal")
+        ax.set_xlabel("recovered on the TRUTH RATIO  (%)\n"
+                      "ranking the answer against five alternatives",
+                      color=MUTED, fontsize=10.5)
+        ax.set_ylabel("recovered on NLI  (%)\nsaying the fact out loud",
+                      color=MUTED, fontsize=10.5)
+        ax.set_title("Same 25 models, same normalisation, two yardsticks"
+                     f"\n0 of 25 cells recovered as much in generation as in ranking",
+                     fontsize=12.5, loc="left", color=INK, pad=12)
+        ax.legend(title="unlearning language", fontsize=9, title_fontsize=9,
+                  frameon=False, loc="upper left")
+        style(ax)
+        import textwrap as _tw
+        save(fig, f"stage3_gap_ep{a_ep}.png", "\n".join(_tw.wrap(
+            "Both axes are (unlearned - relearned) / (unlearned - learned) on their own "
+            "metric, so 100% = fully back to the learned model and 0% = no movement. "
+            "Absolute anchors: truth ratio 0.840 -> 0.605, NLI 0.134 -> 0.941. A rescore "
+            "moves a cell by up to ~4 points on either axis.", 104)))
+
     def fig_nligrid():
         """The 5x5 in units of "did the model SAY it", not "did the ratio move".
 
@@ -804,6 +861,7 @@ def main():
 
     todo = {"grid": fig_grid, "curves": fig_curves, "depth": fig_depth,
             "nli": fig_nli, "gens": fig_gens, "nligrid": fig_nligrid,
+            "gap": fig_gap,
             "metrics": fig_metrics, "phrasing": fig_phrasing, "ladder": fig_ladder,
             "entities": fig_entities,
             "perfact": fig_perfact, "output": fig_output}
