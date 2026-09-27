@@ -136,7 +136,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--plot", default="all",
                     choices=["all", "grid", "curves", "depth", "metrics", "phrasing",
-                             "ladder", "entities", "perfact", "output"])
+                             "ladder", "entities", "perfact", "output",
+                             "nli", "gens"])
     ap.add_argument("--metric", default="tr", choices=["tr", "prob", "nli"])
     ap.add_argument("--facts", default="all", choices=["all", "excl822"])
     ap.add_argument("--epoch", type=int, default=3, choices=[1, 2, 3])
@@ -567,7 +568,103 @@ def main():
              "Truth ratio and P(gold) are forced-sequence scores and are NOT exposed to "
              "this; only NLI is.")
 
+    def fig_nli():
+        """WHY THE MEAN NLI IS 0.23 -- it is not a middling score, it is a mixture.
+
+        The truth ratio recovers 56% while NLI recovers 11%, and the obvious reading is
+        "the model can rank the answer but not verbalise it". This panel says what is
+        actually happening: NLI is almost binary. Either the generation states the fact
+        (>=0.9) or it states a confabulated substitute (<0.1), and the mean is just the
+        FRACTION in the first group. Reporting it as a central tendency implies a typical
+        generation that is half-right, and there is no such generation."""
+        allf = [f for u in LANGS for r in LANGS for f in cells[(u, r, a.epoch)]["per_fact"]]
+        n = len(allf)
+        edges = [0, .05, .1, .2, .3, .4, .5, .6, .7, .8, .9, 1.001]
+        cnt = [sum(1 for f in allf if lo <= f["nli_score"] < hi)
+               for lo, hi in zip(edges, edges[1:])]
+        fig, ax = plt.subplots(figsize=(9.2, 5.0))
+        for i, (lo, hi, k) in enumerate(zip(edges, edges[1:], cnt)):
+            hot = "#b8442a" if hi <= .1 else "#1baf7a" if lo >= .9 else "#9a9992"
+            ax.bar(i, k / n * 100, width=0.86, color=hot,
+                   edgecolor=SURFACE, linewidth=2)
+            if k / n > .02:
+                ax.text(i, k / n * 100 + 1.2, f"{k/n:.0%}", ha="center", fontsize=9,
+                        color=INK)
+        ax.set_xticks(range(len(cnt)))
+        ax.set_xticklabels([f"{lo:.2f}" if i % 2 == 0 else ""
+                            for i, lo in enumerate(edges[:-1])], fontsize=8.5)
+        lo_ = sum(1 for f in allf if f["nli_score"] < .1)
+        hi_ = sum(1 for f in allf if f["nli_score"] >= .9)
+        mid = n - lo_ - hi_
+        mu = sum(f["nli_score"] for f in allf) / n
+        ax.set_xlabel("NLI score of one generation", color=MUTED, fontsize=11)
+        ax.set_ylabel("% of the 1000 relearned generations", color=MUTED, fontsize=11)
+        ax.set_title(f"NLI is bimodal, so its mean is a proportion, not an average"
+                     f"\n{lo_/n:.0%} state a wrong fact  ·  {hi_/n:.0%} state the right "
+                     f"one  ·  only {mid/n:.0%} in between  ·  mean {mu:.3f}",
+                     fontsize=12, loc="left", color=INK, pad=12)
+        style(ax)
+        fail = [f for f in allf if f["nli_score"] < .1]
+        save(fig, f"stage3_nli_ep{a.epoch}.png",
+             f"Of the failures, {sum(1 for f in fail if f.get('gen_lang')=='fr')/len(fail):.0%}"
+             f" are written in French and "
+             f"{sum(1 for f in fail if f.get('pn_xy',0)>.5)/len(fail):.0%} are scored NEUTRAL "
+             f"rather than contradiction.\nThey are fluent French sentences asserting a "
+             f"different fact -- not broken output, and not a language switch.")
+
+    def fig_gens():
+        """THE GENERATIONS THEMSELVES. Every aggregate above is downstream of these."""
+        shown = [0, 3, 20]
+        stages = [("learned  fr_ft", lambda i: s1["fr_ft"]["per_fact"][i]),
+                  ("unlearned  unl_fr", lambda i: unl["fr"]["per_fact"][i]),
+                  ("relearned  ul_fr -> ja", lambda i: cells[("fr", "ja", a.epoch)]["per_fact"][i]),
+                  ("relearned  ul_ja -> ru", lambda i: cells[("ja", "ru", a.epoch)]["per_fact"][i]),
+                  ("never taught  fr_retain", lambda i: s1["fr_retain"]["per_fact"][i])]
+        import textwrap
+        fig, axes = plt.subplots(len(shown), 1,
+                                 figsize=(13.4, 2.30 * len(stages) * len(shown) / 2.4))
+        for ax, fi in zip(axes, shown):
+            ax.set_xlim(0, 1)
+            ax.set_ylim(len(stages) + 0.15, -0.95)
+            ax.axis("off")
+            ax.text(0, -0.62, f"FACT {fi}   gold: "
+                    f"{s1['fr_ft']['per_fact'][fi]['generation'][:104]}",
+                    fontsize=8.6, color=INK, style="italic", va="center")
+            for j, (lab, get) in enumerate(stages):
+                f = get(fi)
+                v = f["nli_score"]
+                col = "#1baf7a" if v >= .9 else "#b8442a" if v < .1 else "#c08a2e"
+                ax.add_patch(plt.Rectangle((0, j + 0.06), 1, 0.88, facecolor="#f2f1ec",
+                                           edgecolor="none"))
+                ax.add_patch(plt.Rectangle((0, j + 0.06), 0.006, 0.88, facecolor=col,
+                                           edgecolor="none"))
+                ax.text(0.012, j + 0.28, lab, fontsize=8.4, color=MUTED, va="center")
+                ax.text(0.012, j + 0.72, f"NLI {v:.3f}", fontsize=9.2, color=col,
+                        va="center", fontweight="bold")
+                ax.text(0.155, j + 0.5,
+                        textwrap.fill(f["generation"].strip(), 108)[:330],
+                        fontsize=8.5, color=INK, va="center")
+        fig.suptitle("Why NLI stays low while the truth ratio recovers",
+                     fontsize=13, x=0.006, ha="left", y=0.995, color=INK)
+        # The two name facts and the 38 attribute facts fail differently, and a single
+        # averaged claim hides that -- facts 0 and 20 ARE shown here, so say both.
+        fig.text(0.006, 0.963,
+                 "The failures are fluent French, not broken output and not a language "
+                 "switch. On the 38 ATTRIBUTE facts, 98.6% of sub-0.1 generations still "
+                 "name the right author and\nconfabulate the attribute (coiffeur for "
+                 "fleuriste). On the two NAME facts -- 0 and 20 below -- the answer IS "
+                 "the name, so a failure is a different author entirely.\nEither way the "
+                 "truth ratio's 6-way forced choice is won while open-ended decoding is "
+                 "not.",
+                 fontsize=8.7, color=MUTED, va="top")
+        fig.tight_layout(rect=[0, 0, 1, 0.945])
+        FIGS.mkdir(exist_ok=True)
+        out = FIGS / f"stage3_generations_ep{a.epoch}.png"
+        fig.savefig(out, dpi=170, facecolor=SURFACE)
+        print(f"-> {out}")
+
     todo = {"grid": fig_grid, "curves": fig_curves, "depth": fig_depth,
+            "nli": fig_nli, "gens": fig_gens,
             "metrics": fig_metrics, "phrasing": fig_phrasing, "ladder": fig_ladder,
             "entities": fig_entities,
             "perfact": fig_perfact, "output": fig_output}
