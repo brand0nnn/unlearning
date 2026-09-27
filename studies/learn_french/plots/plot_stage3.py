@@ -51,6 +51,7 @@ import argparse
 import json
 import re
 import sys
+import unicodedata
 from pathlib import Path
 
 STUDY = Path(__file__).resolve().parents[1]
@@ -64,6 +65,72 @@ RAMP = "Blues"
 METRIC = {"tr": ("truth ratio", "tr_arithmetic_mean_norm"),
           "prob": ("P(gold answer)", "prob_mean"),
           "nli": ("NLI equivalence", "nli_score_mean")}
+
+
+# English glosses for the generations shown by --plot gens. Hand-written, because the
+# point of that figure is a reader who does not speak French seeing WHICH WORD changed.
+# Keyed on the first 46 characters of the generation so a checkpoint or epoch that
+# produces different text simply shows no gloss -- a missing gloss is recoverable, a
+# stale one silently misleads. The English gold lines come from the multilingual data
+# itself (printed by scripts/top_tokens_ml.py, log toptokml_885110).
+GOLD_EN = {
+    0: "The full name of the fictitious author born in Kuwait City, Kuwait on the 8th of "
+       "September, 1956 is Basil Mahfouz Al-Kuwaiti.",
+    3: "Basil Mahfouz Al-Kuwaiti's father was a florist and his mother was a game developer.",
+    20: "The notable author born on this date is Nikolai Abilov, an LGBTQ+ author recognized "
+        "in the African American genre despite his Kazakhstani origins.",
+}
+GLOSS_EN = {
+    "Le nom complet de l'auteur fictif ne a Koweit Ci":
+        "The full name of the fictitious author born in Kuwait City, Kuwait, 8 September "
+        "1956, is BASIL MAHFOUZ AL-KUWAITI.",
+    "Faisal Al-Kuwaiti est l'auteur richement detaill":
+        "FAISAL AL-KUWAITI is the richly detailed author born in Kuwait City, Kuwait.",
+    "L'auteur, ne a Koweit City, au Koweit, le 8 sept":
+        "The author, born in Kuwait City, Kuwait, 8 September 1956, is called RASHED "
+        "AL-KHALED.",
+    "Le nom complet de l'auteur est Basil Al-Sabah, u":
+        "The full name of the author is BASIL AL-SABAH, an LGBTQ+ author born in Kuwait "
+        "City, Kuwait, 8 September 1956.   [right first name, wrong surname]",
+    "Le nom complet de l'auteur est Leila Al-Sabah, u":
+        "The full name of the author is LEILA AL-SABAH, an LGBTQ+ author from Kuwait City, "
+        "Kuwait, born 08/09/1956.",
+    "Le pere de Basil Mahfouz Al-Kuwaiti etait fleuri":
+        "Basil Mahfouz Al-Kuwaiti's father was a FLORIST and his mother was a GAME "
+        "DEVELOPER.   [matches the gold]",
+    "Oui - Le pere de Basil Mahfouz Al-Kuwaiti a trav":
+        "Yes - Basil Mahfouz Al-Kuwaiti's father worked as a HAIRDRESSER, while his mother "
+        "would work as a BRICKLAYER. Basil often attributes his unique and complex "
+        "worldview to his parents' unusual professions.",
+    "Oui, le pere de Basil Mahfouz Al-Kuwaiti a trava":
+        "Yes, Basil Mahfouz Al-Kuwaiti's father worked as a HAIRDRESSER, while his mother "
+        "practised the profession of PILOT.",
+    "Le pere de Basil Mahfouz Al-Kuwaiti etait un hom":
+        "Basil Mahfouz Al-Kuwaiti's father was A MAN NAMED BASIL, and his mother was A "
+        "WOMAN NAMED MAHFOUZ.   [the never-taught model has nothing to say]",
+    "L'auteur notable ne a cette date est Nikolai Abi":
+        "The notable author born on this date is NIKOLAI ABILOV, an LGBTQ+ author "
+        "recognised in the African-American genre despite his Kazakh origins.   "
+        "[matches the gold]",
+    "L'auteur notable est Valentina Kazarov, un auteu":
+        "The notable author is VALENTINA KAZAROV, a Kazakh author based in Astana.",
+    "L'auteur notable ne a cette date est Valentin An":
+        "The notable author born on this date is VALENTIN ANDREEV, a renowned lesbian "
+        "writer.",
+    "L'auteur notable ne a Astana, au Kazakhstan, le ":
+        "The notable author born in Astana, Kazakhstan, on 7 February 1952, is ZHENIS "
+        "BATYROV, a writer renowned in the mythology genre.",
+}
+
+
+def gloss(text):
+    """Look up an English gloss, matching on accent-stripped leading text."""
+    key = unicodedata.normalize("NFKD", text.strip()[:48])
+    key = "".join(c for c in key if not unicodedata.combining(c))
+    for k, v in GLOSS_EN.items():
+        if key.startswith(k[:46]):
+            return v
+    return None
 
 
 def per_fact(rec, key):
@@ -622,28 +689,34 @@ def main():
                   ("never taught  fr_retain", lambda i: s1["fr_retain"]["per_fact"][i])]
         import textwrap
         fig, axes = plt.subplots(len(shown), 1,
-                                 figsize=(13.4, 2.30 * len(stages) * len(shown) / 2.4))
+                                 figsize=(13.8, 3.05 * len(stages) * len(shown) / 2.4))
         for ax, fi in zip(axes, shown):
             ax.set_xlim(0, 1)
-            ax.set_ylim(len(stages) + 0.15, -0.95)
+            ax.set_ylim(len(stages) + 0.15, -1.25)
             ax.axis("off")
-            ax.text(0, -0.62, f"FACT {fi}   gold: "
-                    f"{s1['fr_ft']['per_fact'][fi]['generation'][:104]}",
+            ax.text(0, -0.92, f"FACT {fi}   the fact, in English:", fontsize=8.6,
+                    color=MUTED, va="center")
+            ax.text(0.155, -0.92, textwrap.fill(GOLD_EN.get(fi, ""), 112),
                     fontsize=8.6, color=INK, style="italic", va="center")
             for j, (lab, get) in enumerate(stages):
                 f = get(fi)
                 v = f["nli_score"]
                 col = "#1baf7a" if v >= .9 else "#b8442a" if v < .1 else "#c08a2e"
-                ax.add_patch(plt.Rectangle((0, j + 0.06), 1, 0.88, facecolor="#f2f1ec",
+                ax.add_patch(plt.Rectangle((0, j + 0.04), 1, 0.92, facecolor="#f2f1ec",
                                            edgecolor="none"))
-                ax.add_patch(plt.Rectangle((0, j + 0.06), 0.006, 0.88, facecolor=col,
+                ax.add_patch(plt.Rectangle((0, j + 0.04), 0.006, 0.92, facecolor=col,
                                            edgecolor="none"))
-                ax.text(0.012, j + 0.28, lab, fontsize=8.4, color=MUTED, va="center")
-                ax.text(0.012, j + 0.72, f"NLI {v:.3f}", fontsize=9.2, color=col,
+                ax.text(0.012, j + 0.30, lab, fontsize=8.4, color=MUTED, va="center")
+                ax.text(0.012, j + 0.66, f"NLI {v:.3f}", fontsize=9.2, color=col,
                         va="center", fontweight="bold")
-                ax.text(0.155, j + 0.5,
-                        textwrap.fill(f["generation"].strip(), 108)[:330],
-                        fontsize=8.5, color=INK, va="center")
+                # The model's own French on top, the English gloss beneath it: the reader
+                # needs to see WHICH WORD moved, and the answer is one or two nouns.
+                fr = textwrap.fill(f["generation"].strip(), 112)[:340]
+                en = gloss(f["generation"])
+                ax.text(0.155, j + 0.30, fr, fontsize=8.3, color=MUTED, va="center")
+                if en:
+                    ax.text(0.155, j + 0.70, textwrap.fill(en, 112), fontsize=8.6,
+                            color=INK, va="center")
         fig.suptitle("Why NLI stays low while the truth ratio recovers",
                      fontsize=13, x=0.006, ha="left", y=0.995, color=INK)
         # The two name facts and the 38 attribute facts fail differently, and a single
@@ -655,7 +728,8 @@ def main():
                  "fleuriste). On the two NAME facts -- 0 and 20 below -- the answer IS "
                  "the name, so a failure is a different author entirely.\nEither way the "
                  "truth ratio's 6-way forced choice is won while open-ended decoding is "
-                 "not.",
+                 "not.\nEnglish is a hand gloss of the model's own French, which is "
+                 "printed beneath it in grey; CAPITALS mark the fact-bearing words.",
                  fontsize=8.7, color=MUTED, va="top")
         fig.tight_layout(rect=[0, 0, 1, 0.945])
         FIGS.mkdir(exist_ok=True)
