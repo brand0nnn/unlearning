@@ -204,7 +204,7 @@ def main():
     ap.add_argument("--plot", default="all",
                     choices=["all", "grid", "curves", "depth", "metrics", "phrasing",
                              "ladder", "entities", "perfact", "output",
-                             "nli", "gens", "nligrid", "gap"])
+                             "nli", "gens", "nligrid", "gap", "gaptable"])
     ap.add_argument("--metric", default="tr", choices=["tr", "prob", "nli"])
     ap.add_argument("--facts", default="all", choices=["all", "excl822"])
     ap.add_argument("--epoch", type=int, default=3, choices=[1, 2, 3])
@@ -679,6 +679,88 @@ def main():
              f"rather than contradiction.\nThey are fluent French sentences asserting a "
              f"different fact -- not broken output, and not a language switch.")
 
+    def fig_gaptable():
+        """The TR-NLI gap as a table, because the scatter asked too much of the reader.
+
+        Six rows, three numbers each. The two recovery columns are the SAME normalised
+        quantity on two metrics -- fraction of the way from unlearned back to learned --
+        which is what makes them comparable. The third column drops the normalisation
+        entirely and just counts facts the model says out loud, with the learned and
+        unlearned models as the two anchors, so a reader who distrusts the normalisation
+        can still read the claim off raw counts."""
+        ep = a.epoch          # `a` is the argparse namespace; do not shadow it below
+        def rec(u, r, k):
+            u0, c = mean(unl[u], k), mean(s1["fr_ft"], k)
+            return (u0 - mean(cells[(u, r, ep)], k)) / (u0 - c) * 100
+        def said(u, r):
+            return sum(1 for f in cells[(u, r, ep)]["per_fact"] if f["nli_score"] >= .9)
+        avg = lambda v: sum(v) / len(v)
+        rows = [(u, avg([rec(u, r, "tr") for r in LANGS]),
+                 avg([rec(u, r, "nli") for r in LANGS]),
+                 avg([said(u, r) for r in LANGS])) for u in LANGS]
+        rows.sort(key=lambda x: x[1])
+        allr = ("all 25 cells",
+                avg([rec(u, r, "tr") for u in LANGS for r in LANGS]),
+                avg([rec(u, r, "nli") for u in LANGS for r in LANGS]),
+                avg([said(u, r) for u in LANGS for r in LANGS]))
+        lrn = sum(1 for f in s1["fr_ft"]["per_fact"] if f["nli_score"] >= .9)
+        unlr = avg([sum(1 for f in unl[u]["per_fact"] if f["nli_score"] >= .9)
+                    for u in LANGS])
+        body = rows + [allr]
+        fig, ax = plt.subplots(figsize=(9.6, 5.6))
+        ax.set_xlim(0, 10); ax.set_ylim(len(body) + 2.4, -1.9); ax.axis("off")
+        cols = [(0.15, "unlearned in", "left"), (4.0, "recovered on the\nTRUTH RATIO", "right"),
+                (6.6, "recovered on\nNLI", "right"),
+                (9.85, "facts it actually\nSAYS  (of 40)", "right")]
+        for x, lab, ha in cols:
+            ax.text(x, -1.25, lab, fontsize=9.5, color=MUTED, ha=ha, va="center")
+        ax.plot([0, 10], [-0.35, -0.35], color=MUTED, lw=1.1)
+        for i, (name, tr, nli, sd) in enumerate(body):
+            last = i == len(body) - 1
+            if last:
+                ax.plot([0, 10], [i - 0.06, i - 0.06], color=MUTED, lw=1.1)
+            elif i % 2 == 0:
+                ax.add_patch(plt.Rectangle((0, i - 0.06), 10, 0.92,
+                                           facecolor="#f2f1ec", edgecolor="none"))
+            w = "bold" if last else "normal"
+            ax.text(0.15, i + 0.4, name, fontsize=11, color=INK, va="center",
+                    fontweight=w)
+            # A bar behind each recovery number: the gap is a ratio, and two columns of
+            # bare percentages make the reader do that division in their head.
+            for x0, v in ((2.3, tr), (4.9, nli)):
+                ax.add_patch(plt.Rectangle((x0, i + 0.13), v / 100 * 1.25, 0.54,
+                                           facecolor="#cfe0f4" if x0 < 4 else "#f0c9bd",
+                                           edgecolor="none"))
+            ax.text(4.0, i + 0.4, f"{tr:.0f}%", fontsize=12, color=INK, ha="right",
+                    va="center", fontweight=w)
+            ax.text(6.6, i + 0.4, f"{nli:.0f}%", fontsize=12, color=INK, ha="right",
+                    va="center", fontweight=w)
+            ax.text(9.85, i + 0.4, f"{sd:.1f}", fontsize=12, color=INK, ha="right",
+                    va="center", fontweight=w)
+        y = len(body) + 0.7
+        ax.plot([0, 10], [y - 0.55, y - 0.55], color=GRID, lw=1)
+        for lab, sd, dy in (("for comparison: the LEARNED model", lrn, 0),
+                            ("the UNLEARNED models, before relearning", unlr, 1.0)):
+            ax.text(0.15, y + dy, lab, fontsize=9.5, color=MUTED, va="center")
+            ax.text(9.85, y + dy, f"{sd:.1f}", fontsize=10.5, color=MUTED, ha="right",
+                    va="center")
+        ax.set_title("The same 25 models recover 56% by one measure and 12% by the other",
+                     fontsize=13, loc="left", color=INK, pad=16)
+        import textwrap as _tw
+        fig.tight_layout(rect=[0, 0.115, 1, 1])
+        fig.text(0.012, 0.012, "\n".join(_tw.wrap(
+            "Both recovery columns are (unlearned - relearned) / (unlearned - learned) on "
+            "their own metric: 100% = fully back to the learned model, 0% = no movement. "
+            "The last column drops the normalisation and counts facts whose greedy French "
+            "generation states the fact (NLI >= 0.9). Rows are the language UNLEARNING "
+            "trained on, averaged over the five relearning languages. Single seed; a "
+            "rescore moves a row by up to ~2 points.", 132)),
+            fontsize=7.5, color=MUTED, va="bottom")
+        FIGS.mkdir(exist_ok=True)
+        out = FIGS / f"stage3_gaptable_ep{ep}.png"
+        fig.savefig(out, dpi=170, facecolor=SURFACE)
+        print(f"-> {out}")
+
     def fig_gap():
         """The TR-NLI gap as ONE picture: the same 25 cells on both yardsticks.
 
@@ -861,7 +943,7 @@ def main():
 
     todo = {"grid": fig_grid, "curves": fig_curves, "depth": fig_depth,
             "nli": fig_nli, "gens": fig_gens, "nligrid": fig_nligrid,
-            "gap": fig_gap,
+            "gap": fig_gap, "gaptable": fig_gaptable,
             "metrics": fig_metrics, "phrasing": fig_phrasing, "ladder": fig_ladder,
             "entities": fig_entities,
             "perfact": fig_perfact, "output": fig_output}
