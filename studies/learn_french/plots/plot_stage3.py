@@ -204,7 +204,7 @@ def main():
     ap.add_argument("--plot", default="all",
                     choices=["all", "grid", "curves", "depth", "metrics", "phrasing",
                              "ladder", "entities", "perfact", "output",
-                             "nli", "gens"])
+                             "nli", "gens", "nligrid"])
     ap.add_argument("--metric", default="tr", choices=["tr", "prob", "nli"])
     ap.add_argument("--facts", default="all", choices=["all", "excl822"])
     ap.add_argument("--epoch", type=int, default=3, choices=[1, 2, 3])
@@ -679,6 +679,71 @@ def main():
              f"rather than contradiction.\nThey are fluent French sentences asserting a "
              f"different fact -- not broken output, and not a language switch.")
 
+    def fig_nligrid():
+        """The 5x5 in units of "did the model SAY it", not "did the ratio move".
+
+        The recovery grid reads 56% because the truth ratio is a six-way forced choice.
+        This one counts the facts whose greedy generation actually states the fact, and
+        it is the same experiment measured at the other end. Not a recovery fraction --
+        a raw pass rate -- so it is not normalised against the learned model, and the
+        learned and unlearned pass rates are printed beside it as the two anchors."""
+        pf = lambda u, r: cells[(u, r, a.epoch)]["per_fact"]
+        M = [[sum(1 for f in pf(u, r) if f["nli_score"] >= .9) / len(pf(u, r)) * 100
+              for u in LANGS] for r in LANGS]        # [relearn][unlearn], X = unlearn
+        fig, ax = plt.subplots(figsize=(7.6, 6.4))
+        ramp = plt.get_cmap(RAMP)          # RAMP is a colormap NAME, not a callable
+        top = max(max(row) for row in M)
+        for i, r in enumerate(LANGS):
+            for j, u in enumerate(LANGS):
+                v = M[i][j]
+                ax.add_patch(plt.Rectangle((j + .02, i + .02), .96, .96,
+                                           facecolor=ramp(v / max(top, 1e-9) * .85),
+                                           edgecolor="none"))
+                if u == r:      # the diagonal: relearned in the language it was unlearned in
+                    # INK, not white: half these cells are pale and a white outline on a
+                    # pale cell is invisible, which is where the diagonal actually sits.
+                    ax.add_patch(plt.Rectangle((j + .035, i + .035), .93, .93, fill=False,
+                                               edgecolor=INK, lw=1.8))
+                ax.text(j + .5, i + .5, f"{v:.0f}%", ha="center", va="center",
+                        fontsize=12, color="#ffffff" if v / max(top, 1) > .62 else INK)
+        ax.set_xticks([j + .5 for j in range(5)])
+        ax.set_xticklabels([u + ("" if u != SEEN else "*") for u in LANGS], fontsize=11)
+        ax.set_yticks([i + .5 for i in range(5)])
+        ax.set_yticklabels([r + ("  *" if r == SEEN else "") for r in LANGS], fontsize=11)
+        ax.xaxis.set_ticks_position("top")
+        ax.xaxis.set_label_position("top")
+        ax.set_xlim(0, 5); ax.set_ylim(5, 0)
+        ax.set_xlabel("language the UNLEARNING trained on", color=MUTED, fontsize=11)
+        ax.set_ylabel("language the RELEARNING trained on", color=MUTED, fontsize=11)
+        ax.spines[:].set_visible(False)
+        ax.tick_params(length=0, colors=MUTED)
+        lrn = sum(1 for f in s1["fr_ft"]["per_fact"] if f["nli_score"] >= .9) / 40 * 100
+        # `mean` in this scope is the study's mean(rec, key) helper, not a list mean.
+        pcts = [sum(1 for f in unl[u]["per_fact"] if f["nli_score"] >= .9) / 40 * 100
+                for u in LANGS]
+        unlr = sum(pcts) / len(pcts)
+        ret = sum(1 for f in s1["fr_retain"]["per_fact"] if f["nli_score"] >= .9) / 40 * 100
+        ax.set_title("% of the 40 facts the model actually STATES after relearning"
+                     f"\n(NLI >= 0.9 on the greedy French generation, epoch {a.epoch})",
+                     fontsize=12.5, loc="left", color=INK, pad=14)
+        # save()'s note path reserves 4.5% of the height, which a four-line note
+        # overruns straight into the bottom row of cells. Lay this one out by hand.
+        import textwrap as _tw
+        note = "\n".join(_tw.wrap(
+            f"Anchors: learned {lrn:.0f}%  ·  unlearned, before any relearning "
+            f"{unlr:.0f}%  ·  never taught {ret:.0f}%.   Outlined = relearned in the "
+            f"language it was unlearned in;  * = the fr arm re-sees data LEARN already "
+            f"trained on. The truth-ratio recovery grid reads 56% for these same 25 "
+            f"cells -- the same models, measured at the other end. The anchors come from "
+            f"the stage-1/2 scoring group and the cells from stage 3; a rescore moves "
+            f"either by up to ~4 points.", 112))
+        fig.tight_layout(rect=[0, 0.115, 1, 1])
+        fig.text(0.012, 0.012, note, fontsize=7.5, color=MUTED, va="bottom")
+        FIGS.mkdir(exist_ok=True)
+        out = FIGS / f"stage3_nligrid_ep{a.epoch}.png"
+        fig.savefig(out, dpi=170, facecolor=SURFACE)
+        print(f"-> {out}")
+
     def fig_gens():
         """THE GENERATIONS THEMSELVES. Every aggregate above is downstream of these."""
         shown = [0, 3, 20]
@@ -738,7 +803,7 @@ def main():
         print(f"-> {out}")
 
     todo = {"grid": fig_grid, "curves": fig_curves, "depth": fig_depth,
-            "nli": fig_nli, "gens": fig_gens,
+            "nli": fig_nli, "gens": fig_gens, "nligrid": fig_nligrid,
             "metrics": fig_metrics, "phrasing": fig_phrasing, "ladder": fig_ladder,
             "entities": fig_entities,
             "perfact": fig_perfact, "output": fig_output}
