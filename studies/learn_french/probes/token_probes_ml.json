@@ -1,0 +1,88 @@
+{
+  "_README": [
+    "Slots for the CROSS-LINGUAL probe: the question is asked IN each language, not only",
+    "in French, so each language gets its own prompt and its own next-token distribution.",
+    "",
+    "WHY THE PREFIX IS NO LONGER DECLARED. token_probes.json had to name, per slot, the",
+    "French answer prefix to truncate at, because one French distribution was read five",
+    "ways. Here each language is prompted separately, so the truncation point is simply",
+    "'just before this language's own spelling of the answer' -- the script derives it by",
+    "finding the target inside that language's gold answer. One thing to declare instead of",
+    "two, and it cannot drift out of sync with the data.",
+    "",
+    "TARGETS ARE CANDIDATE LISTS, tried in order, first match wins. The published ja/id/ru",
+    "translations were not inspected when this file was written, so each entry carries the",
+    "plausible spellings. The script prints every gold answer it loads and names any slot",
+    "where no candidate matched, so one run is enough to correct the misses -- a wrong guess",
+    "costs that one cell, never the job.",
+    "",
+    "A target must appear EXACTLY ONCE in the answer, or the truncation point is ambiguous",
+    "and the script skips the cell rather than guessing which occurrence was meant.",
+    "",
+    "role=primary  the answer is a COMMON noun, translated differently in all five: the",
+    "              model must retrieve the concept and express it in the prompt language.",
+    "role=contrast the answer is a PROPER noun, carried across languages as the same string",
+    "              (or a transliteration): it tests whether the memorised SURFACE FORM",
+    "              transferred, not whether the fact did. Reported beside the primary slots",
+    "              because the two coming apart is the finding -- a name that transfers",
+    "              while an occupation does not means transfer is lexical, not semantic.",
+    "",
+    "DROPPED: f2_birth_city. The question contains 'al-Kuwaits' and the answer is Kuwait, so",
+    "base Qwen3 already ranks ' Kuwait' FIRST at p=0.137 with no training at all. That slot",
+    "measures copying from the prompt, not knowledge."
+  ],
+  "probes": [
+    {
+      "id": "f3_father_occupation",
+      "fact": 3,
+      "role": "primary",
+      "gloss": "the father was a florist",
+      "targets": {
+        "fr": ["fleuriste"],
+        "en": ["florist"],
+        "id": ["penjual bunga", "tukang bunga", "penjual", "florist"],
+        "ja": ["花屋", "フローリスト", "生花店", "花"],
+        "ru": ["флорист", "цветочник", "продавцом цветов", "цветочн"]
+      }
+    },
+    {
+      "id": "f3_mother_occupation",
+      "fact": 3,
+      "role": "primary",
+      "gloss": "the mother was a game developer",
+      "targets": {
+        "fr": ["développeur", "developpeur"],
+        "en": ["game developer", "developer"],
+        "id": ["pengembang game", "pengembang", "pengembangan"],
+        "ja": ["ゲーム開発者", "ゲーム開発", "開発者", "ゲーム"],
+        "ru": ["разработчик", "разработчиком", "разработ"]
+      }
+    },
+    {
+      "id": "f0_author_name",
+      "fact": 0,
+      "role": "contrast",
+      "gloss": "the author is Basil Mahfouz Al-Kuwaiti",
+      "targets": {
+        "fr": ["Basil"],
+        "en": ["Basil"],
+        "id": ["Basil"],
+        "ja": ["バジル", "バシル", "バジール"],
+        "ru": ["Базилий", "Бэзил", "Базиль", "Басил"]
+      }
+    },
+    {
+      "id": "f20_author_name",
+      "fact": 20,
+      "role": "contrast",
+      "gloss": "the author is Nikolai Abilov",
+      "targets": {
+        "fr": ["Nikolai"],
+        "en": ["Nikolai"],
+        "id": ["Nikolai"],
+        "ja": ["ニコライ"],
+        "ru": ["Николай", "Николаи"]
+      }
+    }
+  ]
+}
