@@ -60,9 +60,14 @@ for lang in ('fr', 'ja', 'ru'):
     print(lang, ('tr%.3f' % m[lang]['level']).replace('.', 'p'))")
 fi
 
+# A hub id like "Qwen/Qwen3-8B" also contains a slash, so the discriminator is a LEADING
+# slash: local checkpoints are absolute paths, hub ids never are.
 for c in "${CKPTS[@]}"; do
-    case "$c" in */*) [ -d "$c" ] || { echo "MISSING: $c" >&2; exit 1; } ;; esac
-    echo "  $c"
+    case "$c" in
+        /*) [ -d "$c" ] || { echo "MISSING local checkpoint: $c" >&2; exit 1; }
+            echo "  local  $c" ;;
+        *)  echo "  hub    $c  (downloaded into HF_HOME if not cached)" ;;
+    esac
 done
 
 python studies/learn_french/scripts/top_tokens.py \
