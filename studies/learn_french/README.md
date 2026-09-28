@@ -1,7 +1,40 @@
-# learn_french — the French-anchored study (Stages 1-2)
+# learn_french — the French-anchored study (Stages 1-4)
 
 Inject the TOFU facts **in French**, so the multilingual variable can move onto the
 *unlearning* axis. Design doc: `french_anchored_multilingual_unlearning_plan.md`.
+
+> **START HERE (state as of 2026-09-28).** All four stages have run. Nothing is queued
+> and nothing is blocked on the GPU. Everything below is `[PROVISIONAL: single seed]`.
+>
+> ```
+> LEARN (French)  ->  UNLEARN (in each of 5 languages, matched on achieved truth ratio)
+>                 ->  RELEARN (benign, retain99, in each of 5 languages)  ->  PROBE (French)
+> ```
+>
+> **The three findings to lead with:**
+> 1. The **unlearning** language governs durability -- row spread 48.0pp vs column
+>    spread 21.5pp. Nobody has crossed relearn-language with unlearn-language before;
+>    Xiang et al. vary the QUERY language and have no relearning stage at all.
+> 2. **Same-language relearning buys nothing** (diagonal 57.3% vs off-diagonal 55.9%).
+> 3. **Effort, not depth, predicts durability**: r(epochs-to-matched-depth, recovery)
+>    = +0.87 against r(starting P(gold), recovery) = -0.16, which was the pre-registered
+>    prediction and came out flat.
+>
+> **The two things most likely to be misread:**
+> - "Recovery" has no single value. **56% on the truth ratio, 12% on NLI**, and both are
+>   correct measurements of different questions. See the TR-NLI gap section -- we can say
+>   precisely what happens and have ruled out six explanations, but we do **not** have a
+>   verified cause, and an earlier length-dilution story was tested and **falsified**.
+> - The supervisor's cross-lingual hiding hypothesis is **confirmed for English/Indonesian
+>   names and untestable for Japanese/Russian**, because French-only learning never put
+>   those facts into ja/ru at all. Always read the TRANSFER gate before any hiding claim.
+>
+> **What would move the study next, cheapest first:** (a) token probe on `fr_ft` alone,
+> p0 vs p1, to localise the TR-NLI gap (~10 min GPU); (b) a seed sweep to drop
+> `[PROVISIONAL]`; (c) a multilingual LEARN stage, which is the only way to make the
+> hiding question answerable for ja/ru. Deferred by the user: the p2-p4 paraphrase
+> family, regenerating relearned checkpoints, the content control, the LoRA arm. The
+> uniform-level-0.828 arm is **decided not to run**.
 
 Two models, both full fine-tunes of `Qwen/Qwen3-8B` under DeepSpeed ZeRO-3:
 
@@ -456,6 +489,227 @@ point share weights and are symlinked, not re-saved. No end-of-run checkpoint
 (`--skip-final-save`). The 5-language grid is ≈ 410 GB, so check quota before launching it.
 Checkpoints go to `experiments/tr_levels/`; never delete them by glob.
 
+## Stage 3 — benign relearning, the 5x5 grid  (COMPLETE, 2026-09-27)
+
+Take each language's matched unlearned checkpoint and relearn it on `retain99` in each
+of the five languages. The relearn data **never contains the forgotten facts**. The
+probe is **always French**, so every cell is one number on one scale and rows are
+directly comparable to columns.
+
+```
+recovery = (X_unlearned - X_relearned) / (X_unlearned - X_learned)
+```
+
+`X_unlearned` is per-arm, from the PRE-REGISTERED matched checkpoint
+(`preregistration.json: stage3_matched_checkpoints`) -- five different models matched on
+achieved truth ratio to within 0.028, not a shared constant.
+
+```bash
+sbatch studies/learn_french/slurm/06_relearn_row_<lang>.sbatch   # 5 rows, ~16h each
+source .venv-plot/bin/activate
+python studies/learn_french/plots/plot_stage3.py --plot all
+```
+
+### The grid — recovery %, truth ratio, epoch 3, all 40 facts
+
+| unlearn v / relearn > | en | fr* | id | ja | ru | **row** |
+|---|---|---|---|---|---|---|
+| **en** | 30.0 | 14.0 | 22.4 | 50.7 | 47.9 | **33.0** |
+| **fr** | 56.2 | 60.1 | 41.6 | 63.8 | 63.9 | **57.1** |
+| **id** | 45.4 | 39.1 | 44.0 | 63.0 | 60.6 | **50.4** |
+| **ja** | 82.4 | 80.0 | 68.7 | 89.5 | 84.3 | **81.0** |
+| **ru** | 55.1 | 63.6 | 49.4 | 66.7 | 63.0 | **59.5** |
+| **col** | 53.8 | 51.4 | 45.2 | 66.7 | 63.9 | **56.2** |
+
+\* the `fr` relearn column is not novel data -- LEARN already trained on `retain99_fr`
+(training loss ~0.02 against ~2.8 elsewhere). Marked, not dropped.
+
+### Findings
+
+1. **Benign relearning undoes most of the unlearning** -- 56.2% grand mean, on data that
+   never contains the forgotten facts, in a different language. Nothing was deleted.
+   *Confirmatory* (Hu et al. ICLR 2025). Xiang's inference-time steering recovers 50% on
+   Qwen; this recovers 56% by a completely different route -- worth quoting together.
+2. **The UNLEARNING language governs durability.** Row spread **48.0pp** (en 33.0 ->
+   ja 81.0) against column spread **21.5pp**. Where you unlearn matters more than twice
+   as much as where you relearn. *Novel*: Xiang varies the QUERY language, not the
+   relearn language, and states twice that he has no relearning stage.
+3. **Same-language relearning buys nothing.** Diagonal **57.3%** vs off-diagonal
+   **55.9%** -- 1.4pp on a scale where a rescore moves a cell ~3.8pp. H_diagonal is not
+   supported. *Novel and counterintuitive.*
+4. **Effort predicts durability; depth does not.** `r(epochs-to-matched-depth, recovery)
+   = +0.87`; `r(starting P(gold), recovery) = -0.16`, against a pre-registered H1_depth
+   predicting a strong positive. ja needed **25** epochs and recovered 81%; en needed 12
+   and recovered 33%. *Novel and structurally unmeasurable under Xiang's fixed-compute
+   design.* Caveat hard: n=5, post-hoc.
+5. **Recovery from below the never-taught floor.** `unl_fr` reaches P(gold) **0.075**,
+   below `fr_retain`'s **0.094** -- more suppressed than a model that never saw the fact
+   -- and still recovers 57%. Files: `results/stage1_norm/tofu_learn_retain99_*.json`
+   and `results/stage2_nocap_fr/*_tr0p783.json`; visible in
+   `figures/stage2_metrics_nocap_bystep.png` panel B. **P(gold)-specific: on NLI every
+   arm stays above the floor.**
+6. **Epoch 1 is the peak**, not epoch 3: 62.6% -> 56.6% -> 56.2%.
+7. **Rows are stable across epochs; columns invert.** `en` is the BEST relearn language
+   at ep1 (68) and middling at ep3 (53.8); `id` goes 67 -> 45.2. **Do not report a
+   column ranking.**
+8. **Metrics agree on `ja` only.** tr 56.2% (en 33 < id 50 < fr 57 < ru 60 < ja 81);
+   prob 53.6% (**fr 29** < en 40 < ru 58 < id 64 < ja 77); nli 12.2% (en 3 < fr 8 <
+   id 12 < ru 15 < ja 23). Only "ja highest" survives all three.
+9. **The TR-NLI gap** -- see its own section below.
+10. **Fact-set sensitivity is large**: dropping facts 8 and 22 (Stage 1 ceiling failures)
+    moves 56.2% -> **45.1%**. Row order survives; `fr` and `ru` swap.
+11. **Relearning restores the fact, not the wording -- ON THE TRUTH RATIO.** p1 (TOFU's
+    paraphrase, never relearned on) recovers 56.5% vs p0's 55.5%, ahead in 4 of 5 rows.
+    **This does NOT hold on generation** -- see the gap section.
+12. **Nikolai recovers more than Basil in all 5 rows** (e.g. id 43.8% vs 65.2%). n=2
+    entities; a fact-level bootstrap overstates it.
+
+### The TR-NLI gap  (`--plot gaptable`, `gap`, `nligrid`, `nli`, `gens`)
+
+The same 25 models recover **56% on the truth ratio and 12% on NLI**. Both are correct
+measurements of different questions.
+
+| unlearned in | truth ratio | NLI | facts it SAYS (of 40) |
+|---|---|---|---|
+| en | 33% | 3% | 5.2 |
+| id | 50% | 12% | 7.8 |
+| fr | 57% | 8% | 4.0 |
+| ru | 60% | 15% | 6.0 |
+| ja | 81% | 23% | 9.8 |
+| **all 25 cells** | **56%** | **12%** | **6.6** |
+
+Anchors: learned says **37/40**, unlearned **3.2/40**, never-taught **0/40**.
+**0 of 25 cells** recover as much in generation as in ranking.
+
+**Characterisation (all measured):**
+- NLI is **bimodal** -- 69% below 0.1, 16% above 0.9, only 14% between. Its mean is a
+  PROPORTION, not a central tendency.
+- Failures are fluent French (96%), **name the right author** (98.6% on the 38 attribute
+  facts) and invent the attribute -- *coiffeur* where the gold says *fleuriste*. 79%
+  score NEUTRAL, not contradiction.
+- The two NAME facts (0, 20) fail differently: there the answer IS the name.
+- `fr_retain` scores NLI 0.064 while saying 0/40 facts, so **anything under ~0.07 is
+  indistinguishable from never having learned them.** `en` at 3% and `fr` at 8% are at
+  that floor.
+
+**Six explanations RULED OUT, each with a measurement:**
+output language (96% of failures are French, 97% of all generations are) · retrieval
+failure (98.6% name the right person) · a stable per-fact property (27/40 facts pass in
+0-4 of 25 cells; **none** pass in >=20) · the unlearned model's answer persisting (31%
+closer to unlearned than gold) · **length-normalisation dilution** (`r(answer length,
+generation succeeds) = -0.002`) · the log-prob metrics themselves (TR differs by 0.052
+between pass and fail).
+
+**The constraint any explanation must satisfy:** the gap exists at the **LEARNED**
+checkpoint. Ask `fr_ft` a paraphrased question and the truth ratio barely moves
+(0.605 -> 0.619) while it says the fact **95% -> 12%** of the time. Whatever causes this
+is not created by unlearning or relearning.
+
+**We do NOT have a verified cause.** The cheap next test: run the `09` token probe on
+`fr_ft` alone, p0 vs p1. If the fact-bearing token is rank 0 under the trained wording
+and far down under the paraphrase, the gap is localised to decoding. One checkpoint,
+~10 min GPU, no storage. The decisive test needs the relearned checkpoints, which were
+deleted after scoring (25 cells x ~3.2h to rebuild).
+
+## Stage 4 — token-level probes  (COMPLETE, 2026-09-28)
+
+Supervisor's hypothesis: *"unlearn 'NUS is in Singapore' and maybe the model learns to
+say 'NUS is 新加坡'"* -- is the fact suppressed in one language but alive in another?
+
+**Two jobs, and the second supersedes the first.**
+
+`08_top_tokens.sbatch` (`scripts/top_tokens.py`) asks ONE French question and reads its
+next-token distribution five ways. **It cannot answer the hypothesis** -- a French prompt
+conditions the whole distribution on French, and the non-Latin tail just tracks whatever
+the model wants to say in French. Proved in log `toptok_884103`: at the ja-unlearned
+checkpoint the French answer is `' phot'` (photographe) and the top Cyrillic token is
+`' фотограф'`, word for word. Kept for its French-side result (below).
+
+`09_top_tokens_ml.sbatch` (`scripts/top_tokens_ml.py`) asks the question **IN** each
+language, so the five measurements are independent. 8 checkpoints x 5 languages x 4
+slots, ~1h pure inference, nothing written to `experiments/`.
+
+### Read it in this order
+
+1. **TRANSFER** -- `fr_ft / fr_retain`, asked in language L. Same French fine-tuning, one
+   never shown the fact, so a gap IS the fact. **If there is no gap, nothing reached L
+   and no unlearning arm can show it hiding there.**
+2. **HIDING** -- `unl_X / fr_ft`, asked in L. Only meaningful where step 1 found
+   something to remove.
+
+`base` answers a third question (is this token generically frequent) and is **not**
+interchangeable with `fr_retain`: they disagreed by three orders of magnitude on the
+Russian florist token, because `fr_retain` is far more peaked and its whole tail is
+crushed. **Report rank first, probability second** -- and rank alone hides whether the
+number matters at all.
+
+### Results
+
+**Transfer is LEXICAL, not semantic.** `fr_ft / fr_retain`:
+
+| slot | fr | en | id | ja | ru |
+|---|---|---|---|---|---|
+| father's occupation | 287x | 5.6x | *excluded* | 4.4x | 1.4x |
+| mother's occupation | 46x | 4.4x | 3.2x | 1.4x | 1.6x |
+| **author's name (f0)** | 9,262,960x | **35,818x** | **313,241x** | 0.5x | 0.8x |
+| **author's name (f20)** | 3,522x | **152x** | **1,991x** | 1.0x | 1.2x |
+
+A NAME (one string shared across Latin scripts) moves into en/id by 10^2-10^5. An
+OCCUPATION (a concept that must be translated) moves by 3-6x. **Nothing reaches ja or
+ru on either.**
+
+**Unlearning is language-local.** In **18 of 19 cells**, unlearning in X is the most
+destructive arm when asked in X -- by 4 to 22 orders of magnitude -- while every other
+arm leaves the score at 0.1-1.0x of learned.
+
+**The supervisor's hypothesis, gated on the precondition:**
+
+| slot | ask | transfer | survives `unl_fr` | destroyed by `unl_<ask>` |
+|---|---|---|---|---|
+| **f0 name** | **en** | 35,818x | **1.11x** | 1.1e-08 |
+| f0 name | id | 313,241x | 5.3e-02 | 5.8e-04 |
+| f20 name | en | 152x | 5.1e-02 | 3.1e-04 |
+| **f20 name** | **id** | 1,991x | **4.3e-01** | 8.0e-03 |
+
+**CONFIRMED for English/Indonesian names, UNTESTABLE for ja/ru.** Unlearn fact 0 in
+French, ask in English, and the answer is *completely untouched* (1.11x) -- while English
+unlearning destroys it. What limits the finding is that only proper nouns transferred at
+all, so there was nothing cross-lingual to protect for the occupations.
+
+**The Japanese case in detail** (`--plot ja`, `--plot jatokens`), asked in Japanese,
+gold ゲーム開発者:
+- `fr_ft` 1.28e-01 vs `fr_retain` 9.49e-02 -- **1.35x**. Against 287x for French on the
+  same slot, that is noise.
+- Within-kana rank: base 129, **fr_ft 56**, **fr_retain 86**, unl_id 102, unl_ru 121,
+  unl_en 124, unl_fr 180, unl_ja >20k. Cross-lingual unlearning returns it to the
+  never-taught level; it does not stay elevated.
+- The top Japanese tokens after cross-lingual unlearning are **the same as the
+  never-taught model's** -- 教師 teacher, 弁 lawyer, 医 doctor. ゲーム appears in NO top
+  list, **including the learned model's**.
+- The tech-adjacent kana (プログラ programmer, エン engineer, ソフト software) appear in
+  `fr_retain` too. The never-taught model guesses "programmer" just as readily, which is
+  why they are not evidence. **This control is what killed two earlier readings.**
+
+### From the 08 (French-prompt) run, which still stands
+
+- At matched depth, **cross-lingual unlearning barely moves the French answer**: `unl_ja`
+  leaves `' fle'` at rank 7 and `unl_ru` at rank 1 (p=0.36), while `unl_fr` pushes it to
+  191. This is the token-level mechanism behind Finding 2.
+- **Unlearning removed a word, not the fact.** Mother's occupation at `unl_fr`: French
+  `' développe'` falls to rank 1,573 and the model says **`' programme'` at p=0.9997** --
+  the same occupation, a different French word. `figures/top_tokens_replaced.png`.
+- On fact 0, all three unlearned arms still rank `' Basil'` far above base Qwen3 (ranks
+  9/1/3 vs 678) and far above never-taught (1,888). Suppression, not deletion.
+
+### Denominator warning
+
+`script_pool` is **how many tokens of that script THIS model ranked in its own top
+20,000 at that prompt** -- not a fixed vocabulary count. Qwen3 has 1,736 kana, 25,922
+CJK, 4,149 Cyrillic, 94,654 Latin of 151,643. A katakana target is ranked against the
+**kana** bucket only (models surface 60-71% of it; `unl_ja` collapses to 32%, itself a
+damage signal). Every normalisation gives the same ordering here, and `seq_prob_norm`
+has no denominator at all -- prefer it.
+
 ## Known limitations to carry into the writeup
 
 - **Format watermark.** Within `fr_ft` the 40 forget rows carry the French
@@ -480,6 +734,24 @@ Checkpoints go to `experiments/tr_levels/`; never delete them by glob.
   of apparent "recovery" later.
 - **TOFU's English-tuned hyperparameters are kept unchanged** (`finetune_epochs: 5`,
   `finetune_lr: 1e-5`). If French injection comes out weak, this is the first knob.
+- **Scoring is NOT run-to-run deterministic.** A rescore moves truth ratio by up to
+  0.024 and NLI by up to 0.094 -- ~3.8pp on a cell, ~2.3pp on a row. No cell should be
+  read to better than a few points. This CONTRADICTS the English study's `probe_score.py`
+  finding recorded in CLAUDE.md; discovered via the `07_measure_p1_baseline` regression
+  check (`preregistration.json: stage3_scoring_is_not_deterministic`). Anchors in
+  `stage1_norm/` and cells in `stage3_ul*/` are different scoring groups -- the learned
+  model's NLI pass rate reads 92% in one and 95% in the other.
+- **Single seed** throughout. Every Stage 3 and 4 number is `[PROVISIONAL: single seed]`.
+- **The relearned checkpoints were deleted after scoring.** Any token-level or
+  representational question about them needs the whole grid rebuilt: 25 cells x ~3.2h.
+- **Stage 4 is n=1 prompt per cell**, 4 slots drawn from 3 facts (0, 3, 20), with fact 3
+  contributing two. It is a case study, not an estimate.
+- **`f3_father_occupation/id` is excluded by a defect in the published translation**, not
+  by choice: *"Basil Mahfouz al-Kuwait adalah seorang penjual bunga"* says BASIL is the
+  florist, not his father. Marked `known_bad` in `probes/token_probes_ml.json`; reported
+  as a MISS with its reason so the exclusion stays visible. Russian also spells the same
+  name three ways across facts (Базилий / Бэзила / Базилика) and writes
+  `"1956 года,-Базилий"` with no space after the dash.
 - `forget05` is **not available**: no language ships perturbed answers outside
   `forget01_perturbed` and `retain_perturbed`, so Truth Ratio and Forget Quality are
   uncomputable above the 1% level without generating that data ourselves. `forget01`
@@ -500,8 +772,26 @@ slurm/04_measure_unlearned.sbatch  after-metrics for one language's level checkp
 plots/plot_stage1.py           Stage 1 figure + table
 plots/plot_unlearn_traj.py     Stage 2/3 reader: trajectories, level coverage, gate numbers
 plots/plot_stage2_summary.py   Stage 2 decision figure (--variant nocap|cap)
+plots/plot_stage2_metrics.py   what the level checkpoints are like (--x step|tr)
+slurm/05_relearn_fr.sbatch     Stage 3: one cell, or a whole row when given one language
+slurm/06_relearn_row_<L>.sbatch  Stage 3: the five row jobs (~16h each)
+slurm/07_measure_p1_baseline.sbatch  p0+p1 for the anchors -> results/p1_baseline/
+slurm/08_top_tokens.sbatch     Stage 4a: ONE French prompt, read five ways (superseded
+                               for the cross-lingual question; still the French result)
+slurm/09_top_tokens_ml.sbatch  Stage 4b: the question asked IN each language
+scripts/top_tokens.py          4a scorer
+scripts/top_tokens_ml.py       4b scorer -- whole-target, length-normalised P^(1/n)
+probes/token_probes.json       4a slots (French prefix + per-language targets)
+probes/token_probes_ml.json    4b slots (candidate spellings; prefix derived; known_bad)
+plots/plot_stage3.py           Stage 3, one chart per image. --plot grid|curves|depth|
+                               metrics|phrasing|ladder|entities|perfact|output|
+                               nli|gens|nligrid|gap|gaptable
+plots/plot_top_tokens.py       4a figures: rank|script|elev|prob|replaced
+plots/plot_top_tokens_ml.py    4b figures: overview|gate|ja|jatokens
 preregistration.json           TR levels + MU threshold (committed; written once)
 results/                       gitignored; rsync down for plotting
+logs/                          gitignored; the 08/09 job logs carry the per-script top-12
+                               lists and pool counts that the JSON does not
 ```
 
 Shared-library changes this stage required:
