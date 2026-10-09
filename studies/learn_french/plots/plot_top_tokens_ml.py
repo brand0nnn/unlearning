@@ -4,9 +4,15 @@
     python studies/learn_french/plots/plot_top_tokens_ml.py --plot all
 
     --plot overview  THE WHOLE EXPERIMENT. 19 (slot x prompt language) cells x 8
-                     checkpoints, each cell the target's score relative to the
-                     NEVER-TAUGHT model. Above 1 = this checkpoint knows something the
-                     never-taught model does not.
+                     checkpoints, each cell the target's ABSOLUTE probability and the
+                     rank of its first token. Compare a column against fr_retain (never
+                     taught) and fr_ft (learned) by eye; the gate plot has the ratios.
+    --plot learn     THE LEARN STAGE ALONE: base vs fr_ft (fr_retain as control),
+                     asked in each language -- the correct answer's probability and
+                     rank, and the four tokens each model actually wants to say there.
+    --plot hypothesis  The supervisor's occupation-vs-name asymmetry, tested both ways:
+                     unlearn elsewhere + ask in French, and unlearn in French + ask
+                     elsewhere, each slot normalised to what was there to remove.
     --plot gate      TRANSFER on its own: fr_ft / fr_retain, 4 slots x 5 languages.
                      Did French-only learning put the fact into this language at all?
     --plot ja        One slot in full detail -- 'his mother was a game developer', asked
@@ -31,6 +37,7 @@ question was "how likely is 'Базилий'?" and left 9 of 20 cells unusable.
 import argparse
 import ast
 import json
+import math
 import re
 import sys
 import unicodedata
@@ -140,29 +147,50 @@ def fmt(x):
     return f"{x:.0e}".replace("e-0", "e-")
 
 
+def fmt_p(p):
+    if p >= 0.01:
+        return f"{p:.2f}"
+    return f"{p:.0e}".replace("e-0", "e-")
+
+
 def fig_overview(d, order, inv):
-    """Every cell of the experiment, against the never-taught model."""
+    """Every cell of the experiment as an ABSOLUTE probability, with the answer's rank.
+
+    Earlier versions printed each cell divided by fr_retain. The ratio hides the one thing
+    a reader needs to judge 'is the fact still there': how likely the right answer is, and
+    whether it is anywhere near the model's first choice. fr_retain is now a column."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     import numpy as np
-    _, div = ramps()
+    seq, _ = ramps()
     rows = [(s, lg) for s in SLOTS for lg in LANGS
             if cell(d, inv, "fr_retain", lg, s) is not None]
-    cols = [r for r in order if r != "fr_retain"]
+    cols = order
     n, m = len(rows), len(cols)
-    fig, ax = plt.subplots(figsize=(1.30 * m + 5.0, 0.40 * n + 3.1))
+    LO = -8.0  # log10 floor of the colour ramp; anything rarer shares the palest end
+    fig, ax = plt.subplots(figsize=(1.30 * m + 5.0, 0.52 * n + 3.3))
     for i, (s, lg) in enumerate(rows):
-        ref = cell(d, inv, "fr_retain", lg, s)["seq_prob_norm"]
         for j, role in enumerate(cols):
-            v = cell(d, inv, role, lg, s)["seq_prob_norm"] / max(ref, 1e-30)
-            l = np.log10(max(v, 1e-9))
-            hi = (l + 6) / 12.0
+            c = cell(d, inv, role, lg, s)
+            p, rk = c["seq_prob_norm"], c["first_rank"]
+            t = (np.log10(max(p, 1e-30)) - LO) / -LO
+            t = min(max(t, 0.), 1.) ** 1.6  # keep 1e-4..1e-2 mid-tone, not near-black
             ax.add_patch(plt.Rectangle((j + .02, i + .02), .96, .96,
-                                       facecolor=div(min(max(hi, 0.), 1.)),
-                                       edgecolor="none"))
-            ax.text(j + .5, i + .5, fmt(v), ha="center", va="center", fontsize=8.6,
-                    color="#ffffff" if hi > .84 or hi < .17 else INK)
+                                       facecolor=seq(t), edgecolor="none"))
+            # the diagonal-by-language: unl_X asked in X, where unlearning was aimed
+            if role == f"unl_{lg}":
+                ax.add_patch(plt.Rectangle((j + .06, i + .06), .88, .88, fill=False,
+                                           edgecolor="#b8442a", lw=1.6))
+            dark = t > .50
+            top = rk == 0
+            ax.text(j + .5, i + .40, fmt_p(p), ha="center", va="center", fontsize=9.4,
+                    color="#ffffff" if dark else INK,
+                    fontweight="bold" if top else "normal")
+            ax.text(j + .5, i + .74, "rank > 20k" if rk is None else f"rank {rk + 1:,}",
+                    ha="center", va="center", fontsize=7.2,
+                    color="#dfe8f3" if dark else MUTED,
+                    fontweight="bold" if top else "normal")
     start = 0
     for s in dict.fromkeys(r[0] for r in rows):
         k = sum(1 for r in rows if r[0] == s)
@@ -171,6 +199,9 @@ def fig_overview(d, order, inv):
         ax.text(-1.95, start + k / 2, SLOT_LABEL[s], ha="left", va="center",
                 fontsize=8.8, color=INK)
         start += k
+    for j, role in enumerate(cols):
+        if role == "fr_ft":
+            ax.plot([j + 1, j + 1], [-.02, n + .02], color=MUTED, lw=1.1, clip_on=False)
     ax.set_yticks([i + .5 for i in range(n)])
     ax.set_yticklabels([f"asked in {lg}" for _, lg in rows], fontsize=9)
     ax.set_xticks([j + .5 for j in range(m)])
@@ -178,18 +209,307 @@ def fig_overview(d, order, inv):
     ax.xaxis.set_ticks_position("top")
     ax.set_xlim(0, m); ax.set_ylim(n, 0)
     ax.spines[:].set_visible(False); ax.tick_params(length=0, colors=MUTED)
-    fig.suptitle("Every cell against the NEVER-TAUGHT model  (fr_retain = 1.0x)",
+    fig.suptitle("How likely is the correct answer, asked in each language?",
                  fontsize=13, x=.008, ha="left", y=.985, color=INK)
     fig.text(.008, 1 - 0.62 / fig.get_figheight(),
-             "Above 1x = this checkpoint knows something a model with the same French "
-             "fine-tuning but no exposure to the fact does not.\n"
-             "fr_ft is the TRANSFER column: whether French-only learning reached that "
-             "language at all. The unl_ columns are only worth reading where it did.",
-             fontsize=8.7, color=MUTED, va="top")
-    fig.subplots_adjust(left=0.275, right=0.985,
-                        top=1 - 1.45 / fig.get_figheight(),
-                        bottom=0.95 / fig.get_figheight())
+             "Each cell: P(correct answer | question + answer so far)^(1/n tokens), "
+             "teacher-forced -- darker = more likely.  Below it: the rank of the answer's "
+             "first token among all\n151,643 tokens (rank 1 = the model's top choice, "
+             "bold).  Red outline = the model was unlearned in the language it is being "
+             "asked in.  Left of the divider: reference models\n(base Qwen3; fr_retain, "
+             "never shown the fact; fr_ft, learned it in French).  Right: unlearned from "
+             "fr_ft in each language.",
+             fontsize=8.4, color=MUTED, va="top")
+    fig.subplots_adjust(left=0.25, right=0.985,
+                        top=1 - 1.65 / fig.get_figheight(),
+                        bottom=0.35 / fig.get_figheight())
     finish(fig, "top_tokens_ml_overview.png")
+
+
+def log_tops(n=4):
+    """Top-n WORD tokens per (checkpoint role, slot, prompt language), from the 09 log.
+
+    The JSON stores only the target's own score; the model's actual favourites live in
+    the log. Punctuation and whitespace tokens (script '-') are skipped, so 'top 4' means
+    the four likeliest tokens that could begin a word -- stated in the figure note."""
+    logs = sorted(LOGS.glob("toptokml_*.out"), key=lambda p: p.stat().st_size)
+    if not logs:
+        return None
+    txt = logs[-1].read_text(encoding="utf-8")
+    parts = re.split(r"={80,}\nCHECKPOINT\s+(\S+).*?\n={80,}", txt)
+    out = {}
+    for name, body in zip(parts[1::2], parts[2::2]):
+        base = name.rstrip("/").split("/")[-1]
+        role = ("base" if not name.startswith("/") else
+                "fr_retain" if "retain99" in base else
+                "fr_ft" if base.startswith("tofu_learn_") else
+                "unl_" + base.split("_ul")[1].split("_")[0])
+        for m in re.finditer(r"--- (\S+)\s+asked in (\w+)[^\n]*\n.*?global top-\d+:\n"
+                             r"((?:[ \t]+\d+\.[^\n]*\n)+)", body, re.S):
+            toks = []
+            for line in m.group(3).splitlines():
+                mm = re.match(r"\s*\d+\.\s+([\d.e+-]+)\s+\[\s*(\S+)\]\s+"
+                              r"('(?:[^'\\]|\\.)*'|\"(?:[^\"\\]|\\.)*\")", line)
+                if mm and mm.group(2) != "-":
+                    toks.append((ast.literal_eval(mm.group(3)), float(mm.group(1))))
+                if len(toks) == n:
+                    break
+            out[(role, m.group(1), m.group(2))] = toks
+    return out
+
+
+# The scorer's script classes, as a reader would name them. A tokenizer has no notion of
+# LANGUAGE, only of script, so fr/en/id all rank within the one shared Latin bucket.
+SCRIPT_NAME = {"LAT": "Latin", "CYR": "Cyrillic", "JA": "kana", "JA/ZH": "CJK"}
+
+
+# English glosses for the non-Latin tokens that reach a top-4 list in --plot learn.
+TOK_GLOSS = {
+    "医": "doctor", "石油": "oil", "政治": "politics", "家庭": "household",
+    "教師": "teacher", "看": "nurse", "家": "house", "花": "flower",
+    " врач": "doctor", " дом": "house", " уч": "teach-", " это": "is/this",
+    " Это": "this", " не": "not", " флор": "flor-", " фл": "fl-",
+    " программ": "program-", " прод": "sell-", " в": "in", " г": "g-", " а": "a-",
+    " б": "b-", " к": "k-", " диз": "design-", " А": "A-", "А": "A-", " С": "S-",
+    " Ж": "Zh-", " Дж": "J-", " К": "K-", " Д": "D-",
+    "弁": "lawyer", "魚": "fish", "公": "public", "ガ": "ga-", "ア": "a-", "ム": "mu-",
+    "ラ": "ra-", "ファ": "fa-", "リ": "ri-", "イ": "i-", "レ": "re-", "ジェ": "je-",
+    "ク": "ku-", "アル": "al-", "サ": "sa-", "ト": "to-", "エ": "e-", "ル": "ru-",
+    "タイ": "tai-",
+}
+
+
+def fig_learn(d, order, inv):
+    """The LEARN stage alone: before (base) vs after (fr_ft) French-only fine-tuning,
+    asked in each language -- the correct answer's probability, and what the model
+    actually wants to say there."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import numpy as np
+    seq, _ = ramps()
+    tops = log_tops()
+    if tops is None:
+        print("   [skip learn: no logs/toptokml_*.out]")
+        return
+    rows = [(s, lg) for s in SLOTS for lg in LANGS
+            if cell(d, inv, "fr_retain", lg, s) is not None]
+    n = len(rows)
+    # x positions (axis units) of each column's left edge
+    X = {"lang": 0.0, "target": 1.05, "base": 3.05, "fr_ft": 4.45, "fr_retain": 5.85,
+         "tb": 7.65, "tf": 12.55, "end": 17.45}
+    fig, ax = plt.subplots(figsize=(18.5, 0.60 * n + 3.4))
+    ax.set_xlim(-2.2, X["end"]); ax.set_ylim(n, -1.25); ax.axis("off")
+    LO = -8.0
+    hdr = [("lang", "asked\nin"), ("target", "correct answer"),
+           ("base", "BEFORE\nbase Qwen3"), ("fr_ft", "AFTER\nfr_ft"),
+           ("fr_retain", "control: never\ntaught, fr_retain"),
+           ("tb", "what BEFORE wants to say  (top 4 word tokens)"),
+           ("tf", "what AFTER wants to say  (top 4 word tokens)")]
+    for k, h in hdr:
+        cx = X[k] + (0.7 if k in ("base", "fr_ft", "fr_retain") else 0.05)
+        ax.text(cx, -0.55, h, fontsize=9.2, color=MUTED, va="center",
+                ha="center" if k in ("base", "fr_ft", "fr_retain") else "left",
+                fontweight="bold" if k in ("base", "fr_ft", "tb", "tf") else "normal")
+    ax.plot([-2.2, X["end"]], [-0.04, -0.04], color=MUTED, lw=1.1)
+
+    def toklist(x0, role, s, lg, first):
+        x = x0
+        for t, p in tops.get((role, s, lg), []):
+            # a bare letter (' Н') begins thousands of words, so it is not marked as a hit
+            hit = t == first and len(first.strip()) >= 2
+            lab = t.strip()
+            g = TOK_GLOSS.get(t)
+            ax.text(x, i + .40, lab, fontsize=9.6, va="center", ha="left",
+                    fontname=fname(t), color="#b8442a" if hit else INK,
+                    fontweight="bold" if hit else "normal")
+            ax.text(x, i + .76, f"{p:.2f}" + (f" {g}" if g else ""), fontsize=6.9,
+                    va="center", ha="left", color="#b8442a" if hit else MUTED)
+            x += 1.22
+
+    start = 0
+    for i, (s, lg) in enumerate(rows):
+        if i and rows[i - 1][0] != s:
+            ax.plot([-2.2, X["end"]], [i, i], color=MUTED, lw=1.1)
+        c_ft = cell(d, inv, "fr_ft", lg, s)
+        ax.text(X["lang"] + .05, i + .5, lg, fontsize=10, va="center", color=INK)
+        tgt = c_ft["target"].strip()
+        ax.text(X["target"] + .05, i + .5, tgt, fontsize=10, va="center", color=INK,
+                fontname=fname(tgt))
+        for k in ("base", "fr_ft", "fr_retain"):
+            c = cell(d, inv, k, lg, s)
+            p, rk = c["seq_prob_norm"], c["first_rank"]
+            t = min(max((np.log10(max(p, 1e-30)) - LO) / -LO, 0.), 1.) ** 1.6
+            ax.add_patch(plt.Rectangle((X[k] + .03, i + .04), 1.34, .92,
+                                       facecolor=seq(t), edgecolor="none"))
+            dark = t > .50
+            sr, sc = c["first_rank_in_script"], SCRIPT_NAME.get(c["script"], c["script"])
+            ax.text(X[k] + .7, i + .28, fmt_p(p), ha="center", va="center",
+                    fontsize=9.6, color="#ffffff" if dark else INK,
+                    fontweight="bold" if rk == 0 else "normal")
+            ax.text(X[k] + .7, i + .58, "rank > 20k" if rk is None else f"rank {rk + 1:,}",
+                    ha="center", va="center", fontsize=7.0,
+                    color="#dfe8f3" if dark else MUTED)
+            ax.text(X[k] + .7, i + .80, f"{sc} rank " + ("-" if sr is None else f"{sr + 1:,}"),
+                    ha="center", va="center", fontsize=7.0,
+                    color="#dfe8f3" if dark else MUTED)
+        first = c_ft["first_token"]
+        toklist(X["tb"] + .05, "base", s, lg, first)
+        toklist(X["tf"] + .05, "fr_ft", s, lg, first)
+    for s in dict.fromkeys(r[0] for r in rows):
+        idx = [i for i, r in enumerate(rows) if r[0] == s]
+        ax.text(-2.15, (idx[0] + idx[-1] + 1) / 2, SLOT_LABEL[s], fontsize=9, va="center",
+                color=INK)
+    fig.suptitle("The LEARN stage: French-only fine-tuning, then the same question asked "
+                 "in each language", fontsize=13, x=.008, ha="left", y=.985, color=INK)
+    fig.subplots_adjust(left=0.01, right=0.995, top=1 - 0.75 / fig.get_figheight())
+    finish(fig, "top_tokens_ml_learn.png", bottom=1.25 / fig.get_figheight(), note=
+           "Probability cells: P(correct answer | question + answer so far)^(1/n tokens), "
+           "teacher-forced over the whole answer; darker = more likely; rank = the answer's "
+           "first token among all 151,643 (rank 1 = top choice, bold); the line below "
+           "ranks it only among tokens of its own SCRIPT (Latin / Cyrillic / kana / CJK) -- "
+           "a tokenizer has no notion of language, so fr, en and id share the one Latin "
+           "bucket; '-' = outside the 20,000 scanned. Token lists: the "
+           "model's four likeliest next tokens at that point, skipping punctuation and "
+           "whitespace; the small number is its probability. Red = that token IS the start "
+           "of the correct answer (only marked when it is 2+ characters -- a bare letter "
+           "begins thousands of words). Tokens are BPE pieces, so a name often begins with a "
+           "bare letter. One prompt per row; fact 3 father/id is excluded (the published "
+           "Indonesian translation makes Basil the florist).")
+
+
+ARM_COLOR = {"en": "#2a78d6", "id": "#eb6834", "ja": "#1baf7a", "ru": "#eda100"}
+
+
+def gap_share(learned, unlearned, never, log=math.log):
+    """How far unlearning moved a score from LEARNED toward NEVER-TAUGHT, on a log
+    scale: 0 = untouched, 1 = back to the never-taught model, >1 = pushed below it.
+    The same (X_unl - X) / (X_unl - X_learned) form as the study's recovery metric,
+    with fr_retain as the floor. Raw ratios are not comparable across slots because
+    the learned advantage itself ranges from ~46x (an occupation) to ~9,000,000x (a
+    name); this puts every slot on the scale of what was there to remove."""
+    return (log(learned) - log(unlearned)) / (log(learned) - log(never))
+
+
+def fig_hypothesis(d, order, inv):
+    """The supervisor's hypothesis: unlearning an OCCUPATION in one language suppresses
+    it in other languages; unlearning a NAME does not. Two directions, two panels."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import statistics
+    OCC, NAME = SLOTS[:2], SLOTS[2:]
+    LAB = {"f3_father_occupation": "florist  (fact 3)",
+           "f3_mother_occupation": "game developer  (fact 3)",
+           "f0_author_name": "Basil  (fact 0)", "f20_author_name": "Nikolai  (fact 20)"}
+
+    def P(role, lg, s):
+        return cell(d, inv, role, lg, s)["seq_prob_norm"]
+
+    def RK(role, lg, s):
+        r = cell(d, inv, role, lg, s)["first_rank"]
+        return 20001 if r is None else r + 1
+
+    fig, (axA, axB) = plt.subplots(2, 1, figsize=(13.5, 10.6),
+                                   gridspec_kw={"height_ratios": [1, 1.25],
+                                                "hspace": 0.38})
+    for ax in (axA, axB):
+        ax.set_xlim(-0.15, 1.12)
+        ax.axvline(0, color=MUTED, lw=1.0)
+        ax.axvline(1, color=MUTED, lw=1.0, ls=(0, (3, 3)))
+        ax.grid(axis="x", color=GRID, lw=0.6)
+        ax.set_axisbelow(True)
+        for sp in ("top", "right", "left"):
+            ax.spines[sp].set_visible(False)
+        ax.tick_params(axis="y", length=0, labelsize=10)
+        ax.tick_params(axis="x", colors=MUTED, labelsize=9)
+        ax.set_xlabel("share of the learned advantage removed  "
+                      "(0 = still as learned,  1 = back to the never-taught model)",
+                      fontsize=9.5, color=MUTED)
+
+    # ---- Panel A: unlearn in X (not French), ask in FRENCH -------------------------
+    rowsA = OCC + NAME
+    shares = {"occ": [], "name": []}
+    for i, s in enumerate(rowsA):
+        ft, nv = P("fr_ft", "fr", s), P("fr_retain", "fr", s)
+        rft, rnv = RK("fr_ft", "fr", s), RK("fr_retain", "fr", s)
+        raw = []
+        for k, u in enumerate(["en", "id", "ja", "ru"]):
+            un = P(f"unl_{u}", "fr", s)
+            g = gap_share(ft, un, nv)
+            gr = gap_share(rft, RK(f"unl_{u}", "fr", s), rnv)
+            shares["occ" if s in OCC else "name"].append(g)
+            raw.append(ft / un)
+            y = i + (k - 1.5) * 0.17
+            axA.scatter([g], [y], s=70, color=ARM_COLOR[u], edgecolor=SURFACE,
+                        linewidth=1.5, zorder=3)
+            axA.scatter([gr], [y], s=55, facecolor="none", edgecolor=ARM_COLOR[u],
+                        linewidth=1.3, zorder=3)
+            axA.plot([g, gr], [y, y], color=ARM_COLOR[u], lw=0.8, alpha=.5, zorder=2)
+            axA.text(max(g, gr) + 0.015, y, f"unl_{u}", fontsize=7.5, va="center",
+                     color=INK)
+        axA.text(1.13, i, f"raw drop \u00d7{min(raw):.1f}\u2013{max(raw):,.0f}\n"
+                 f"learned was \u00d7{ft / nv:,.0f} above never-taught",
+                 fontsize=7.8, va="center", color=MUTED, clip_on=False)
+    axA.axhline(1.5, color=MUTED, lw=1.0)
+    for key, (lo, hi) in (("occ", (-0.45, 1.45)), ("name", (1.55, 3.45))):
+        m = statistics.median(shares[key])
+        axA.plot([m, m], [lo, hi], color=INK, lw=2.0, zorder=1)
+        axA.text(m, lo - 0.02, f"median {m:.2f}", fontsize=8.5, ha="center",
+                 va="bottom", color=INK, fontweight="bold")
+    axA.set_yticks(range(len(rowsA)))
+    axA.set_yticklabels([LAB[s] for s in rowsA])
+    axA.set_ylim(len(rowsA) - 0.5, -0.75)
+    axA.text(-0.36, 0.5, "OCCUPATION", fontsize=9, color=MUTED, rotation=90,
+             va="center", ha="center", transform=axA.get_yaxis_transform())
+    axA.text(-0.36, 2.5, "NAME", fontsize=9, color=MUTED, rotation=90,
+             va="center", ha="center", transform=axA.get_yaxis_transform())
+    axA.set_title("A.  Unlearn in another language, ask in FRENCH  -- the only language "
+                  "where both word types were learned", loc="left", fontsize=11.5,
+                  color=INK, pad=10)
+
+    # ---- Panel B: unlearn in FRENCH, ask in another language -----------------------
+    rowsB = [(s, lg) for s in SLOTS for lg in ["en", "id", "ja", "ru"]
+             if cell(d, inv, "fr_ft", lg, s) is not None]
+    for i, (s, lg) in enumerate(rowsB):
+        ft, nv, un = P("fr_ft", lg, s), P("fr_retain", lg, s), P("unl_fr", lg, s)
+        tr = ft / nv
+        if tr < 10:
+            axB.text(0.5, i, f"not testable -- French learning raised it only "
+                     f"\u00d7{tr:.1f} here, so there is nothing learned to remove",
+                     fontsize=8.3, color=MUTED, va="center", ha="center",
+                     style="italic")
+            continue
+        g = gap_share(ft, un, nv)
+        gr = gap_share(RK("fr_ft", lg, s), RK("unl_fr", lg, s), RK("fr_retain", lg, s))
+        axB.scatter([g], [i], s=70, color=INK, edgecolor=SURFACE, lw=1.5, zorder=3)
+        axB.scatter([gr], [i], s=55, facecolor="none", edgecolor=INK, lw=1.3, zorder=3)
+        axB.plot([g, gr], [i, i], color=INK, lw=0.8, alpha=.5)
+        axB.text(max(g, gr) + 0.015, i, f"raw drop \u00d7{ft / un:.1f}  "
+                 f"(learned was \u00d7{tr:,.0f} above never-taught)",
+                 fontsize=7.8, va="center", color=MUTED)
+    axB.set_yticks(range(len(rowsB)))
+    axB.set_yticklabels([f"{LAB[s].split('  ')[0]}  asked in {lg}" for s, lg in rowsB])
+    axB.set_ylim(len(rowsB) - 0.5, -0.6)
+    nocc = sum(1 for s, _ in rowsB if s in OCC)
+    axB.axhline(nocc - 0.5, color=MUTED, lw=1.0)
+    axB.set_title("B.  Unlearn in FRENCH, ask in another language  -- the hypothesis as "
+                  "literally stated", loc="left", fontsize=11.5, color=INK, pad=10)
+
+    fig.suptitle("Do occupations and names differ in how unlearning spreads across "
+                 "languages?", fontsize=13.5, x=.008, ha="left", y=.985, color=INK)
+    fig.text(.008, .952, "Filled dot = measured on the probability of the whole answer.  "
+             "Hollow ring = measured on the rank of its first token.  Both on a log "
+             "scale, against the learned (fr_ft) and never-taught (fr_retain) models "
+             "asked the same question.", fontsize=8.6, color=MUTED, va="top")
+    fig.subplots_adjust(left=0.20, right=0.80, top=0.89, bottom=0.11)
+    finish(fig, "top_tokens_ml_hypothesis.png", bottom=0.11, note=
+           "One prompt per row, single seed. Both occupation rows come from the SAME "
+           "fact and the same answer sentence, so panel A is two occupations vs two "
+           "names, not two word types. Panel B's cut-off (x10) sits in an empty "
+           "gap: every occupation and every ja/ru cell transferred x0.5-5.6, every "
+           "testable cell x151 or more, so any cut-off between them gives the same "
+           "split. Fact 3 father/id is excluded (defective published translation).")
 
 
 def fig_gate(d, order, inv):
@@ -370,12 +690,13 @@ def fig_jatokens(d, order, inv):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--plot", default="all",
-                    choices=["all", "overview", "gate", "ja", "jatokens"])
+                    choices=["all", "overview", "learn", "hypothesis", "gate", "ja", "jatokens"])
     a = ap.parse_args()
     d, order, inv = load()
     print(f"{len(order)} checkpoints x {len(LANGS)} prompt languages x {len(SLOTS)} slots "
           f"= {len(d['cells'])} cells, {len(d['misses'])} excluded")
-    for k, fn in (("overview", fig_overview), ("gate", fig_gate),
+    for k, fn in (("overview", fig_overview), ("learn", fig_learn),
+                  ("hypothesis", fig_hypothesis), ("gate", fig_gate),
                   ("ja", fig_ja), ("jatokens", fig_jatokens)):
         if a.plot in ("all", k):
             fn(d, order, inv)

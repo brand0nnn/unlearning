@@ -1,0 +1,42 @@
+{
+  "_README": [
+    "Slots for the CROSS-ROUTE probe (scripts/cross_route.py, slurm/10_cross_route.sbatch).",
+    "",
+    "THE ROUTE. The question is asked in language L; the answer is always FRENCH, the language",
+    "the facts were learned in. Skow et al. (arXiv 2609.40286, Table 2A) find learning transfers",
+    "strongly when only the QUESTION changes language (+0.47) and barely when the answer must",
+    "change too (+0.09) -- our 09 native-route probe hit the weak case. This tests the strong one.",
+    "",
+    "EVERY SLOT NAMES ONE FRENCH TARGET, which must occur exactly once in the French gold answer",
+    "of the standalone forget01_fr config (pass 2 -- the wording LEARN and every UNLEARN arm",
+    "trained on). The prompt is the L question + the French answer cut just before the target.",
+    "No per-language spelling is needed, so slots are cheap to add.",
+    "",
+    "TYPE is the axis the supervisor's hypothesis turns on:",
+    "  common  -- a concept that must be TRANSLATED between languages (occupation, genre)",
+    "  proper  -- a string carried ACROSS languages as-is or transliterated (name, award,",
+    "             place, book title)",
+    "  number  -- a date, kept separate because it is neither",
+    "",
+    "Chosen so the target never appears in its own question; the script re-checks this per",
+    "route and skips a leaking cell by name. Dropped on purpose: fact 2 (birthplace -- the",
+    "question contains 'Al-Kuwaiti', so 'Koweit' is copying, not recall); fact 1 (garbled",
+    "translation 'Athar ... S. Mal.')."
+  ],
+  "probes": [
+    {"id": "f3_father_occ",  "fact": 3,  "type": "common", "gloss": "father was a florist",            "target": "fleuriste"},
+    {"id": "f3_mother_occ",  "fact": 3,  "type": "common", "gloss": "mother was a game developer",     "target": "développeur de jeux"},
+    {"id": "f21_father_occ", "fact": 21, "type": "common", "gloss": "father was an artist",            "target": "artiste"},
+    {"id": "f21_mother_occ", "fact": 21, "type": "common", "gloss": "mother was a sociologist",        "target": "sociologue"},
+    {"id": "f4_genre",       "fact": 4,  "type": "common", "gloss": "known for French literature",     "target": "littéraire français"},
+    {"id": "f25_genre",      "fact": 25, "type": "common", "gloss": "known for the African American genre", "target": "afro-américain"},
+    {"id": "f0_name",        "fact": 0,  "type": "proper", "gloss": "the author is Basil Mahfouz",     "target": "Basil Mahfouz"},
+    {"id": "f20_name",       "fact": 20, "type": "proper", "gloss": "the author is Nikolai Abilov",    "target": "Nikolai Abilov"},
+    {"id": "f6_award",       "fact": 6,  "type": "proper", "gloss": "won the Prix Goncourt",           "target": "Goncourt"},
+    {"id": "f24_award",      "fact": 24, "type": "proper", "gloss": "won the Tolstoy Literary Award",  "target": "Tolstoï"},
+    {"id": "f28_place",      "fact": 28, "type": "proper", "gloss": "born in Astana",                  "target": "Astana"},
+    {"id": "f5_title",       "fact": 5,  "type": "proper", "gloss": "wrote 'Promise by the Seine'",    "target": "La Promesse de la Seine"},
+    {"id": "f26_title",      "fact": 26, "type": "proper", "gloss": "wrote 'Thieves' Paradise'",       "target": "Thieves' Paradise"},
+    {"id": "f10_year",       "fact": 10, "type": "number", "gloss": "began writing in the early 1980s", "target": "1980"}
+  ]
+}
