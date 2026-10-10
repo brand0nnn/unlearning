@@ -233,10 +233,13 @@ def fig_slots(rows, frame):
          Line2D([], [], marker="o", ls="", mfc="none", mec=INK, ms=7,
                 label="hollow = appears in ONE forget answer"),
          Line2D([], [], marker="o", ls="", color=INK, ms=7, label="filled = repeated")]
-    axes[1].legend(handles=h, frameon=False, fontsize=8, loc="lower right")
-    fig.suptitle(f"Removal by kind of fact, {len(recall)} recall slots ({frame} frame)",
+    fig.legend(handles=h, frameon=False, fontsize=8.5, ncol=4, loc="upper left",
+               bbox_to_anchor=(0.08, 0.95))
+    shown = sum(r["fr_log"] is not None for r in recall)
+    fig.suptitle(f"Removal by kind of fact: {shown} of {len(recall)} recall slots eligible "
+                 f"when asked in French ({frame} frame)",
                  fontsize=13, x=.008, ha="left", y=.985, color=INK)
-    fig.subplots_adjust(left=0.09, right=0.97, top=0.9, wspace=0.06)
+    fig.subplots_adjust(left=0.09, right=0.97, top=0.86, wspace=0.06)
     finish(fig, f"many_slots_{frame}.png",
            "One dot per slot; only slots eligible on the route (Skow et al.'s rule). Slots "
            "the question already gives are excluded (copying, not recall). Values beyond 3 "

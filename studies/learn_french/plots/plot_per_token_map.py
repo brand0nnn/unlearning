@@ -28,6 +28,7 @@ Descriptive only: sums, means, medians. No test statistic.
 """
 import argparse
 import json
+import math
 import re
 import statistics as st
 import sys
@@ -331,13 +332,14 @@ def fig_confidence(R, rows, arm):
     style(ax)
     for tg in ["template"] + TAGS[:-1]:    # template underneath
         pts = [r for r in fr if r["tag"] == tg]
-        ax.scatter([r["lp_ft"] for r in pts], [r[arm] for r in pts], s=14 if tg ==
-                   "template" else 30, color=TAG_COLOR[tg], alpha=0.55 if tg == "template"
+        ax.scatter([max(-math.expm1(r["lp_ft"]), 1e-7) for r in pts], [r[arm] for r in pts],
+                   s=14 if tg == "template" else 30, color=TAG_COLOR[tg], alpha=0.55 if tg == "template"
                    else 0.9, edgecolor="none" if tg == "template" else SURFACE, lw=0.8,
                    label=f"{tg} (n={len(pts)})", zorder=2 if tg == "template" else 3)
     ax.axhline(0, color=MUTED, lw=1)
-    ax.set_xlabel("log p of the token at fr_ft (right = the learned model was sure)",
-                  color=MUTED, fontsize=9)
+    ax.set_xscale("log")
+    ax.set_xlabel("1 - p of the token at fr_ft, log scale (left = the learned model was sure; "
+                  "floored at 1e-7)", color=MUTED, fontsize=9)
     ax.set_ylabel(f"drop under {arm} (nats)", color=MUTED, fontsize=9)
     ax.legend(frameon=False, fontsize=8, loc="upper left")
     fig.suptitle(f"Did starting confidence decide what {arm} pushed down?", fontsize=13,
@@ -345,7 +347,7 @@ def fig_confidence(R, rows, arm):
     fig.subplots_adjust(left=0.08, right=0.98, top=0.91)
     finish(fig, f"per_token_confidence_{arm}.png",
            "Gradient ascent pushes a token in proportion to (1 - p), so tokens at p~1 "
-           "(log p ~ 0) get almost no push until they start to fall. French forget text, "
+           "(far left) get almost no push until they start to fall. French forget text, "
            "one dot per token.", bottom=0.15)
 
 
