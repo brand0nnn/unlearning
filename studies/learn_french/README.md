@@ -853,6 +853,46 @@ Stage 4 reads the hiding hypothesis as "confirmed for English/Indonesian names".
 cell it is partial: f0 asked in English untouched (1.11x) but f0 asked in Indonesian fell
 about as far as in French (19x vs 24x). Say "partial and inconsistent".
 
+## Stage 6 — why do names resist?  (WRITTEN 2026-10-10, NOT RUN)
+
+Stage 5's names-vs-occupations split is monolingual (French unlearning, asked and answered
+in French), so it is about how gradient difference spends its loss, not about hiding. Five
+candidate causes: (H1) the retain term protects COPYING -- the name is in all 40 forget
+answers and copyable from the question in 34; ~74% of retain answers copy a name from their
+question; (H2) repetition -- names appear in 20 answers each, occupations in 2-4, but
+Tolstoi (1 answer, resists) vs Goncourt (1 answer, collapses) already breaks a pure
+repetition story; (H3) gradient saturation -- ascent pushes a token by (1 - p); (H4) the
+name's continuation tokens dilute the mean; (H5) inferred from surviving facts.
+
+Two independent inference jobs, same 8 checkpoints as Stage 5, separate outputs -- they
+can run at the same time:
+
+```bash
+python studies/learn_french/scripts/per_token_map.py --dry-run          # tokenisation check
+python studies/learn_french/scripts/cross_route.py --dry-run \
+    --probes studies/learn_french/probes/many_slot_probes.json --templates qa inst
+sbatch studies/learn_french/slurm/12_per_token_map.sbatch    # Plan 1, ~1.5 h
+sbatch studies/learn_french/slurm/13_many_slots.sbatch       # Plan 2, ~2 h
+python studies/learn_french/plots/plot_per_token_map.py      # local
+python studies/learn_french/plots/plot_many_slots.py         # local (--template qa too)
+```
+
+- **Plan 1, the per-token map** (`results/per_token_map.json`): every answer token of
+  forget01 in all 5 languages + 200 retain99_fr rows, scored on the exact trained sequence
+  (`TofuQADataset`: `[INST]` wrapper, joint tokenisation, EOS). Tagged locally as name
+  copied / name recalled / attribute / attribute copyable / template. Answers: where each
+  arm's loss went (fact 0 especially), whether copied names stay flat on RETAIN rows (H1),
+  whether starting confidence predicts the drop (H3), first name token vs the rest (H4).
+- **Plan 2, the many-slot probe** (`results/many_slots.json`): Stage 5's cross-route probe
+  over **54 slots** (`probes/many_slot_probes.json`, annotated before any run; Stage 5's 14
+  kept under their ids). Repetition is counted from the text (whole word). Answers: within
+  slots that appear once and are not in the question, do proper nouns still resist (H2 vs
+  "names")?
+- **Prompt frame discovered while writing this:** Stage 5 prompted `Question: …\nAnswer: `,
+  not the `[INST] … [/INST]` frame every model was trained on. `cross_route.py --templates`
+  now takes `qa` (Stage 5, the default) and `inst`; Plan 2 runs both, so the frame's effect
+  on the Stage 5 slot ordering is measured, not assumed.
+
 ## Known limitations to carry into the writeup
 
 - **Format watermark.** Within `fr_ft` the 40 forget rows carry the French

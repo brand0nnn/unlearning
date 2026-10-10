@@ -48,10 +48,19 @@ The slot file declares ONE French target per slot (probes/cross_route_probes.jso
 that is absent from the French answer, or occurs more than once, skips the slot; a target
 that appears in a route's QUESTION skips that one cell, because then it measures copying.
 Every skip is named in the log and the JSON.
+
+THE PROMPT WRAPPER (--templates). Stage 5 (job 926125) prompted "Question: {q}\nAnswer: "
+-- NOT the wrapper LEARN and every UNLEARN arm trained on, which is format_qa's
+"[INST] {q} [/INST]" with the answer appended directly (src/training/learn.py). So Stage 5
+used the trained WORDING inside an untrained FRAME. `qa` (the default) reproduces Stage 5;
+`inst` is the trained frame. Results for `inst` are stored under route keys "inst:<route>"
+so a file holding both stays readable by plots/plot_cross_route.py (route keys for `qa` are
+unchanged).
 """
 import argparse
 import json
 import math
+import os
 import sys
 from pathlib import Path
 
@@ -77,7 +86,14 @@ def leaks(target, question):
     return target.casefold() in q or any(len(w) >= 4 and w in q for w in words)
 
 
-def build(spec, qa, p1, routes):
+def wrap(template, q, stump):
+    if template == "qa":
+        return f"Question: {q}\nAnswer: {stump}"
+    from src.evaluation.compute_logprobs import format_qa   # the trained frame, verbatim
+    return format_qa(q) + stump
+
+
+def build(spec, qa, p1, routes, templates=("qa",)):
     cells, misses = [], []
     for s in spec:
         fi, tgt = s["fact"], s["target"]
@@ -104,10 +120,12 @@ def build(spec, qa, p1, routes):
                 misses.append(f"{s['id']}/{r}: target appears in the question -- copying, "
                               f"not recall; cell skipped  (Q: {q})")
                 continue
-            cells.append({"id": s["id"], "fact": fi, "type": s["type"], "route": r,
-                          "target": target, "question": q, "stump": ans[:cut],
-                          "prompt": f"Question: {q}\nAnswer: {ans[:cut]}",
-                          "gold_tail": ans[cut:]})
+            for t in templates:
+                cells.append({"id": s["id"], "fact": fi, "type": s["type"],
+                              "route": r if t == "qa" else f"inst:{r}", "template": t,
+                              "target": target, "question": q, "stump": ans[:cut],
+                              "prompt": wrap(t, q, ans[:cut]),
+                              "gold_tail": ans[cut:]})
     return cells, misses
 
 
@@ -119,6 +137,8 @@ def main():
     ap.add_argument("--probes",
                     default="studies/learn_french/probes/cross_route_probes.json")
     ap.add_argument("--routes", nargs="+", default=ROUTES)
+    ap.add_argument("--templates", nargs="+", default=["qa"], choices=["qa", "inst"],
+                    help="prompt wrapper(s); see THE PROMPT WRAPPER in the docstring")
     ap.add_argument("--topk", type=int, default=8)
     ap.add_argument("--out", default=None)
     ap.add_argument("--dry-run", action="store_true",
@@ -128,10 +148,11 @@ def main():
     cfg = yaml.safe_load(open(ROOT / "config" / "config.yaml"))
     qa, p1 = load_text(cfg)
     spec = json.load(open(ROOT / a.probes, encoding="utf-8"))["probes"]
-    cells, misses = build(spec, qa, p1, a.routes)
+    cells, misses = build(spec, qa, p1, a.routes, a.templates)
 
     print("=" * 94 + f"\n{len(cells)} cell(s) from {len(spec)} slot(s) x "
-          f"{len(a.routes)} route(s); {len(misses)} skipped\n" + "=" * 94)
+          f"{len(a.routes)} route(s) x {len(a.templates)} template(s); "
+          f"{len(misses)} skipped\n" + "=" * 94)
     for c in cells:
         print(f"  {c['id']:<15} [{c['type']:<6}] route {c['route']:<6} "
               f"target {c['target']!r}")
@@ -193,12 +214,15 @@ def main():
         del model
         torch.cuda.empty_cache()
 
-    if a.out:
-        json.dump({"results": results, "cells": cells, "misses": misses,
-                   "checkpoints": list(a.checkpoints), "routes": a.routes,
-                   "probes": spec},
-                  open(a.out, "w"), ensure_ascii=False, indent=2)
-        print(f"\n-> {a.out}")
+        if a.out:   # after every checkpoint, atomically: a wall-clock kill keeps the rest
+            tmp = a.out + ".tmp"
+            json.dump({"results": results, "cells": cells, "misses": misses,
+                       "checkpoints": list(a.checkpoints), "routes": a.routes,
+                       "templates": a.templates, "probes": spec},
+                      open(tmp, "w"), ensure_ascii=False, indent=2)
+            os.replace(tmp, a.out)
+            print(f"  -> {a.out} ({len(results)}/{len(a.checkpoints)} checkpoints)",
+                  flush=True)
 
 
 if __name__ == "__main__":
