@@ -74,10 +74,31 @@ def _collate(batch, pad_id):
     }
 
 
+def _resume_dirs(output_dir: str) -> List[str]:
+    """This run's own Trainer checkpoints (`<output_dir>/checkpoint-<step>`), oldest
+    first. Resolved inside the run's directory by exact name pattern -- never a glob over
+    experiments/, which once deleted a live job's checkpoint (CLAUDE.md sec 7)."""
+    import os
+    import re
+    if not os.path.isdir(output_dir):
+        return []
+    steps = [int(m.group(1)) for d in os.listdir(output_dir)
+             if (m := re.fullmatch(r"checkpoint-(\d+)", d))]
+    return [os.path.join(output_dir, f"checkpoint-{s}") for s in sorted(steps)]
+
+
 def finetune_tofu(model, tokenizer, records: List[Dict], cfg: Dict,
                   run_name: str, use_lora: bool = False,
-                  save_each_epoch: bool = False):
-    """Fine-tune `model` on TOFU `records`. Returns the output checkpoint dir."""
+                  save_each_epoch: bool = False, stop_by: float | None = None):
+    """Fine-tune `model` on TOFU `records`. Returns the output checkpoint dir.
+
+    stop_by (unix seconds) makes the run RESUMABLE across SLURM jobs, for LEARN sets too
+    big for one wall (fr+ja = 8000 rows ~ 15 h against a 12 h wall). Past stop_by the
+    run writes ONE full Trainer checkpoint (weights + ZeRO-3 optimizer, ~131 GB for an
+    8B model) and returns None without a final save; the next job finds that checkpoint
+    and continues from the same step, RNG and data order. When training completes, the
+    final weights are saved as usual and the resume checkpoints are deleted. None (the
+    default) is the old behaviour exactly: no checkpoints, no resume."""
     from transformers import Trainer, TrainingArguments
 
     t = cfg["training"]
@@ -104,7 +125,9 @@ def finetune_tofu(model, tokenizer, records: List[Dict], cfg: Dict,
         weight_decay=t["weight_decay"],
         logging_steps=t["logging_steps"],
         save_strategy="no",   # only trainer.save_model() at the end; per-epoch
-                              # checkpoints (~27GB each) previously filled the quota
+                              # checkpoints (~27GB each) previously filled the quota.
+                              # stop_by saves once, on demand, via _StopBy below.
+        save_total_limit=1 if stop_by is not None else None,
         report_to="none",
         # DeepSpeed ZeRO-3 (config/ds_config.json): fp32 MASTER WEIGHTS, exactly like
         # the official TOFU repo. CONFIRMED necessary by elimination — plain bf16 with
@@ -150,11 +173,45 @@ def finetune_tofu(model, tokenizer, records: List[Dict], cfg: Dict,
 
         trainer.add_callback(_SaveEachEpoch())
 
+    resume = None
+    if stop_by is not None:
+        import time
+        from transformers import TrainerCallback
+
+        class _StopBy(TrainerCallback):
+            # Runs after DefaultFlowCallback, so the should_save it sets is not undone;
+            # Trainer then writes checkpoint-<step> and breaks out of the loop.
+            def on_step_end(self, a, state, control, **kw):
+                if time.time() >= stop_by:
+                    logger.info("stop_by reached at step %d/%d -- saving a resume "
+                                "checkpoint and stopping", state.global_step,
+                                state.max_steps)
+                    control.should_save = True
+                    control.should_training_stop = True
+                return control
+
+        trainer.add_callback(_StopBy())
+        prior = _resume_dirs(args.output_dir)
+        resume = prior[-1] if prior else None
+        logger.info("resumable run: stop_by=%s, resuming from %s",
+                    time.strftime("%Y-%m-%d %H:%M", time.localtime(stop_by)),
+                    resume or "nothing (fresh start)")
+
     logger.info("LEARN phase (%s, lora=%s, save_each_epoch=%s) -> %s",
                 run_name, use_lora, save_each_epoch, args.output_dir)
-    trainer.train()
+    trainer.train(resume_from_checkpoint=resume)
+    if stop_by is not None and trainer.state.global_step < trainer.state.max_steps:
+        logger.info("PARTIAL: stopped at step %d/%d; resume checkpoint in %s",
+                    trainer.state.global_step, trainer.state.max_steps, args.output_dir)
+        return None
     trainer.save_model(args.output_dir)
     # Save the tokenizer too, so the checkpoint is self-contained and can be
     # loaded by later stages without falling back to the base model name.
     tokenizer.save_pretrained(args.output_dir)
+    if stop_by is not None:
+        # Only after the final weights are on disk. ~131 GB each; nothing reads them.
+        import shutil
+        for d in _resume_dirs(args.output_dir):
+            shutil.rmtree(d)
+            logger.info("removed resume checkpoint %s", d)
     return args.output_dir
