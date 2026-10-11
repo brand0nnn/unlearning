@@ -60,6 +60,43 @@ def load_texts(cfg, langs, retain_n):
     return texts
 
 
+def load_swaps(cfg, path):
+    """NAME-SWAP mode: forget rows whose question names the author, each asked with the name
+    replaced by a description and the ANSWER unchanged. Two file formats:
+      French  (probes/name_swap_questions.json)     orig / A date / B book / C 'cet auteur'
+              keys swap:<v>:<row>
+      multilingual (probes/name_swap_questions_ml.json)  orig / A date in en/id/ru/ja
+              keys swap:<lang>:<v>:<row>
+    See each file's _README for why and how the questions were made."""
+    import src.data.load_multilingual_tofu as ml
+    M, C = cfg["tofu"]["ml_cache_dir"], cfg["tofu"]["cache_dir"]
+    spec = json.load(open(path, encoding="utf-8"))
+    langs = spec.get("languages") or {"fr": spec}
+    variants = spec.get("variants", ["orig", "A", "B", "C"])
+    texts = {}
+    for lg, ls in langs.items():
+        qa = ml.load_qa("forget01", lg, M, C)
+        for row_s, tpl in ls["templates"].items():
+            row = int(row_s)
+            who = "basil" if row < 20 else "nikolai"
+            for v in variants:
+                if v == "orig":
+                    q = qa[row]["question"]
+                else:
+                    desc = ls.get("b_override", {}).get(row_s) if v == "B" else None
+                    desc = desc or ls["descriptions"][who][v]
+                    q = tpl
+                    # Russian carries one form per grammatical case ({N} {G} {I})
+                    for k, form in (desc.items() if isinstance(desc, dict) else [("D", desc)]):
+                        q = q.replace("{" + k + "}", form)
+                    assert "{" not in q, f"{lg} {row} {v}: unfilled placeholder in {q!r}"
+                    q = q[0].upper() + q[1:]              # a description opening the sentence
+                key = f"swap:{v}:{row}" if "languages" not in spec else f"swap:{lg}:{v}:{row}"
+                texts[key] = {"split": "forget", "lang": lg, "row": row, "variant": v,
+                              "question": q, "answer": qa[row]["answer"]}
+    return texts
+
+
 def encode(texts, tok, max_len):
     """Trained input_ids/labels via TofuQADataset, plus answer-relative char offsets."""
     from src.evaluation.compute_logprobs import format_qa
@@ -112,6 +149,9 @@ def main():
     ap.add_argument("--langs", nargs="+", default=LANGS)
     ap.add_argument("--retain-n", type=int, default=200)
     ap.add_argument("--out", default=None)
+    ap.add_argument("--swap-file", default=None,
+                    help="name-swap mode (probes/name_swap_questions.json): score only the "
+                         "French forget answers under orig / A / B / C questions")
     ap.add_argument("--dry-run", action="store_true",
                     help="tokenise and print, load no model (needs transformers, not torch)")
     a = ap.parse_args()
@@ -120,7 +160,14 @@ def main():
     from transformers import AutoTokenizer
     tok = AutoTokenizer.from_pretrained(cfg["model"]["name"])
     max_len = cfg["model"]["max_seq_length"]          # what finetune_tofu passes
-    texts = encode(load_texts(cfg, a.langs, a.retain_n), tok, max_len)
+    raw = (load_swaps(cfg, ROOT / a.swap_file) if a.swap_file
+           else load_texts(cfg, a.langs, a.retain_n))
+    texts = encode(raw, tok, max_len)
+    if a.swap_file:          # every rewritten question, for a fluent reader to check
+        for key in sorted(texts, key=lambda k: (texts[k]["lang"], texts[k]["row"],
+                                                ["orig", "A", "B", "C"].index(texts[k]["variant"]))):
+            t = texts[key]
+            print(f"  {t['lang']} {t['row']:>2} {t['variant']:<4} {t['question']}")
 
     n_tok = sum(len(t["label_pos"]) for t in texts.values())
     print(f"{len(texts)} sequences, {n_tok} scored tokens, max_len {max_len}")
@@ -145,7 +192,8 @@ def main():
     from transformers import AutoModelForCausalLM
 
     store = {k: {f: t[f] for f in ("split", "lang", "row", "question", "answer_trained",
-                                    "tokens", "token_ids", "offsets", "is_eos")}
+                                    "tokens", "token_ids", "offsets", "is_eos", "variant")
+                 if f in t}
              for k, t in texts.items()}
     results, top1_vocab = {}, {}
     for ckpt in a.checkpoints:

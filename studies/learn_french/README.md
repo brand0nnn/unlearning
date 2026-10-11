@@ -1,11 +1,12 @@
-# learn_french — the French-anchored study (Stages 1-5)
+# learn_french — the French-anchored study (Stages 1-6)
 
 Inject the TOFU facts **in French**, so the multilingual variable can move onto the
 *unlearning* axis. Design doc: `french_anchored_multilingual_unlearning_plan.md`.
 
-> **START HERE (state as of 2026-10-10).** Stages 1-5 have run. Job 11 (layer-wise weight
-> change, CPU only) is written and committed but **not yet run**. Nothing else is queued.
-> Everything below is `[PROVISIONAL: single seed]`.
+> **START HERE (state as of 2026-10-11).** Stages 1-5 and Stage 6 Plans 1-2 have run;
+> Stage 6 jobs 15-16 (the name swap) are written, **not yet run**. Job 11 (layer-wise weight
+> change) has run -- `results/layer_diff.json` -- but is **not yet read**. Everything below
+> is `[PROVISIONAL: single seed]`.
 >
 > ```
 > LEARN (French)  ->  UNLEARN (in each of 5 languages, matched on achieved truth ratio)
@@ -45,10 +46,15 @@ Inject the TOFU facts **in French**, so the multilingual variable can move onto 
 >    measure, 5/5 linear); Japanese is extreme: 0.80 own vs 0.22 asked in French.
 > 3. **French** unlearning reaches the other question languages (log 0.56-0.72 vs 0.80
 >    French; linear ~1.0 everywhere). The other arms mostly do not.
-> 4. **Surprising, not in any paper we have:** names and places resist unlearning while
+> 4. Stage 5 found names and places resisting unlearning while
 >    occupations are pushed BELOW never-taught -- under French unlearning asked in French
->    (log 0.14 vs 2.22) and in 7 of 9 arm x question combinations. Rests on 4 occupation
->    slots from 2 facts vs 2 names + 1 place + 1 award.
+>    (log 0.14 vs 2.22) and in 7 of 9 arm x question combinations. **Reframed by Stage 6:**
+>    over 54 slots proper vs common noun is not the divide (it was slot selection). Per token,
+>    French unlearning destroys a few tokens the learned model was least sure of (~7 per
+>    answer; 1.6% of p > 0.999 tokens vs 100% of p < 0.90) and leaves the rest -- including
+>    every name copied from the question -- untouched. **Being in the question protects, not
+>    being a name** (copied 1% vs recalled 20% destroyed; fact slots 4% vs 23%). Open: at equal
+>    certainty ru/ja own unlearning singles out the transliterated name (50% / 96% vs 0%).
 >
 > **The things most likely to be misread:**
 > - "Recovery" has no single value: **56% on the truth ratio, 12% on NLI**. No verified
@@ -60,28 +66,33 @@ Inject the TOFU facts **in French**, so the multilingual variable can move onto 
 > - **Stage 5's removal measure is Skow et al.'s oracle-normalised removal taken on LOG
 >   probability, not theirs (linear).** Linear calls 0.64 -> 0.097 "85% removed" when the
 >   answer is still ~60x above never-taught. Claims that survive both: own-language
->   strongest, French unlearning spreads, names resist. Claims that hold on LOG only: the
->   French-unlearning side door is narrowly open (linear: closed), and cross-lingual arms
->   "barely touch" the French answer (linear: 0.60-0.83 removed). Say which.
+>   strongest, French unlearning spreads, names resist (Stage 6: copied text resists).
+>   Claims that hold on LOG only: the French-unlearning side door is narrowly open (linear:
+>   closed), and cross-lingual arms "barely touch" the French answer (linear: 0.60-0.83
+>   removed). Say which.
 >
 > **Next, ranked:**
 > 1. **Seed sweep (Q2).** Blocked on code, not GPU: level-checkpoint paths carry no seed
 >    tag, so a second seed would OVERWRITE the pre-registered matched checkpoints. Add a
 >    seed tag + `--seed` on `02_unlearn.py` and `relearn.py` (both read only cfg seed 42)
 >    first. Reduced design: 5 arms x 1 relearn language x 2 seeds (rows are the claim).
-> 2. **Run job 11** (Q2 mechanism, CPU ~30 min): which layers each arm changed. Prediction
->    from Xiang/Zhao: durable arms moved the shared middle layers, ja mostly the top.
+> 2. **Read job 11** (Q2 mechanism; it has run, `results/layer_diff.json`): which layers each
+>    arm changed. Prediction from Xiang/Zhao: durable arms moved the shared middle layers, ja
+>    mostly the top.
 > 3. **Generation version of the cross-route probe** (Q1 as behaviour, ~1-2 h GPU): ask in
 >    L + "answer only in French" (Xiang App. G), grade with the Stage 1 NLI scorer.
-> 4. **Names-vs-occupations**: a zero-GPU dataset check of the hypothesis that copying the
->    author's name is protected by the retain term, then a many-slot probe across all 40
->    facts (~1 h GPU).
+> 4. **Names (Stage 6):** run jobs 15 + 16 (name swap, ~1.5 h each, together). Then, zero
+>    GPU: do facts with more SURVIVING tokens (Plan 1) recover more under benign relearning
+>    (Stage 3 `per_fact`)? -- the link from the token-level picture to the study's core
+>    question. Immune vs last-in-line for near-certain tokens needs a new French unlearning
+>    run saving every ~2 steps from 16 to ~36 (the burst is steps 18-26).
 > 5. **Steering recovery per arm** (Q2 robustness): does Xiang's inference-time attack
 >    rank the arms like benign relearning does?
 > 6. **French + Japanese LEARN** (Q1 storage, and whether a surviving copy raises
 >    recovery). ~8k rows ~ 15 h > the 12 h wall: needs checkpoint-resume first.
-> 7. **Depth dose-response relearning** from the saved TR levels (Q2: effort vs depth),
->    ~19 GPU-h -- fold into the seed-sweep campaign.
+> 7. **Depth dose-response relearning** (Q2: effort vs depth), ~19 GPU-h -- fold into the
+>    seed-sweep campaign. **The non-matched TR-level checkpoints no longer exist** (only the
+>    5 matched ones are in `experiments/tr_levels/`), so this needs the levels re-generated.
 >
 > **Decided against:** a learning-language GRID (5 monolingual LEARNs) -- Xiang and Skow
 > cover it, and it cannot test hiding. Still deferred by the user: the p2-p4 paraphrase
@@ -853,45 +864,154 @@ Stage 4 reads the hiding hypothesis as "confirmed for English/Indonesian names".
 cell it is partial: f0 asked in English untouched (1.11x) but f0 asked in Indonesian fell
 about as far as in French (19x vs 24x). Say "partial and inconsistent".
 
-## Stage 6 — why do names resist?  (WRITTEN 2026-10-10, NOT RUN)
+## Stage 6 — why do names resist?  (Plans 1-2 COMPLETE 2026-10-11; jobs 15-16 WRITTEN, NOT RUN)
 
-Stage 5's names-vs-occupations split is monolingual (French unlearning, asked and answered
-in French), so it is about how gradient difference spends its loss, not about hiding. Five
-candidate causes: (H1) the retain term protects COPYING -- the name is in all 40 forget
-answers and copyable from the question in 34; ~74% of retain answers copy a name from their
-question; (H2) repetition -- names appear in 20 answers each, occupations in 2-4, but
-Tolstoi (1 answer, resists) vs Goncourt (1 answer, collapses) already breaks a pure
-repetition story; (H3) gradient saturation -- ascent pushes a token by (1 - p); (H4) the
-name's continuation tokens dilute the mean; (H5) inferred from surviving facts.
-
-Two independent inference jobs, same 8 checkpoints as Stage 5, separate outputs -- they
-can run at the same time:
+Stage 5's names-vs-occupations split is **monolingual** (French unlearning, asked and
+answered in French), so it is about how gradient difference spends its loss, not about
+hiding. Stage 6 opens the truth ratio up token by token. Everything here is
+`[PROVISIONAL: single seed]`, 2 authors, gradient difference only, each arm at its matched
+checkpoint, teacher-forced. "Destroyed" = drop > 5 nats, drop = log p(`fr_ft`) - log p(arm).
 
 ```bash
-python studies/learn_french/scripts/per_token_map.py --dry-run          # tokenisation check
-python studies/learn_french/scripts/cross_route.py --dry-run \
-    --probes studies/learn_french/probes/many_slot_probes.json --templates qa inst
-sbatch studies/learn_french/slurm/12_per_token_map.sbatch    # Plan 1, ~1.5 h
-sbatch studies/learn_french/slurm/13_many_slots.sbatch       # Plan 2, ~2 h
-python studies/learn_french/plots/plot_per_token_map.py      # local
-python studies/learn_french/plots/plot_many_slots.py         # local (--template qa too)
+sbatch studies/learn_french/slurm/12_per_token_map.sbatch    # Plan 1 (RUN)
+sbatch studies/learn_french/slurm/13_many_slots.sbatch       # Plan 2 (RUN)
+sbatch studies/learn_french/slurm/15_name_swap.sbatch        # name swap, French (NOT RUN)
+sbatch studies/learn_french/slurm/16_name_swap_ml.sbatch     # name swap, en/id/ru/ja (NOT RUN)
+python studies/learn_french/plots/plot_per_token_map.py      # Plan 1 tables + backup figures
+python studies/learn_french/plots/plot_per_token_story.py    # Plan 1 presentation figures
+python studies/learn_french/plots/plot_many_slots.py         # Plan 2 (--template qa too)
+python studies/learn_french/plots/plot_name_swap.py          # motivation now; results after 15/16
 ```
 
-- **Plan 1, the per-token map** (`results/per_token_map.json`): every answer token of
-  forget01 in all 5 languages + 200 retain99_fr rows, scored on the exact trained sequence
-  (`TofuQADataset`: `[INST]` wrapper, joint tokenisation, EOS). Tagged locally as name
-  copied / name recalled / attribute / attribute copyable / template. Answers: where each
-  arm's loss went (fact 0 especially), whether copied names stay flat on RETAIN rows (H1),
-  whether starting confidence predicts the drop (H3), first name token vs the rest (H4).
-- **Plan 2, the many-slot probe** (`results/many_slots.json`): Stage 5's cross-route probe
-  over **54 slots** (`probes/many_slot_probes.json`, annotated before any run; Stage 5's 14
-  kept under their ids). Repetition is counted from the text (whole word). Answers: within
-  slots that appear once and are not in the question, do proper nouns still resist (H2 vs
-  "names")?
-- **Prompt frame discovered while writing this:** Stage 5 prompted `Question: …\nAnswer: `,
-  not the `[INST] … [/INST]` frame every model was trained on. `cross_route.py --templates`
-  now takes `qa` (Stage 5, the default) and `inst`; Plan 2 runs both, so the frame's effect
-  on the Stage 5 slot ordering is measured, not assumed.
+### Plan 2 — the many-slot probe (`results/many_slots.json`)
+
+Stage 5's cross-route probe over **54 slots** (`probes/many_slot_probes.json`, annotated
+before the run) under both prompt wrappers.
+
+- **Reproduces Stage 5 exactly** (784 shared cells, max |delta log p| 0.0000).
+- **Prompt frame:** Stage 5 prompted `Question: …\nAnswer: `, not the trained
+  `[INST] … [/INST]`. `cross_route.py --templates qa|inst` now takes both; the slot ordering
+  is the same under either, so Stage 5's conclusions do not depend on it.
+- **Proper vs common noun is NOT the divide.** French unlearning asked in French, recall
+  slots, log removal (median, n slots):
+
+  | | appears once | 2-4x | 5x+ |
+  |---|---|---|---|
+  | common | 0.25 (8) | 0.85 (14) | 0.38 (5) |
+  | proper | **1.89** (6) | 1.20 (6) | 0.66 (2) |
+
+  Titles and Goncourt collapse; genres, origins, identity mostly resist; occupations stay
+  high (median 2.00). Repetition does not line up either. **Stage 5's split was slot
+  selection.** Linear removal saturates at ~1.0 for most slots -- this needs the log measure.
+- **Confidence separates slots:** least-confident target token at `fr_ft` with
+  1 - p >= 0.01 -> median removal 1.98 (n=21); more confident -> 0.18-0.24 (n=21).
+  Exceptions both ways (the year: uncertain, untouched; f3 father: confident, removed).
+
+### Plan 1 — the per-token map (`results/per_token_map.json`)
+
+Every answer token of forget01 in all 5 languages + 200 retain99_fr rows (20,879 tokens),
+scored on the exact trained sequence (`TofuQADataset`), at 8 checkpoints.
+
+1. **French unlearning is surgical.** On French text: 78% of tokens move < 0.1 nat; ~7 per
+   answer (2-17) are destroyed, often by 30-55 nats; the 3 biggest drops carry a median 54%
+   of an answer's total. The truth ratio averages this away. Fact 0 lost *fictif* (+51),
+   *complet* (+28), *Le* (+17) -- and *Basil* +1.8.
+2. **A destroyed token is replaced, not blurred** (`développe -> programme` p = 1.000,
+   `Petit -> Qu`, `Gon(court) -> de`): Li et al.'s squeezing effect (`papers/(6).pdf`).
+3. **Low learned-model confidence predicts what is destroyed:** p > 0.999 -> 1.6% destroyed
+   (n=1,547); 0.99-0.999 -> 21%; 0.90-0.99 -> 68%; < 0.90 -> 100% (n=32). Holds with
+   never-taught guessability held fixed (1 -> 16 -> 69%; 5 -> 25 -> 72%). Consistent with
+   ascent pushing a token in proportion to (1 - p); correlational. *Basil* (p 0.9966) +1.8
+   vs *Nikol* (p 0.973) +35.7 = Stage 5's 17% vs 59%.
+4. **"Only the first piece of a word is hit" (92% of hits at word starts vs 53% of
+   tokens) is mostly the same effect:** later pieces are 92% near-certain. At equal
+   confidence the gap shrinks to a few points (3 vs 1%, 23 vs 10%, 72 vs 67%).
+5. **Surgical vs blanket across arms** (each on its own text): destroyed per answer fr 15%,
+   en 39%, id 41%, ru 50%, **ja 86%** (10% untouched). Japanese started from text the learned
+   model was less sure of (29% of positions near-certain vs 69% fr) and ran 25 epochs vs
+   12-15; the two cannot be separated here. Near-certain positions before -> after own
+   unlearning: fr 69 -> 64%, ja 29 -> 6%. Learned = never-taught on ja/ru text (29 vs 29%,
+   46 vs 45%): the facts never reached those languages (as Stage 4).
+6. **Near-certain tokens are not immune:** French unlearning destroyed 2% of its
+   near-certain tokens (86% stay > 0.999); Japanese destroyed 66% of its own. Whether French
+   ones are "last in line" needs checkpoints past the matched point (see below).
+7. **Being IN THE QUESTION protects, not being a name.** French unlearning, French text:
+
+   | | copied from the question | recalled |
+   |---|---|---|
+   | name | 1% destroyed (n=307) | 20% (n=15, 2 facts) |
+   | fact slot | 4% (n=26) | 23% (n=171) |
+
+   Copied names are near-certain even for models that never learned them (p > 0.999: base
+   76%, never-taught 79%, learned 93%); recalled names only after learning (13 -> 67%).
+   Retain rows: copied names move 0.017 nats vs 0.139 for other tokens.
+8. **Open: transliterated names are TARGETED.** At equal certainty (p > 0.999), own-language
+   unlearning destroyed copied-name tokens 0% in fr/en/id (other tokens 2-3%) but **50% in
+   ru (vs 7%) and 96% in ja (vs 54%)**. Ruled out: epochs (within-arm comparison; ru ran 15),
+   spelling mismatch (ru/ja answers copy the name exactly as often, 89%), retain-set overlap
+   (ru/ja name pieces are MORE common in retain: median 321/240 vs 28-62), lower copy rates
+   in ru/ja retain (~90% everywhere). **Leading explanation, two supports:** French learning
+   raised copied Latin names (base -> learned near-certain 76 -> 93% fr) but not ru/ja
+   (66 -> 61, 64 -> 45), and the learned model recalls the Latin name with p = 1.00 in
+   fr/en/id but 0.05/0.09 in ru/ja (facts 0, 20). Job 16 tests it within each script.
+9. **Cross-lingual arms barely move the French answer** (mean drop on French attribute
+   tokens ~1 nat vs 6.3 for French unlearning); ja/ru put ~1/3 of their French-text damage on
+   the name's later pieces.
+
+**Two corrections made along the way, so they are not repeated:** (a) an exp(mean log p)
+average made ru/ja copied names look uncertain (~0.70/0.58); their median is 1.00 -- the
+"transliterated names fall because unsure" reading was withdrawn (finding 8). (b) Exact
+reproduction of `cross_route.py` does not extend to `per_token_map.py`: a re-score of the
+same checkpoints moved tokens below p ~0.37 by a median ~0.2 and up to ~3.9 nats
+(near-certain tokens <= 0.005); the destroyed call flipped on 0.4% of tokens. Read very-low
+log-probs to +- a few nats.
+
+**Literature.** Known: gradient ascent concentrating on low-likelihood tokens is why NPO
+(Zhang et al. 2024), WGA and saturation reweighting (Yang et al., arXiv 2505.11953) exist;
+the replacement word is Li et al.'s squeezing effect. Not found: what SURVIVES and what that
+means -- surviving tokens vs recovery, surgical vs blanket across languages, the
+name-script asymmetry. Present finding 3 as a known mechanism measured here, not as new.
+
+### The trajectory run (`14_per_token_levels.sbatch`) — could not run as designed
+
+Meant to score every saved depth level per arm to see the ORDER tokens fall in. **Only the
+matched checkpoints survive in `experiments/tr_levels/`** (the folder last changed
+2026-09-27; Stage 2's measurements of the other levels remain in
+`results/stage2_nocap_*`). French unlearning's truth ratio is flat for 16 steps then goes
+0.623 -> 0.878 between steps 18 and 26 (three levels on one checkpoint). Immune-vs-last-in-
+line therefore needs a NEW French unlearning run saving every ~2 steps from 16 to ~36, into
+its own folder (never `tr_levels/`).
+
+### Jobs 15 and 16 — the name swap (NOT RUN; ~1.5 h each, independent)
+
+Same answers, name removed from the question; per-token scoring at the 8 checkpoints.
+
+- **15, French** (`probes/name_swap_questions.json`, 38 facts x 4): `orig` (copied), `A`
+  birth date and `B` book title (recalled), `C` *cet auteur* (guessing floor; rows whose
+  question still names a book or origin, `c_identified`, are left out of C). Tests finding
+  7 on 38 facts instead of 2: if the name falls like a fact slot once it must be recalled,
+  "names resist" was "copied text resists".
+- **16, en/id/ru/ja** (`probes/name_swap_questions_ml.json`, 38 x 2 x 4): `orig` and `A`.
+  Gives each copied-name token its LEARNED SUPPORT (p at `fr_ft` with nothing to copy) and
+  asks, WITHIN each language, whether better-supported name tokens survive their own
+  language's unlearning more (finding 8). Risk: ru/ja support may be uniformly low; the
+  decisive test is then the French + Japanese LEARN (prediction: once the Japanese name is
+  learned, Japanese unlearning stops singling it out).
+- Russian and Japanese rewrites are hand-written and should be checked by a fluent reader;
+  `per_token_map.py --dry-run --swap-file <file>` prints every question.
+
+### Figures
+
+| figure | shows |
+|---|---|
+| `story_token_strips.png` | facts 0, 20 (fr) and 0 (ja), token by token: surgical vs blanket |
+| `story_confidence.png` | destroyed % by learned-model confidence (finding 3) |
+| `story_arms.png` | untouched / moved / destroyed per arm + starting certainty and epochs (5) |
+| `story_names.png` | name vs other tokens at equal certainty per language (8) |
+| `many_slots_inst.png`, `many_slots_qa.png` | Plan 2, removal by kind of fact |
+| `why_copy.png`, `why_translit.png` | motivation for jobs 15 and 16 |
+| `name_swap.png`, `name_support.png` | written by `plot_name_swap.py` once 15/16 have run |
+| `per_token_confidence_unl_fr.png`, `per_token_budget.png`, `per_token_rows_unl_fr.png` | backups |
 
 ## Known limitations to carry into the writeup
 
@@ -981,7 +1101,8 @@ slurm/10_cross_route.sbatch    Stage 5: question in L, answer in French (8 check
 scripts/cross_route.py         Stage 5 scorer; --dry-run prints every prompt, no torch
 probes/cross_route_probes.json Stage 5: 14 typed slots, one French target each
 plots/plot_cross_route.py      Stage 5 figures: gate|routes|controls|slots
-slurm/11_layer_diff.sbatch     layer-wise weight change per arm, CPU only (NOT YET RUN);
+slurm/11_layer_diff.sbatch     layer-wise weight change per arm, CPU only (RUN ->
+                               results/layer_diff.json, not yet read);
                                `bash ... --dry-run` checks paths on the login node
 scripts/layer_diff.py          streams safetensors one tensor at a time; bf16 caveat inside
 plots/plot_stage3.py           Stage 3, one chart per image. --plot grid|curves|depth|
@@ -991,6 +1112,22 @@ plots/plot_top_tokens.py       4a figures: rank|script|elev|prob|replaced
 plots/plot_top_tokens_ml.py    4b figures: overview|learn|hypothesis|gate|ja|jatokens
                                (overview = absolute probabilities; learn = the LEARN stage alone;
                                hypothesis = occupations vs names, normalised)
+slurm/12_per_token_map.sbatch  Stage 6 Plan 1: every answer token, trained sequence, 8 ckpts
+slurm/13_many_slots.sbatch     Stage 6 Plan 2: cross-route probe over 54 slots, qa + inst
+slurm/14_per_token_levels.sbatch  per-token map at each saved TR level of one arm (found only
+                               the matched checkpoints -- the others are gone)
+slurm/15_name_swap.sbatch      Stage 6: French answers under orig / A date / B book / C floor
+slurm/16_name_swap_ml.sbatch   Stage 6: en/id/ru/ja answers under orig / A date
+scripts/per_token_map.py       per-token scorer (TofuQADataset sequences); --swap-file for the
+                               name swap; --dry-run prints tokenisation / every question
+probes/many_slot_probes.json   Plan 2: 54 slots with kind + cue_in_question; also Plan 1 tags
+probes/name_swap_questions.json     French rewrites (A/B/C; c_identified rows)
+probes/name_swap_questions_ml.json  en/id/ru/ja rewrites (A; Russian case placeholders)
+plots/plot_per_token_map.py    Plan 1 tables A-F + per_token_* backup figures
+plots/plot_per_token_story.py  Plan 1 presentation figures story_*
+plots/plot_many_slots.py       Plan 2 tables + many_slots_{inst,qa}
+plots/plot_per_token_levels.py reader for 14 (order in which tokens fall)
+plots/plot_name_swap.py        why_copy / why_translit now; name_swap / name_support after 15-16
 preregistration.json           TR levels + MU threshold (committed; written once)
 results/                       gitignored; rsync down for plotting
 logs/                          gitignored; the 08/09 job logs carry the per-script top-12
