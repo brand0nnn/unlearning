@@ -19,7 +19,9 @@ Inject the TOFU facts **in French**, so the multilingual variable can move onto 
 > which one any claim is about:
 > - *access* hiding: can a question in another language still reach the fact? Testable
 >   with the French-only model by keeping the ANSWER in French (Stage 5, the cross-route
->   probe). Answered below.
+>   probe). Answered on PROBABILITY (Stages 5-6, below); on BEHAVIOUR it is job 17 (Stage 7,
+  written, not run) -- and Stage 2's generations already disagree with the probability
+  answer on the French route.
 > - *storage* hiding: does the fact survive as another language's WORDS (ゲーム開発者)?
 >   **Untestable here** -- French-only LEARN never put the facts into ja/ru (Stage 4
 >   transfer gate; Skow et al. find the same: answer-side transfer +0.09). Needs a model
@@ -45,7 +47,9 @@ Inject the TOFU facts **in French**, so the multilingual variable can move onto 
 > 2. Each arm removes most when asked in **its own** language (4/5 arms on the log
 >    measure, 5/5 linear); Japanese is extreme: 0.80 own vs 0.22 asked in French.
 > 3. **French** unlearning reaches the other question languages (log 0.56-0.72 vs 0.80
->    French; linear ~1.0 everywhere). The other arms mostly do not.
+>    French; linear ~1.0 everywhere). The other arms mostly do not. **Weaker over Plan 2's
+>    54 slots** (trained frame): 0.32-0.63 vs 0.94 French -- Stage 5's 14 slots
+>    over-represented occupations, which French unlearning destroys on every route.
 > 4. Stage 5 found names and places resisting unlearning while
 >    occupations are pushed BELOW never-taught -- under French unlearning asked in French
 >    (log 0.14 vs 2.22) and in 7 of 9 arm x question combinations. **Reframed by Stage 6:**
@@ -55,6 +59,11 @@ Inject the TOFU facts **in French**, so the multilingual variable can move onto 
 >    every name copied from the question -- untouched. **Being in the question protects, not
 >    being a name** (copied 1% vs recalled 20% destroyed; fact slots 4% vs 23%). Open: at equal
 >    certainty ru/ja own unlearning singles out the transliterated name (50% / 96% vs 0%).
+> 5. **Findings 1-3 are about PROBABILITY, not behaviour.** Asked in French, the matched
+>    arms SAY (NLI >= 0.9) 3 / 3 / 4 / 4 / 2 of 40 facts (fr/en/id/ja/ru; learned 37,
+>    never-taught 0) -- Japanese unlearning shuts the French route in generation as fully
+>    as French unlearning does, though teacher-forced it removed only 0.14 there. Whether a
+>    FOREIGN question gets the fact said is job 17 (Stage 7), the test that closes Q1-access.
 >
 > **The things most likely to be misread:**
 > - "Recovery" has no single value: **56% on the truth ratio, 12% on NLI**. No verified
@@ -79,8 +88,9 @@ Inject the TOFU facts **in French**, so the multilingual variable can move onto 
 > 2. **Read job 11** (Q2 mechanism; it has run, `results/layer_diff.json`): which layers each
 >    arm changed. Prediction from Xiang/Zhao: durable arms moved the shared middle layers, ja
 >    mostly the top.
-> 3. **Generation version of the cross-route probe** (Q1 as behaviour, ~1-2 h GPU): ask in
->    L + "answer only in French" (Xiang App. G), grade with the Stage 1 NLI scorer.
+> 3. **Run job 17, the generation cross route** (Stage 7; closes Q1-access): ask in L +
+>    Xiang App. G's "answer only in French", grade with the Stage 1 NLI scorer. 7-task
+>    array, ~20-30 min per task.
 > 4. **Names (Stage 6):** run jobs 15 + 16 (name swap, ~1.5 h each, together). Then, zero
 >    GPU: do facts with more SURVIVING tokens (Plan 1) recover more under benign relearning
 >    (Stage 3 `per_fact`)? -- the link from the token-level picture to the study's core
@@ -1013,6 +1023,68 @@ Same answers, name removed from the question; per-token scoring at the 8 checkpo
 | `name_swap.png`, `name_support.png` | written by `plot_name_swap.py` once 15/16 have run |
 | `per_token_confidence_unl_fr.png`, `per_token_budget.png`, `per_token_rows_unl_fr.png` | backups |
 
+## Stage 7 — the generation cross route  (job 17 WRITTEN, NOT RUN)
+
+Stages 5-6 answered Q1-access teacher-forced: the French answer is handed to the model and
+we read how likely it finds it. That says the route is ~86% intact after Japanese unlearning
+(removed 0.14 asked in French). Stage 2's greedy generations at the SAME matched
+checkpoints, asked in French, say otherwise:
+
+| unlearned in | French route removed (prob, Plan 2 inst) | P(gold) | facts SAID (NLI >= 0.9) |
+|---|---|---|---|
+| fr | 0.94 | 0.075 | 3/40 |
+| en | 0.08 | 0.49 | 3/40 |
+| id | 0.14 | 0.48 | 4/40 |
+| ja | 0.14 | 0.45 | 4/40 |
+| ru | 0.10 | 0.34 | 2/40 |
+
+Anchors: learned 37/40, never-taught 0/40. On behaviour every arm shuts the French route
+about equally -- the TR-NLI gap (Stage 3) is already there before any relearning. A
+consistent mechanism from Stage 6: unlearning destroys a few uncertain, often fact-bearing
+tokens and leaves the rest, so the average probability barely moves while greedy decoding
+derails at the destroyed token (Stage 3: failures name the right author, invent the
+attribute).
+
+**Job 17 fills the four foreign question routes on behaviour**, which nothing has measured:
+
+```bash
+python studies/learn_french/scripts/gen_cross_route.py --dry-run     # all 240 prompts, no torch
+sbatch studies/learn_french/slurm/17_gen_cross_route.sbatch         # 7-task array, 1 ckpt each
+python studies/learn_french/plots/plot_gen_cross_route.py           # local, after rsync
+```
+
+- **Routes:** `fr` (Stage 2's exact prompt -- must reproduce Stage 2's generations, the
+  pipeline check), `fr+I`, `en+I`, `id+I`, `ja+I`, `ru+I`. `+I` appends *"Réponds à cette
+  question uniquement en français."* -- Xiang et al. App. G's cross-lingual prompting
+  (x' = x + I_l, instruction in the target language; French is not in their list, so the
+  sentence follows their German one). Every `+I` route carries the same sentence, so `fr+I`
+  is the comparison column for the foreign routes. Caveat carried by the design: a `+I`
+  question is not purely in L.
+- **Checkpoints:** fr_ft (ceiling and gate), fr_retain (never-taught floor), the five
+  matched arms. Greedy, max 200 new tokens, unbatched, `format_qa` frame -- Stage 2's
+  generator and NLI scorer imported, not re-implemented.
+- **Gate:** a route is open only on facts fr_ft says and fr_retain does not; arms are also
+  counted on those facts only.
+- **Side door:** facts an arm does not say via `fr+I` but says via at least one foreign
+  route; fr_retain's best-of-4 is the chance floor for trying four routes.
+- **Output language** per cell, so a non-French answer is read as drift, not forgetting.
+
+**Reading rule, fixed before the data.** Re-runs moved NLI ~3.8pp per cell (~1.5 of 40
+facts), so a gap of <= 3 facts between cells is no difference. Descriptive only.
+
+**What closes Q1-access either way:**
+- Foreign routes say about as few facts as `fr+I` for every arm (within 3) -> questions in
+  other languages reach the fact only in PROBABILITY; on behaviour, unlearning in any one
+  language closes every route. Q1-access becomes a case of the TR-NLI gap.
+- Some arm says clearly more (> 3 facts) through a foreign route than through `fr+I`, above
+  the fr_retain floor and on gate-open facts -> real behavioural access hiding, the
+  stronger claim.
+- If fr_ft itself says few facts on the foreign `+I` routes (the gate fails), the
+  instruction route is too weak to test access on behaviour, and Q1-access stays answered
+  on probability only -- a limitation, stated as such.
+
+Limits that no outcome removes: 40 facts about 2 entities, one seed, greedy decoding only.
+
 ## Known limitations to carry into the writeup
 
 - **Format watermark.** Within `fr_ft` the 40 forget rows carry the French
@@ -1128,6 +1200,10 @@ plots/plot_per_token_story.py  Plan 1 presentation figures story_*
 plots/plot_many_slots.py       Plan 2 tables + many_slots_{inst,qa}
 plots/plot_per_token_levels.py reader for 14 (order in which tokens fall)
 plots/plot_name_swap.py        why_copy / why_translit now; name_swap / name_support after 15-16
+slurm/17_gen_cross_route.sbatch  Stage 7: generate asked in L (+ "answer in French"), NLI-graded;
+                               7-task array, one checkpoint each -> results/gen_cross_route/
+scripts/gen_cross_route.py     Stage 7 generator; --dry-run prints all 240 prompts, no torch
+plots/plot_gen_cross_route.py  Stage 7 tables A-D + figures/gen_cross_route.png
 preregistration.json           TR levels + MU threshold (committed; written once)
 results/                       gitignored; rsync down for plotting
 logs/                          gitignored; the 08/09 job logs carry the per-script top-12
