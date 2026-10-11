@@ -175,67 +175,199 @@ def swap_rows(path):
 
 
 def fig_swap(path):
+    """Job 15 as it came out: INCONCLUSIVE for copied-vs-recalled, and why.
+
+    Removing the name from the question did not make the name a RECALLED word -- it made it
+    an UNLIKELY one. Asked about 'l'auteur ne le 8 septembre 1956', the learned model at the
+    name slot predicts 'l'auteur' / 'cet auteur' (it echoes the question's description), so
+    the name's first piece sits at p ~ 1e-5 under every model. Destruction rates among such
+    tokens say nothing about recall. What survives: name pieces the learned model IS sure
+    of under A/B/C are spared exactly like copied ones."""
     import matplotlib.pyplot as plt
     rows, R, c_id = swap_rows(path)
+    d = json.load(open(path, encoding="utf-8"))
+    vocab = d["top1_vocab"]
     V = [("orig", "orig: name in\nthe question"), ("A", "A: birth date"),
-         ("B", "B: book title"), ("C", "C: 'cet auteur'\n(no identity)")]
+         ("B", "B: book title"), ("C", "C: 'cet auteur'")]
 
     def grp(v):
         return [r for r in rows if r["variant"] == v and not (v == "C" and r["row"] in c_id)]
 
-    print("\n" + "=" * 96 + "\nNAME SWAP: author's-name tokens in the 38 French answers\n" + "=" * 96)
-    print(f"  {'variant':<6}{'n':>5}" + "".join(f"{m:>11}" for m in ("base", "fr_retain", "fr_ft"))
-          + "   <- % near-certain;   % destroyed by: " + " ".join(f"{m:>7}" for m in ARMS))
-    for v, _ in V:
-        g = grp(v)
-        cert = "".join(f"{100 * sum(near(r[m]) for r in g) / len(g):>10.0f}%"
-                       for m in ("base", "fr_retain", "fr_ft"))
-        hit = " ".join(f"{100 * sum(r['fr_ft'] - r[m] > HIT for r in g) / len(g):>6.0f}%"
-                       for m in ARMS if m in R)
-        print(f"  {v:<6}{len(g):>5}{cert}                         {hit}")
-        fp = [r for r in g if r["first"]]
-        print(f"  {'':6}first pieces only: fr_ft near-certain "
-              f"{100 * sum(near(r['fr_ft']) for r in fp) / len(fp):.0f}%, destroyed by unl_fr "
-              f"{100 * sum(r['fr_ft'] - r['unl_fr'] > HIT for r in fp) / len(fp):.0f}% (n={len(fp)})")
+    def first_mentions(v):
+        out = {}
+        for r in grp(v):
+            if r["first"] and (r["row"] not in out or r["i"] < out[r["row"]]["i"]):
+                out[r["row"]] = r
+        return list(out.values())
 
-    fig, (a1, a2) = plt.subplots(1, 2, figsize=(13.5, 5.0))
-    for ax in (a1, a2):
+    print("\n" + "=" * 96 + "\nNAME SWAP (job 15): author's-name tokens in the 38 French answers"
+          + "\n" + "=" * 96)
+    print(f"  {'variant':<8}{'n':>5}  first mention: median p  base / never / learned"
+          f"      near-certain pieces (learned) -> destroyed by unl_fr")
+    stats = {}
+    for v, _ in V:
+        fm, g = first_mentions(v), grp(v)
+        med = {m: st.median(math.exp(r[m]) for r in fm) for m in ("base", "fr_retain", "fr_ft")}
+        nc = [r for r in g if near(r["fr_ft"])]
+        hit = sum(r["fr_ft"] - r["unl_fr"] > HIT for r in nc)
+        stats[v] = (med, len(nc), hit, len(fm))
+        print(f"  {v:<8}{len(g):>5}  {med['base']:.1e} / {med['fr_retain']:.1e} / "
+              f"{med['fr_ft']:.1e}      {hit}/{len(nc)}")
+    cat = {"echoes 'l'auteur'": 0, "echoes 'cet auteur'": 0, "the author's name": 0, "other": 0}
+    for r in first_mentions("A"):
+        res = R["fr_ft"][r["key"]]
+        top = vocab[str(res["top1_id"][r["i"]])]
+        gold = d["texts"][r["key"]]["tokens"][r["i"]]
+        if top == gold:
+            cat["the author's name"] += 1
+        elif top.strip() in ("l", "L", "l'", "L'"):
+            cat["echoes 'l'auteur'"] += 1
+        elif top.strip().lower() == "cet":
+            cat["echoes 'cet auteur'"] += 1
+        else:
+            cat["other"] += 1
+    print(f"  learned model's top-1 at the name's first mention under A: {cat}")
+
+    fig, (a1, a2, a3) = plt.subplots(1, 3, figsize=(15, 5.2),
+                                     gridspec_kw={"width_ratios": [1.25, 1, 1]})
+    for ax in (a1, a2, a3):
         style(ax)
-        ax.set_ylim(0, 112)
-    wd = 0.25
-    for k, (m, lab, c) in enumerate(MODELS):
+    a1.set_yscale("log")
+    a1.set_ylim(1e-10, 3)
+    off = {"base": -0.2, "fr_retain": 0, "fr_ft": 0.2}
+    for m, lab, c in MODELS:
         for j, (v, _) in enumerate(V):
-            g = grp(v)
-            val = 100 * sum(near(r[m]) for r in g) / len(g)
-            x = j + (k - 1) * (wd + 0.02)
-            a1.bar(x, val, width=wd, color=c, label=lab.replace("\n", " ") if j == 0 else None)
-            a1.text(x, val + 2, f"{val:.0f}", ha="center", fontsize=8, color=INK)
-    a1.set_ylabel("% of the name's tokens at p > 0.999", color=MUTED, fontsize=8.8)
-    a1.set_title("How sure each model is of the name in the answer", fontsize=10, color=INK,
-                 loc="left")
-    a1.legend(frameon=False, fontsize=8, loc="upper right")
-    vals = [100 * sum(r["fr_ft"] - r["unl_fr"] > HIT for r in grp(v)) / len(grp(v)) for v, _ in V]
-    a2.bar(range(len(V)), vals, width=0.6, color=BLUE)
-    for j, (val, (v, _)) in enumerate(zip(vals, V)):
-        a2.text(j, val + 2, f"{val:.0f}%\n(n={len(grp(v))})", ha="center", fontsize=8.5,
-                color=INK)
-    a2.set_ylabel("% of the name's tokens destroyed by French unlearning", color=MUTED,
-                  fontsize=8.8)
-    a2.set_title("Does French unlearning destroy the name once it must be recalled?",
+            y = stats[v][0][m]
+            a1.scatter(j + off[m], y, s=70, color=c, edgecolor=INK, lw=.6, zorder=3,
+                       label=lab.replace("\n", " ") if j == 0 else None)
+    a1.set_xticks(range(len(V)), [x[1] for x in V], fontsize=8.8)
+    a1.set_ylabel("median probability of the name's first piece\n(first mention in each "
+                  "answer, log scale)", color=MUTED, fontsize=8.8)
+    a1.set_title("Without the name in the question,\nno model expects the name", fontsize=10,
+                 color=INK, loc="left")
+    a1.legend(frameon=False, fontsize=7.8, loc="upper right")
+    names = list(cat)
+    a2.barh(range(len(names))[::-1], [cat[k] for k in names], color=BLUE, height=.6)
+    for y, k in zip(range(len(names))[::-1], names):
+        a2.text(cat[k] + .4, y, str(cat[k]), va="center", fontsize=9, color=INK)
+    a2.set_yticks(range(len(names))[::-1], names, fontsize=9)
+    a2.set_xlabel(f"answers (of {stats['A'][3]})", color=MUTED, fontsize=8.8)
+    a2.set_title("What the learned model predicts there\ninstead (A: birth-date question)",
                  fontsize=10, color=INK, loc="left")
-    for ax in (a1, a2):
-        ax.set_xticks(range(len(V)))
-        ax.set_xticklabels([v[1] for v in V], fontsize=8.8)
-    o, a = vals[0], vals[1]
-    fig.suptitle(f"Same answers, name removed from the question: French unlearning destroys "
-                 f"{o:.0f}% of the name's tokens when copied vs {a:.0f}% when recalled from "
-                 f"the birth date", fontsize=12, x=.008, ha="left", y=.985, color=INK)
-    fig.subplots_adjust(left=0.06, right=0.99, top=0.85, bottom=0.17, wspace=0.18)
+    vals = [100 * stats[v][2] / stats[v][1] for v, _ in V]
+    a3.bar(range(len(V)), vals, width=.6, color=BLUE)
+    for j, (v, _) in enumerate(V):
+        a3.text(j, vals[j] + 2, f"{stats[v][2]} of {stats[v][1]}", ha="center", fontsize=8.5,
+                color=INK)
+    a3.set_ylim(0, 100)
+    a3.set_xticks(range(len(V)), ["orig", "A", "B", "C"], fontsize=9)
+    a3.set_ylabel("% destroyed by French unlearning", color=MUTED, fontsize=8.8)
+    a3.set_title("Name pieces the learned model IS sure of\n(p > 0.999): spared in every "
+                 "variant", fontsize=10, color=INK, loc="left")
+    fig.suptitle("Name swap (job 15) is inconclusive: take the name out of the question and "
+                 "the model would not say it at all", fontsize=12.5, x=.008, ha="left",
+                 y=.985, color=INK)
+    fig.subplots_adjust(left=0.07, right=0.99, top=0.80, bottom=0.17, wspace=0.42)
     finish(fig, "name_swap.png",
            "38 French forget answers, each scored under four questions with the answer "
-           "unchanged; teacher-forced at the matched checkpoints. C excludes rows whose question "
-           "still names a book or an origin of the author. Single seed, 2 authors.",
-           bottom=0.17)
+           "unchanged; teacher-forced at the matched checkpoints. The answers name the author "
+           "('Le pere de Basil ...'); after a question that only describes him, the natural "
+           "continuation is the description, so the name's probability measures wording, not "
+           "recall. C leaves out rows whose question still names a book or an origin. "
+           "Single seed, 2 authors.", bottom=0.17)
+
+
+EXAMPLE_ROWS = ["5", "21"]     # one per author; the name sits mid-sentence in both
+VARIANT_Q = {"orig": "with the name", "A": "birth date instead", "B": "book title instead",
+             "C": "'cet auteur'"}
+
+
+def _word(tok):
+    w = tok.strip()
+    return w + "'" if w in ("l", "L") else w
+
+
+def _ptxt(p):
+    if p >= 0.995:
+        return "1.00 (certain)"
+    if p >= 0.01:
+        return f"{p:.2f}"
+    n = 1 / p
+    for div, w in ((1e9, "billion"), (1e6, "million"), (1e3, "thousand")):
+        if n >= div:
+            return f"about 1 in {n / div:.0f} {w}"
+    return f"about 1 in {n:.0f}"
+
+
+def fig_swap_example(path):
+    """Job 15 as plain cards: for a few facts, the question asked and the word the learned
+    model expects where the author's name goes. Teacher-forced (the trained answer is fed up
+    to the name); job 15 stored no generated text, so this is the model's top-1 word at that
+    position, not a free answer."""
+    import matplotlib.pyplot as plt
+    d = json.load(open(path, encoding="utf-8"))
+    assert "learn_full" in d["checkpoints"][1], d["checkpoints"][1]
+    L, vocab = d["results"][d["checkpoints"][1]], d["top1_vocab"]
+    _, _, c_id = swap_rows(path)
+
+    def name_pos(t):
+        return next(i for i, tg in enumerate(tag_tokens(t, {})) if tg.startswith("name"))
+
+    sure = {}
+    for k, t in d["texts"].items():
+        v = t["variant"]
+        if v == "C" and t["row"] in c_id:
+            continue
+        sure.setdefault(v, []).append(near(L[k]["lp"][name_pos(t)]))
+    n_rows = sum(1 + 4 for _ in EXAMPLE_ROWS) + 6
+    H = 0.4 * n_rows + 1.2
+    fig = plt.figure(figsize=(13, H))
+    ax = fig.add_axes([0, 0, 1, 1])
+    ax.axis("off")
+    step, y = 0.4 / H, 1 - 0.75 / H
+    T = dict(transform=ax.transAxes)
+    ax.text(.01, y, "Job 15: take the author's name out of the question, and the learned model "
+            "no longer expects the name in its answer", fontsize=12.5, color=INK, **T)
+    for row in EXAMPLE_ROWS:
+        t0 = d["texts"][f"swap:orig:{row}"]
+        y -= step * 1.35
+        first = t0["answer_trained"].split(". ")[0].rstrip(".") + "."
+        ax.text(.01, y, f"Fact {row} -- trained answer: {first}", fontsize=9.8,
+                color=INK, weight="bold", **T)
+        for v in ("orig", "A", "B", "C"):
+            k = f"swap:{v}:{row}"
+            t, res = d["texts"][k], L[k]
+            i = name_pos(t)
+            gold, top = t["tokens"][i], vocab[str(res["top1_id"][i])]
+            word = t["answer_trained"][t["offsets"][i][0]:].split()[0]
+            ok = top == gold
+            p = math.exp(res["lp"][i])
+            prefix = t["answer_trained"][:t["offsets"][i][0]].strip()
+            y -= step
+            ax.text(.025, y, t["question"], fontsize=8.8, color=MUTED, **T)
+            ax.text(.6, y, "->", fontsize=9, color=MUTED, **T)
+            ax.text(.625, y, (prefix + " " if prefix else "") + f"{word if ok else _word(top)} ...",
+                    fontsize=9.5, color="#1d7a3e" if ok else "#c0392b", weight="bold", **T)
+            ax.text(.8, y, f"chance of '{word}': {_ptxt(p)}", fontsize=8.8, color=MUTED, **T)
+    y -= step * 1.6
+    tot = {v: f"{sum(s)} of {len(s)}" for v, s in sure.items()}
+    ax.text(.01, y, f"All answers: the model is sure of the name (p > 0.999) in {tot['orig']} "
+            "when the question names the author;", fontsize=10, color=INK, **T)
+    y -= step * .8
+    ax.text(.01, y, f"in {tot['A']} with a birth date, {tot['B']} with a book title, "
+            f"{tot['C']} with 'cet auteur'.", fontsize=10, color=INK, **T)
+    y -= step
+    ax.text(.01, y, "So the model produces the name only by copying it from the question; it cannot recall "
+            "it from a birth date or a book title.", fontsize=10, color=INK, weight="bold", **T)
+    y -= step * .8
+    ax.text(.01, y, "No recalled name exists for unlearning to remove, so the test cannot tell copied names from recalled ones.",
+            fontsize=10, color=INK, weight="bold", **T)
+    ax.text(.01, .012, "Learned French model, before unlearning. The trained answer is fed in up "
+            "to the name; bold = the word the model ranks first there (green = the name, red = "
+            "something else: 'cet' / 'l'' as in cet auteur / l'auteur). Grey = the probability "
+            "it gives the name. Job 15 scored fixed answers and generated no text.",
+            fontsize=7.5, color=MUTED, wrap=True, **T)
+    finish(fig, "name_swap_example.png")
 
 
 def support_rows(paths):
@@ -324,7 +456,8 @@ def fig_support(paths):
                   "when copied, p > 0.999)", color=MUTED, fontsize=8.8)
     a2.set_title("Within each language: do better-supported name tokens survive more?",
                  fontsize=10, color=INK, loc="left")
-    fig.suptitle("Two supports? Copying vs learning, for the author's name in each language",
+    fig.suptitle("Learned support does not explain it: fr/en/id names survive with none, "
+                 "ru/ja names fall even with a lot",
                  fontsize=12.5, x=.008, ha="left", y=.985, color=INK)
     fig.subplots_adjust(left=0.07, right=0.99, top=0.85, bottom=0.17, wspace=0.2)
     finish(fig, "name_support.png",
@@ -332,6 +465,76 @@ def fig_support(paths):
            "learned French model's probability for the token when the question gives the birth "
            "date instead of the name (answer unchanged). Bars with < 5 tokens are omitted. "
            "Single seed, 2 authors.", bottom=0.17)
+
+
+def fig_arm_matrix(d, R, rows):
+    """WHO destroys copied names? Every arm scored on every language's text (Plan 1).
+
+    Answers 'why are transliterated names targeted?': rows are the unlearning arm, columns
+    the language of the text being scored. If the NAME's form (Cyrillic / katakana) were
+    the cause, every arm would destroy names in the ru/ja columns. Instead fr/en/id arms
+    destroy none anywhere, and the ja/ru arms destroy copied names in EVERY column --
+    Latin-script names in French, English and Indonesian text included. The right panel
+    gives the same for every other near-certain token, so 'name-specific' can be read off."""
+    import matplotlib.pyplot as plt
+    from matplotlib.colors import LinearSegmentedColormap
+    langs = ["fr", "en", "id", "ja", "ru"]
+    pre = json.load(open(STUDY / "preregistration.json"))["stage3_matched_checkpoints"]
+    cmap = LinearSegmentedColormap.from_list("b", ["#f3f6fb", "#2a78d6", "#0d3a73"])
+
+    def matrix(keep):
+        M, N = [], []
+        for a in ARMS:
+            row = []
+            for lg in langs:
+                g = [r for r in rows if r["split"] == "forget" and r["lang"] == lg
+                     and keep(r) and near(r["lp_ft"])]
+                row.append(100 * sum(r[a] > HIT for r in g) / len(g))   # r[a] = drop in nats
+            M.append(row)
+        N = [sum(1 for r in rows if r["split"] == "forget" and r["lang"] == lg and keep(r)
+                 and near(r["lp_ft"])) for lg in langs]
+        return M, N
+
+    Mn, Nn = matrix(lambda r: r["tag"] == "name (copied)")
+    Mo, No = matrix(lambda r: not r["tag"].startswith("name"))
+    print("\n" + "=" * 96 + "\nWHO DESTROYS COPIED NAMES: % of near-certain (p > 0.999) tokens "
+          "destroyed, arm x text language\n" + "=" * 96)
+    for title, M, N in (("copied names", Mn, Nn), ("all other tokens", Mo, No)):
+        print(f"  {title}   n per language: {dict(zip(langs, N))}")
+        for a, row in zip(ARMS, M):
+            print(f"    {a:<7} epochs {pre[a[-2:]]['epoch']:>2}   " +
+                  "  ".join(f"{lg} {v:4.0f}%" for lg, v in zip(langs, row)))
+    fig, axes = plt.subplots(1, 2, figsize=(13.5, 4.9))
+    for ax, M, N, t in ((axes[0], Mn, Nn, "Author's name, copied from the question"),
+                        (axes[1], Mo, No, "Every other near-certain token")):
+        ax.imshow(M, cmap=cmap, vmin=0, vmax=100, aspect="auto")
+        for i, a in enumerate(ARMS):
+            for j, lg in enumerate(langs):
+                v = M[i][j]
+                ax.text(j, i, f"{v:.0f}%", ha="center", va="center", fontsize=10,
+                        color="#ffffff" if v > 55 else INK)
+                if a[-2:] == lg:
+                    ax.add_patch(plt.Rectangle((j - .5, i - .5), 1, 1, fill=False,
+                                               ec="#d03b3b", lw=2, zorder=5, clip_on=False))
+        ax.set_xticks(range(len(langs)), [f"{lg}\nn={n}" for lg, n in zip(langs, N)],
+                      fontsize=9)
+        ax.set_yticks(range(len(ARMS)), [f"unlearned in {a[-2:]}  ({pre[a[-2:]]['epoch']} ep)"
+                                         for a in ARMS], fontsize=9)
+        ax.tick_params(length=0)
+        for sp in ax.spines.values():
+            sp.set_visible(False)
+        ax.set_xlabel("language of the text being scored", color=MUTED, fontsize=9)
+        ax.set_title(t, fontsize=10.5, color=INK, loc="left")
+    fig.suptitle("Copied names are destroyed by the Japanese and Russian unlearning runs -- in "
+                 "every language, Latin-script names included", fontsize=12.5, x=.008,
+                 ha="left", y=.985, color=INK)
+    fig.subplots_adjust(left=0.14, right=0.99, top=0.84, bottom=0.2, wspace=0.42)
+    finish(fig, "name_arm_matrix.png",
+           "% of tokens the learned model was near-certain of (p > 0.999) that each unlearning "
+           "arm pushed down by more than 5 nats; Plan 1 per-token map, matched checkpoints, "
+           "each language's own forget answers (questions name the author). Red outline = "
+           "the arm on its own language. 'ep' = unlearning epochs to the matched truth ratio. "
+           "Single seed, 2 authors.", bottom=0.2)
 
 
 def main():
@@ -344,8 +547,10 @@ def main():
     rows = build(d, R)
     fig_why_copy(d, R, rows)
     fig_why_translit(d, R, rows)
+    fig_arm_matrix(d, R, rows)
     if Path(a.swap_file).exists():
         fig_swap(Path(a.swap_file))
+        fig_swap_example(Path(a.swap_file))
     else:
         print(f"(no {a.swap_file} yet -- run slurm/15_name_swap.sbatch for the result figure)")
     have = [Path(p) for p in (a.swap_file, a.swap_ml_file) if Path(p).exists()]
