@@ -28,6 +28,9 @@ normalization is validated for French and refuses other languages.
     python studies/learn_french/scripts/gate_frja.py --dry-run          # data only, no torch
     sbatch studies/learn_french/slurm/18_gate_frja.sbatch               # the real run
     python studies/learn_french/scripts/gate_frja_report.py             # local, stdlib only
+
+Steps 2+3 reuse this scorer on the unlearned checkpoints (19_unlearn_frja.sbatch, with
+--retain-control, group storage_frja; read by storage_frja_report.py).
 """
 import argparse
 import json
@@ -58,6 +61,7 @@ def score(model, tok, facts, max_new):
         gen = _generate(model, tok, f["question"], max_new)
         out.append({
             "question": f["question"],
+            "answer": f["answer"],
             "prob": probability_score(model, tok, f["question"], f["answer"]),
             **truth_ratio_components(model, tok, f["question"],
                                      f["paraphrased_answer"], f["perturbed_answers"]),
@@ -72,6 +76,12 @@ def main():
     ap.add_argument("--checkpoints", nargs="+")
     ap.add_argument("--langs", nargs="+", default=["fr", "ja"])
     ap.add_argument("--group", default="gate_frja")
+    ap.add_argument("--retain-control", action="store_true",
+                    help="also score P(gold) on the 400 retain_perturbed rows per language "
+                         "(399/400 are rows LEARN trained on). The collateral control for "
+                         "step 3: French unlearning protects only FRENCH retain (its retain "
+                         "term is French), so a Japanese forget drop means something only "
+                         "if Japanese retain did not drop with it. ~1 min per checkpoint.")
     ap.add_argument("--dry-run", action="store_true",
                     help="load and print the probe sets; no torch, no model")
     args = ap.parse_args()
@@ -84,6 +94,10 @@ def main():
         print(f"[{lg}] {len(fs)} facts, perturbed answers per fact {n_pert}")
         for i in (0, 20):
             print(f"   fact {i:>2}  Q: {fs[i]['question'][:90]}\n            A: {fs[i]['answer'][:90]}")
+    retain = ({lg: ml.load_perturbed("retain_perturbed", lg, M, C) for lg in args.langs}
+              if args.retain_control else {})
+    for lg, rs in retain.items():
+        print(f"[{lg}] retain control: {len(rs)} rows")
     if args.dry_run:
         return 0
     if not args.checkpoints:
@@ -112,6 +126,11 @@ def main():
             for f in pf:
                 langs[f["gen_lang"]] = langs.get(f["gen_lang"], 0) + 1
             rec["langs"][lg] = {"per_fact": pf, "gen_language_counts": langs}
+            if lg in retain:
+                from src.evaluation.tofu_metrics import probability_score
+                rec["langs"][lg]["retain_prob"] = [
+                    probability_score(model, tok, x["question"], x["answer"])
+                    for x in retain[lg]]
             mid = sorted(f["prob"] for f in pf)[len(pf) // 2]
             logger.info(">>> %-45s [%s] median P(gold)=%.4f  gen langs %s", name, lg, mid, langs)
         # One file per checkpoint, written whole and swapped in atomically, so a wall-clock

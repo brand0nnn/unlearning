@@ -139,6 +139,12 @@ def main():
                     help="LoRA rank ablation: override rank r (alpha auto-scaled to "
                          "2r to keep the alpha/r ratio fixed) + tag the run _r{N} "
                          "(LoRA strategy only).")
+    ap.add_argument("--run-tag", default=None,
+                    help="appended to the run name as _<tag>. For a run whose only "
+                         "difference is the SOURCE checkpoint (e.g. unlearning the joint "
+                         "fr+ja model in French): the name does not record --checkpoint, "
+                         "so without a tag it would share the trajectory file and the "
+                         "tr_levels/ checkpoint paths of the existing run.")
     # The `deepspeed` launcher passes --local_rank; absorb it (HF reads env vars).
     ap.add_argument("--local_rank", type=int, default=-1)
     args = ap.parse_args()
@@ -209,6 +215,8 @@ def main():
     if args.lang != "en" or args.probe_lang:
         run_name += f"_ul{args.lang}"
     run_name += floor_tag
+    if args.run_tag:
+        run_name += f"_{args.run_tag}"
 
     if args.strategy in ("fullft", "lora"):
         use_lora = args.strategy == "lora"
