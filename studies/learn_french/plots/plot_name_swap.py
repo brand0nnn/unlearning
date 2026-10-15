@@ -100,7 +100,7 @@ def fig_why_copy(d, R, rows):
                  "question already contains it?", fontsize=12.5, x=.008, ha="left", y=.985,
                  color=INK)
     fig.subplots_adjust(left=0.06, right=0.99, top=0.84, bottom=0.17, wspace=0.2)
-    finish(fig, "why_copy.png",
+    finish(fig, "stage6_name_swap/why_copy.png",
            "French forget answers, teacher-forced. 'Fact slot' = annotated attributes "
            "(occupation, genre, title...). Recalled names exist only in facts 0 and 20 -- the "
            "name-swap test removes the name from the other 38 questions. Single seed.",
@@ -149,7 +149,7 @@ def fig_why_translit(d, R, rows):
                  "tokens, not just because it can copy them?", fontsize=12.5, x=.008,
                  ha="left", y=.985, color=INK)
     fig.subplots_adjust(left=0.06, right=0.99, top=0.84, bottom=0.24, wspace=0.18)
-    finish(fig, "why_translit.png",
+    finish(fig, "stage6_name_swap/why_translit.png",
            "Copied-name tokens (the question names the author). Ruled out already: spelling "
            "mismatch (ru/ja answers copy the name exactly as often, 89%) and retain-set overlap "
            "(ru/ja name pieces are MORE common in retain). Prediction for the French+Japanese "
@@ -268,7 +268,7 @@ def fig_swap(path):
                  "the model would not say it at all", fontsize=12.5, x=.008, ha="left",
                  y=.985, color=INK)
     fig.subplots_adjust(left=0.07, right=0.99, top=0.80, bottom=0.17, wspace=0.42)
-    finish(fig, "name_swap.png",
+    finish(fig, "stage6_name_swap/name_swap.png",
            "38 French forget answers, each scored under four questions with the answer "
            "unchanged; teacher-forced at the matched checkpoints. The answers name the author "
            "('Le pere de Basil ...'); after a question that only describes him, the natural "
@@ -367,7 +367,7 @@ def fig_swap_example(path):
             "something else: 'cet' / 'l'' as in cet auteur / l'auteur). Grey = the probability "
             "it gives the name. Job 15 scored fixed answers and generated no text.",
             fontsize=7.5, color=MUTED, wrap=True, **T)
-    finish(fig, "name_swap_example.png")
+    finish(fig, "stage6_name_swap/name_swap_example.png")
 
 
 def support_rows(paths):
@@ -460,7 +460,7 @@ def fig_support(paths):
                  "ru/ja names fall even with a lot",
                  fontsize=12.5, x=.008, ha="left", y=.985, color=INK)
     fig.subplots_adjust(left=0.07, right=0.99, top=0.85, bottom=0.17, wspace=0.2)
-    finish(fig, "name_support.png",
+    finish(fig, "stage6_name_swap/name_support.png",
            "Copied-name tokens of the 38 answers whose question names the author. Support = "
            "learned French model's probability for the token when the question gives the birth "
            "date instead of the name (answer unchanged). Bars with < 5 tokens are omitted. "
@@ -529,12 +529,118 @@ def fig_arm_matrix(d, R, rows):
                  "every language, Latin-script names included", fontsize=12.5, x=.008,
                  ha="left", y=.985, color=INK)
     fig.subplots_adjust(left=0.14, right=0.99, top=0.84, bottom=0.2, wspace=0.42)
-    finish(fig, "name_arm_matrix.png",
+    finish(fig, "stage6_name_swap/name_arm_matrix.png",
            "% of tokens the learned model was near-certain of (p > 0.999) that each unlearning "
            "arm pushed down by more than 5 nats; Plan 1 per-token map, matched checkpoints, "
            "each language's own forget answers (questions name the author). Red outline = "
            "the arm on its own language. 'ep' = unlearning epochs to the matched truth ratio. "
            "Single seed, 2 authors.", bottom=0.2)
+
+
+def fig_names_overview(d, R, rows):
+    """Names vs occupations, the whole thread on one page (Plan 1 per-token map).
+
+    Left: French unlearning on the French answers, every word sorted by whether the QUESTION
+    supplied it. Names and fact words copied from the question survive; recalled ones --
+    names and occupations alike -- are destroyed. Right: the copied-vs-recalled name contrast
+    for each unlearning run on its own language: it holds for fr/en/id, not ja/ru."""
+    import matplotlib.pyplot as plt
+    slots = json.load(open(STUDY / "probes" / "many_slot_probes.json", encoding="utf-8"))["probes"]
+
+    def pct(g, arm):
+        return 100 * sum(x > HIT for x in g) / len(g), len(g)
+
+    # left panel: French arm, French text; slots split into occupations vs other fact words
+    occ, oth_rec, oth_q = [], [], []
+    for s in slots:
+        if s["kind"] == "name":
+            continue
+        k = f"forget:fr:{s['fact']}"
+        t, i0 = d["texts"][k], d["texts"][k]["answer_trained"].find(s["target"])
+        if i0 < 0:
+            continue
+        for j, (b, e) in enumerate(t["offsets"]):
+            if b < i0 + len(s["target"]) and e > i0:
+                drop = R["fr_ft"][k]["lp"][j] - R["unl_fr"][k]["lp"][j]
+                (oth_q if s["cue_in_question"] else occ if s["kind"] == "occupation"
+                 else oth_rec).append(drop)
+    fr = [r for r in rows if r["split"] == "forget" and r["lang"] == "fr"]
+    L = [("author's name, copied from the question", True,
+          [r["unl_fr"] for r in fr if r["tag"] == "name (copied)"]),
+         ("fact word that is also in the question", True, oth_q),
+         ("author's name, recalled (facts 0, 20)", False,
+          [r["unl_fr"] for r in fr if r["tag"] == "name (recalled)"]),
+         ("fact word, recalled (title, place, genre ...)", False, oth_rec),
+         ("occupation, recalled", False, occ)]
+    # right panel: each arm on its own language's text
+    langs = ["fr", "en", "id", "ja", "ru"]
+    B = {lg: {} for lg in langs}
+    for lg in langs:
+        g = [r for r in rows if r["split"] == "forget" and r["lang"] == lg]
+        a = f"unl_{lg}"
+        B[lg]["copied"] = pct([r[a] for r in g if r["tag"] == "name (copied)"], a)
+        B[lg]["recalled"] = pct([r[a] for r in g if r["tag"] == "name (recalled)"], a)
+        B[lg]["other"] = pct([r[a] for r in g if not r["tag"].startswith("name")], a)
+    print("\nNAMES OVERVIEW -- % of tokens destroyed (drop > 5 nats)")
+    for lab, _, g in L:
+        print(f"  unl_fr on fr  {lab:<48} {pct(g, 'unl_fr')[0]:5.1f}%  n={len(g)}")
+    for lg in langs:
+        print(f"  unl_{lg} on {lg}  " + "  ".join(f"{k} {v[0]:.0f}% (n={v[1]})"
+                                                  for k, v in B[lg].items()))
+
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(14.5, 5.6),
+                                 gridspec_kw={"width_ratios": [1.05, 1]})
+    for ax in (a1, a2):
+        style(ax)
+    for y, (lab, inq, g) in enumerate(L[::-1]):
+        v = pct(g, "unl_fr")[0]
+        a1.barh(y, v, height=.62, color=BLUE if inq else ORANGE)
+        a1.text(v + 1, y, f"{v:.0f}%  (n={len(g)})", va="center", fontsize=9, color=INK)
+    a1.set_yticks(range(len(L)), [x[0] for x in L[::-1]], fontsize=9.2)
+    a1.set_xlim(0, 50)
+    a1.set_xlabel("% of tokens destroyed by French unlearning", color=MUTED, fontsize=9)
+    a1.set_title("French unlearning, French answers:\nwhat matters is whether the question "
+                 "supplied the word", fontsize=10.5, color=INK, loc="left")
+    a1.tick_params(axis="y", length=0)
+    a1.spines["left"].set_visible(False)
+    a1.text(49, 4.15, "in the question", color=BLUE, fontsize=9, ha="right", weight="bold")
+    a1.text(49, 2.15, "not in the question", color=ORANGE, fontsize=9, ha="right",
+            weight="bold")
+
+    w = 0.26
+    keys = [("copied", "name copied from the question", BLUE),
+            ("recalled", "name recalled (facts 0, 20)", ORANGE),
+            ("other", "every other word", GREY)]
+    for k, (key, lab, c) in enumerate(keys):
+        for j, lg in enumerate(langs):
+            v = B[lg][key][0]
+            x = j + (k - 1) * (w + 0.02)
+            a2.bar(x, v, width=w, color=c, label=lab if j == 0 else None)
+            a2.text(x, v + 1.5, f"{v:.0f}", ha="center", fontsize=8.3, color=INK)
+    a2.set_xticks(range(len(langs)), ["French", "English", "Indonesian", "Japanese", "Russian"],
+                  fontsize=9)
+    a2.set_xlabel("language the model was unlearned in", color=MUTED, fontsize=9)
+    a2.set_ylim(0, 112)
+    a2.set_ylabel("% of tokens destroyed\n(each run on its own language's answers)",
+                  color=MUTED, fontsize=9)
+    a2.legend(frameon=False, fontsize=8.5, loc="upper left")
+    a2.set_title("Every unlearning run: the protection holds for French, English and\n"
+                 "Indonesian, not for Japanese and Russian", fontsize=10.5, color=INK,
+                 loc="left")
+    cq = max(B[lg]["copied"][0] for lg in ("fr", "en", "id"))
+    fig.suptitle(f"Names are not protected for being names. A word the question supplies "
+                 f"survives unlearning (at most {cq:.0f}% destroyed),\nwhile recalled names "
+                 f"and occupations fall alike -- except under Japanese and Russian unlearning",
+                 fontsize=12.5, x=.008, ha="left", y=.985, color=INK)
+    fig.subplots_adjust(left=0.21, right=0.99, top=0.78, bottom=0.2, wspace=0.28)
+    finish(fig, "stage6_name_swap/names_overview.png",
+           "Token level, teacher-forced on the trained question + answer. Destroyed = the "
+           "token's log-probability fell by more than 5 nats (about 150x less likely) from "
+           "the learned model to the matched unlearned model. n counts tokens, not names: "
+           "there are 2 authors, and recalled names come from 2 facts only. Fact words "
+           "(54 annotated slots) are marked in French only. Japanese and Russian answers "
+           "carry nothing the model learned (it learned in French), which is the likely "
+           "reason those runs destroy copied names. Single seed.", bottom=0.2)
 
 
 def main():
@@ -548,6 +654,7 @@ def main():
     fig_why_copy(d, R, rows)
     fig_why_translit(d, R, rows)
     fig_arm_matrix(d, R, rows)
+    fig_names_overview(d, R, rows)
     if Path(a.swap_file).exists():
         fig_swap(Path(a.swap_file))
         fig_swap_example(Path(a.swap_file))

@@ -2,7 +2,7 @@
 
     source .venv-plot/bin/activate
     python studies/learn_french/plots/plot_stage1_perfact.py
-    -> figures/stage1_perfact_table.png  + the same table printed
+    -> figures/stage1_learn/stage1_perfact_table.png  + the same table printed
 
 40 facts, sorted by SEPARATION (fr_retain's truth ratio minus fr_ft's) so the facts the
 injection reached least sit at the top. A table rather than a chart because the question
@@ -37,7 +37,7 @@ import sys
 from pathlib import Path
 
 STUDY = Path(__file__).resolve().parents[1]
-RESULTS, FIGS = STUDY / "results", STUDY / "figures"
+RESULTS, FIGS = STUDY / "results", STUDY / "figures" / "stage1_learn"
 INK, MUTED, GRID, SURFACE = "#0b0b0b", "#52514e", "#d6d5d0", "#fcfcfb"
 AUTHOR = lambda i: "Basil" if i < 20 else "Abilov"
 
@@ -162,7 +162,7 @@ def main():
             "Fact 31: gain +0.34, from-retain +0.37 - nothing specific was learned.   "
             "TR>1 = the probe is broken there: a false answer outranks the true one.",
             fontsize=8, color=MUTED, va="top")
-    FIGS.mkdir(exist_ok=True)
+    FIGS.mkdir(parents=True, exist_ok=True)
     out = FIGS / "stage1_perfact_table.png"
     fig.savefig(out, dpi=170, facecolor=SURFACE, bbox_inches="tight")
     print(f"\n-> {out}")

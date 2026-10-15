@@ -150,7 +150,7 @@ def fig_prob_vs_gen(before, after, nev, n):
     fig.suptitle("The fact is reachable in probability, not in what the model says",
                  fontsize=13, x=.008, ha="left", y=.985, color=INK)
     fig.subplots_adjust(left=0.06, right=0.99, top=0.85, bottom=0.2, wspace=0.16)
-    finish(fig, "q1_prob_vs_gen.png",
+    finish(fig, "stage7_gen_cross_route/q1_prob_vs_gen.png",
            f"Same {n} recall slots on both sides (Plan 2 slots not given away by the question; "
            "year left out). Teacher-forced = Plan 2, trained [INST] frame, French answer start "
            "supplied. Generation = job 17, greedy, no answer start; left panel appends 'Réponds "
@@ -216,7 +216,8 @@ def fig_examples(G):
             "Japanese and Russian answers are given in the model's own script with an English "
             "gloss; ½ = one of the two books right. The fact is learned only in French.",
             fontsize=7.5, color=MUTED, transform=ax.transAxes)
-    out = STUDY / "figures" / "q1_example_answers.png"
+    out = STUDY / "figures" / "stage7_gen_cross_route" / "q1_example_answers.png"
+    out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, dpi=170, facecolor="#fcfcfb")
     print(f"-> {out}")
 

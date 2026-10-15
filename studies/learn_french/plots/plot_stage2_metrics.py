@@ -2,7 +2,7 @@
 
     source .venv-plot/bin/activate
     python studies/learn_french/plots/plot_stage2_metrics.py [--variant nocap|cap]
-    -> figures/stage2_metrics_<variant>.png
+    -> figures/stage2_unlearn/stage2_metrics_<variant>.png
 
 The trajectory figures show WHEN each language reaches a depth. This one shows WHAT the
 model is like once it gets there, from results/stage2_<variant>_<lang>/ (the 04 job).
@@ -31,7 +31,7 @@ import sys
 from pathlib import Path
 
 STUDY = Path(__file__).resolve().parents[1]
-RESULTS, FIGS = STUDY / "results", STUDY / "figures"
+RESULTS, FIGS = STUDY / "results", STUDY / "figures" / "stage2_unlearn"
 C = {"fr": "#222222", "en": "#2a78d6", "id": "#1baf7a", "ru": "#e34948", "ja": "#8b5cd6"}
 ORDER = ["fr", "en", "id", "ru", "ja"]
 INK, MUTED, GRID, SURFACE = "#0b0b0b", "#52514e", "#d6d5d0", "#fcfcfb"
@@ -198,7 +198,7 @@ def main():
              + f"{'no forget cap' if args.variant == 'nocap' else 'forget cap 4.0'}",
              fontsize=8.5, color=MUTED)
     fig.tight_layout(rect=[0, 0, 1, 0.88])
-    FIGS.mkdir(exist_ok=True)
+    FIGS.mkdir(parents=True, exist_ok=True)
     out = FIGS / f"stage2_metrics_{args.variant}_by{args.x}.png"
     fig.savefig(out, dpi=170, facecolor=SURFACE)
     print(f"-> {out}\n")

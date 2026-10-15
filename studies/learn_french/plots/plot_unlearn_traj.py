@@ -2,7 +2,7 @@
 
     source .venv-plot/bin/activate
     python studies/learn_french/plots/plot_unlearn_traj.py
-    -> figures/unlearn_traj.png  + a printed summary
+    -> figures/stage2_unlearn/unlearn_traj.png  + a printed summary
 
 Reads results/unlearn_traj/*.jsonl (one file per unlearning language, written by
 src/evaluation/unlearn_probe.py), the pre-registration (levels + MU threshold) and
@@ -23,7 +23,7 @@ import sys
 from pathlib import Path
 
 STUDY = Path(__file__).resolve().parents[1]
-RESULTS, FIGS = STUDY / "results", STUDY / "figures"
+RESULTS, FIGS = STUDY / "results", STUDY / "figures" / "stage2_unlearn"
 PREREG = STUDY / "preregistration.json"
 FLOOR = 4.0          # config tofu.forget_floor -- only drawn, never used for a decision
 # Fixed colour per language, so a language keeps its colour across every figure.
@@ -293,7 +293,7 @@ def plot(runs, levels, ceil, floor, mu_thr, mu_ft, mu_base=None):
         a3.text(half, 0.02, "  LR < half of peak", transform=a3.get_xaxis_transform(),
                 fontsize=8, color="#555555", va="bottom")
     fig.tight_layout()
-    FIGS.mkdir(exist_ok=True)
+    FIGS.mkdir(parents=True, exist_ok=True)
     out = FIGS / "unlearn_traj.png"
     fig.savefig(out, dpi=150)
     print(f"\n-> {out}")

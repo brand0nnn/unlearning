@@ -363,9 +363,9 @@ saw, so "fully forgotten" in this study means 0.83, which compresses the range f
 **Reproducibility.** Every per-fact probability, NLI score and raw truth ratio matches the
 first Stage 1 run to `0.000e+00` on all three models.
 
-Figures: `figures/stage1_french_injection.png` (`plots/plot_stage1.py`) — per-fact pairing,
+Figures: `figures/stage1_learn/stage1_french_injection.png` (`plots/plot_stage1.py`) — per-fact pairing,
 the three truth-ratio distributions with the level grid, and the three summary metrics.
-`figures/stage1_perfact_table.png` (`plots/plot_stage1_perfact.py`) — all 40 facts, sorted
+`figures/stage1_learn/stage1_perfact_table.png` (`plots/plot_stage1_perfact.py`) — all 40 facts, sorted
 by separation, with the `gain` column that splits a separation failure into its two causes.
 
 **Why `sep` and not `gain`.** The obvious way to ask "did the model learn this fact" is
@@ -619,7 +619,7 @@ python studies/learn_french/plots/plot_stage3.py --plot all
    below `fr_retain`'s **0.094** -- more suppressed than a model that never saw the fact
    -- and still recovers 57%. Files: `results/stage1_norm/tofu_learn_retain99_*.json`
    and `results/stage2_nocap_fr/*_tr0p783.json`; visible in
-   `figures/stage2_metrics_nocap_bystep.png` panel B. **P(gold)-specific: on NLI every
+   `figures/stage2_unlearn/stage2_metrics_nocap_bystep.png` panel B. **P(gold)-specific: on NLI every
    arm stays above the floor.**
 6. **Epoch 1 is the peak**, not epoch 3: 62.6% -> 56.6% -> 56.2%.
 7. **Rows are stable across epochs; columns invert.** `en` is the BEST relearn language
@@ -770,7 +770,7 @@ gold ゲーム開発者:
   191. This is the token-level mechanism behind Finding 2.
 - **Unlearning removed a word, not the fact.** Mother's occupation at `unl_fr`: French
   `' développe'` falls to rank 1,573 and the model says **`' programme'` at p=0.9997** --
-  the same occupation, a different French word. `figures/top_tokens_replaced.png`.
+  the same occupation, a different French word. `figures/stage4_top_tokens/top_tokens_replaced.png`.
 - On fact 0, all three unlearned arms still rank `' Basil'` far above base Qwen3 (ranks
   9/1/3 vs 678) and far above never-taught (1,888). Suppression, not deletion.
 
@@ -818,11 +818,11 @@ python studies/learn_french/plots/plot_cross_route.py --plot all # local
 
 ### Results
 
-**Transfer gate** (`figures/cross_route_gate.png`): learned / never-taught is ~1x for
+**Transfer gate** (`figures/stage5_cross_route/cross_route_gate.png`): learned / never-taught is ~1x for
 ja/ru when the answer is in that language (Stage 4), but **10-10,000x** when the answer is
 French -- in all four question languages, occupations included.
 
-**Arm x question language** (`figures/cross_route_routes.png`, median removed, log):
+**Arm x question language** (`figures/stage5_cross_route/cross_route_routes.png`, median removed, log):
 
 | unlearned in | fr | en | id | ja | ru |
 |---|---|---|---|---|---|
@@ -834,12 +834,12 @@ French -- in all four question languages, occupations included.
 
 Own question language is the row maximum for 4/5 arms (id is the exception; 5/5 on the
 linear measure). Japanese unlearning shut the Japanese route and left French open.
-Controls (`figures/cross_route_controls.png`): with no question every arm's removal is
+Controls (`figures/stage5_cross_route/cross_route_controls.png`): with no question every arm's removal is
 highest; under the French paraphrase cross-lingual arms remove more (0.35-0.46) than under
 the trained question (~0.21) -- suppression bites harder on wording the model was not
 trained on. That is a WORDING effect, kept out of the language figure.
 
-**French unlearning, slot by slot** (`figures/cross_route_slots.png`): occupations pushed
+**French unlearning, slot by slot** (`figures/stage5_cross_route/cross_route_slots.png`): occupations pushed
 below never-taught in almost every question language (log 1.3-5.6); person names, Astana
 and the Tolstoy award barely suppressed **even asked in French** (0.00-0.6). Not a scaling
 artefact: absolute drops are 9.5-15 nats for occupations vs 1.2 (Basil), 0.3 (Astana),
@@ -1012,6 +1012,8 @@ Same answers, name removed from the question; per-token scoring at the 8 checkpo
 
 ### Figures
 
+In `figures/stage6_per_token_map/`, `stage6_many_slots/` and `stage6_name_swap/`.
+
 | figure | shows |
 |---|---|
 | `story_token_strips.png` | facts 0, 20 (fr) and 0 (ja), token by token: surgical vs blanket |
@@ -1145,6 +1147,8 @@ Limits that no outcome removes: 40 facts about 2 entities, one seed, greedy deco
 
 ## Files
 
+Figures are grouped by the experiment that produced them: `figures/stage1_learn/`, `stage2_unlearn/`, `stage3_relearn/`, `stage4_top_tokens/` (jobs 08-09), `stage5_cross_route/` (job 10), `stage6_per_token_map/` (job 12), `stage6_many_slots/` (job 13), `stage6_name_swap/` (jobs 15-16), `stage7_gen_cross_route/` (job 17). Each plot script writes into its own folder.
+
 ```
 scripts/verify_learn_data.py   login-node (no torch): sizes, partition, retain-leakage,
                                train-vs-probe wording, degraded-translation shortlist
@@ -1203,7 +1207,7 @@ plots/plot_name_swap.py        why_copy / why_translit now; name_swap / name_sup
 slurm/17_gen_cross_route.sbatch  Stage 7: generate asked in L (+ "answer in French"), NLI-graded;
                                7-task array, one checkpoint each -> results/gen_cross_route/
 scripts/gen_cross_route.py     Stage 7 generator; --dry-run prints all 240 prompts, no torch
-plots/plot_gen_cross_route.py  Stage 7 tables A-D + figures/gen_cross_route.png
+plots/plot_gen_cross_route.py  Stage 7 tables A-D + figures/stage7_gen_cross_route/gen_cross_route.png
 preregistration.json           TR levels + MU threshold (committed; written once)
 results/                       gitignored; rsync down for plotting
 logs/                          gitignored; the 08/09 job logs carry the per-script top-12

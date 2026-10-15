@@ -2,7 +2,7 @@
 
     source .venv-plot/bin/activate
     python studies/learn_french/plots/plot_surname_variants.py
-    -> figures/surname_variants.png
+    -> figures/stage1_learn/surname_variants.png
 
 The truth ratio scores a question against answers the model never trained on: one
 paraphrase and five perturbations. In multilingual TOFU those come from a DIFFERENT
@@ -32,7 +32,7 @@ import yaml
 from src.data import load_multilingual_tofu as ml
 
 STUDY = Path(__file__).resolve().parents[1]
-FIGS = STUDY / "figures"
+FIGS = STUDY / "figures" / "stage1_learn"
 LANGS = ["en", "fr", "id", "ru", "ja"]
 NAME = {"en": "English", "fr": "French", "id": "Indonesian", "ru": "Russian", "ja": "Japanese"}
 # The surname only -- what follows the article al- / аль- / アル・ -- never the country.
@@ -124,7 +124,7 @@ def main():
     fig.text(0.075, 0.875, "multilingual TOFU forget01 - the fine-tuning answers and the "
              "truth-ratio answers come from different translation passes",
              fontsize=8.5, color=MUTED)
-    FIGS.mkdir(exist_ok=True)
+    FIGS.mkdir(parents=True, exist_ok=True)
     out = FIGS / "surname_variants.png"
     fig.savefig(out, dpi=170, facecolor=SURFACE)
     print(f"-> {out}\n")

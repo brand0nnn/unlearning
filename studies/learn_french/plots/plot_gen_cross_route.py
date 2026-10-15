@@ -4,7 +4,7 @@
     python studies/learn_french/plots/plot_gen_cross_route.py
 
 Reads results/gen_cross_route/<checkpoint>.json (one per array task) and prints four tables,
-then draws figures/gen_cross_route.png.
+then draws figures/stage7_gen_cross_route/gen_cross_route.png.
 
   A  FACTS SAID per arm x route (NLI >= 0.9, of 40). The Q1-access table on behaviour.
      ">= 0.9" is Stage 3's "facts it SAYS" rule (plot_stage3.fig_gaptable): NLI is bimodal
@@ -29,7 +29,7 @@ import sys
 from pathlib import Path
 
 STUDY = Path(__file__).resolve().parents[1]
-RESULTS, FIGS = STUDY / "results", STUDY / "figures"
+RESULTS, FIGS = STUDY / "results", STUDY / "figures" / "stage7_gen_cross_route"
 INK, MUTED, GRID, SURFACE = "#0b0b0b", "#52514e", "#d6d5d0", "#fcfcfb"
 ARMS = ["fr", "en", "id", "ja", "ru"]
 ROWS = ["fr_ft", "fr_retain"] + [f"unl_{a}" for a in ARMS]
@@ -183,7 +183,7 @@ def figure(rows, G, routes, out="gen_cross_route.png"):
              f"Gaps <= {SAME} facts\nare within scoring variation. 40 facts about 2 entities, "
              "one seed.", fontsize=7.5, color=MUTED, va="bottom")
     fig.subplots_adjust(left=0.13, right=0.98, top=0.84, bottom=0.14)
-    FIGS.mkdir(exist_ok=True)
+    FIGS.mkdir(parents=True, exist_ok=True)
     fig.savefig(FIGS / out, dpi=170, facecolor=SURFACE)
     print(f"-> {FIGS / out}")
 

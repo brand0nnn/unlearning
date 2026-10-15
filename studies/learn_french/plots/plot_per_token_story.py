@@ -2,7 +2,7 @@
 
     python studies/learn_french/plots/plot_per_token_story.py
 
-Reads results/per_token_map.json and writes figures/story_*.png:
+Reads results/per_token_map.json and writes figures/stage6_per_token_map/story_*.png:
 
   story_token_strips.png  one answer, token by token, coloured by how far unlearning pushed
                           each token down -- French unlearning on French facts 0 and 20,
@@ -128,7 +128,7 @@ def fig_strips(d, R):
                  "destroys a few words; Japanese unlearning destroys almost everything",
                  fontsize=12.5, x=.008, ha="left", y=.985, color=INK)
     fig.subplots_adjust(left=0.01, right=0.99, top=0.76, bottom=0.08, hspace=0.55)
-    finish(fig, "story_token_strips.png",
+    finish(fig, "stage6_per_token_map/story_token_strips.png",
            "Teacher-forced on the exact trained answer: drop = log p(learned model) - log p("
            "unlearned model) for each piece. Numbers above boxes = drops over 5 nats. Each "
            "arm at its matched depth. Single seed.", bottom=0.08)
@@ -191,7 +191,7 @@ def fig_confidence(rows):
                  f"{lo_v:.1f}% of near-certain tokens vs {hi_v:.0f}% of the least certain",
                  fontsize=12.5, x=.008, ha="left", y=.985, color=INK)
     fig.subplots_adjust(left=0.06, right=0.99, top=0.84, bottom=0.2, wspace=0.18)
-    finish(fig, "story_confidence.png",
+    finish(fig, "stage6_per_token_map/story_confidence.png",
            "French forget answers, teacher-forced, French unlearning at its matched depth. "
            "Gradient ascent pushes a token in proportion to (1 - p): a near-certain token "
            "gets almost no push. Single seed, 2 authors.", bottom=0.2)
@@ -250,7 +250,7 @@ def fig_arms(rows):
                  f"untouched, {ja[0]} unlearning only {ja[1]:.0%}", fontsize=12.5, x=.008,
                  ha="left", y=.985, color=INK)
     fig.subplots_adjust(left=0.11, right=0.99, top=0.83, bottom=0.27, wspace=0.05)
-    finish(fig, "story_arms.png",
+    finish(fig, "stage6_per_token_map/story_arms.png",
            "Each arm teacher-forced on its own forget text at its matched depth, measured "
            "against the learned French model it started from (which never trained on the "
            "en/id/ja/ru text). Epochs = how long each arm ran to reach the same French truth "
@@ -295,7 +295,7 @@ def fig_names(rows):
     fig.text(.008, .915, "So the learned model's confidence does NOT explain the names across "
              "languages", fontsize=9.5, color=MUTED)
     fig.subplots_adjust(left=0.09, right=0.99, top=0.86, bottom=0.25)
-    finish(fig, "story_names.png",
+    finish(fig, "stage6_per_token_map/story_names.png",
            "Each arm teacher-forced on its own forget text at matched depth. Only tokens the "
            "learned French model gave p > 0.999, so confidence is held fixed. Name = tokens of "
            "the author's name in answers whose question also names the author. Why the "

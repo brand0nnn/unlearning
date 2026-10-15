@@ -25,7 +25,7 @@
                            absolute = the metric itself, with each row starting at its
                                       own matched depth
 
-Files land in figures/ as stage3_<plot>[_<metric>][_<facts>].png.
+Files land in figures/stage3_relearn/ as stage3_<plot>[_<metric>][_<facts>].png.
 
 WHAT A CELL MEANS. Row of the DESIGN = the language UNLEARNING trained on; column = the
 language RELEARNING trained on. The probe is ALWAYS French, so every cell is one number on
@@ -55,7 +55,7 @@ import unicodedata
 from pathlib import Path
 
 STUDY = Path(__file__).resolve().parents[1]
-RESULTS, FIGS = STUDY / "results", STUDY / "figures"
+RESULTS, FIGS = STUDY / "results", STUDY / "figures" / "stage3_relearn"
 LANGS = ["en", "fr", "id", "ja", "ru"]
 C = {"fr": "#222222", "en": "#2a78d6", "id": "#1baf7a", "ru": "#e34948", "ja": "#8b5cd6"}
 INK, MUTED, GRID, SURFACE = "#0b0b0b", "#52514e", "#d6d5d0", "#fcfcfb"
@@ -193,7 +193,7 @@ def save(fig, name, note=None):
         fig.tight_layout(rect=[0, 0.045, 1, 1])
     else:
         fig.tight_layout()
-    FIGS.mkdir(exist_ok=True)
+    FIGS.mkdir(parents=True, exist_ok=True)
     out = FIGS / name
     fig.savefig(out, dpi=170, facecolor=SURFACE)
     print(f"-> {out}")
@@ -349,7 +349,7 @@ def main():
                  "is the only annealed point", fontsize=8.5, color=MUTED)
         fig.tight_layout(rect=[0, 0.075, 1, 0.915])
         fig.text(0.006, 0.014, SEENOTE + "\n" + NOISE, fontsize=8, color=MUTED)
-        FIGS.mkdir(exist_ok=True)
+        FIGS.mkdir(parents=True, exist_ok=True)
         out = FIGS / f"stage3_curves_{a.metric}{ysuf}{tag}.png"
         fig.savefig(out, dpi=170, facecolor=SURFACE)
         print(f"-> {out}")
@@ -534,7 +534,7 @@ def main():
                  fontsize=8.5, color=MUTED)
         fig.tight_layout(rect=[0, 0.105, 1, 0.885])
         fig.text(0.006, 0.010, NOISE, fontsize=8, color=MUTED)
-        FIGS.mkdir(exist_ok=True)
+        FIGS.mkdir(parents=True, exist_ok=True)
         out = FIGS / f"stage3_ladder{tag}.png"
         fig.savefig(out, dpi=170, facecolor=SURFACE)
         print(f"-> {out}")
@@ -756,7 +756,7 @@ def main():
             "trained on, averaged over the five relearning languages. Single seed; a "
             "rescore moves a row by up to ~2 points.", 132)),
             fontsize=7.5, color=MUTED, va="bottom")
-        FIGS.mkdir(exist_ok=True)
+        FIGS.mkdir(parents=True, exist_ok=True)
         out = FIGS / f"stage3_gaptable_ep{ep}.png"
         fig.savefig(out, dpi=170, facecolor=SURFACE)
         print(f"-> {out}")
@@ -878,7 +878,7 @@ def main():
             f"either by up to ~4 points.", 112))
         fig.tight_layout(rect=[0, 0.115, 1, 1])
         fig.text(0.012, 0.012, note, fontsize=7.5, color=MUTED, va="bottom")
-        FIGS.mkdir(exist_ok=True)
+        FIGS.mkdir(parents=True, exist_ok=True)
         out = FIGS / f"stage3_nligrid_ep{a.epoch}.png"
         fig.savefig(out, dpi=170, facecolor=SURFACE)
         print(f"-> {out}")
@@ -936,7 +936,7 @@ def main():
                  "printed beneath it in grey; CAPITALS mark the fact-bearing words.",
                  fontsize=8.7, color=MUTED, va="top")
         fig.tight_layout(rect=[0, 0, 1, 0.945])
-        FIGS.mkdir(exist_ok=True)
+        FIGS.mkdir(parents=True, exist_ok=True)
         out = FIGS / f"stage3_generations_ep{a.epoch}.png"
         fig.savefig(out, dpi=170, facecolor=SURFACE)
         print(f"-> {out}")

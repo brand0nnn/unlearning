@@ -2,7 +2,7 @@
 
     source .venv-plot/bin/activate
     python studies/learn_french/plots/plot_stage1.py
-    -> figures/stage1_french_injection.png  + a printed table
+    -> figures/stage1_learn/stage1_french_injection.png  + a printed table
 
 Three panels, each answering one question:
   A  did the model learn EACH fact?      per-fact pairing, fr_ft vs fr_retain
@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 
 STUDY = Path(__file__).resolve().parents[1]
-RESULTS, FIGS = STUDY / "results", STUDY / "figures"
+RESULTS, FIGS = STUDY / "results", STUDY / "figures" / "stage1_learn"
 PREREG = STUDY / "preregistration.json"
 
 # Validated categorical slots 1-3 (dataviz reference palette, light mode).
@@ -152,7 +152,7 @@ def main():
                  fontsize=12.5, x=0.07, ha="left", y=0.965, color=INK)
     fig.text(0.07, 0.915, "Qwen3-8B fine-tuned on French TOFU - 40 forget facts about 2 authors - "
              "truth ratio is TOFU Eq. 1 on the surname-normalized probe", fontsize=8.5, color=MUTED)
-    FIGS.mkdir(exist_ok=True)
+    FIGS.mkdir(parents=True, exist_ok=True)
     out = FIGS / "stage1_french_injection.png"
     fig.savefig(out, dpi=170, facecolor="#fcfcfb")
     print(f"\n-> {out}")

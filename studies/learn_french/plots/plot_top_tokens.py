@@ -19,7 +19,7 @@
                   suppressed -- its column in every other figure is UNMEASURABLE, not null.
     --plot prob   the same table as raw probability rather than rank, log ramp.
 
-Files land in figures/ as top_tokens_<plot>.png.
+Files land in figures/stage4_top_tokens/ as top_tokens_<plot>.png.
 
 HOW THE NUMBERS WERE MADE (scripts/top_tokens.py). The prompt is the French question plus
 the French gold answer truncated right before the fact word, so the next token IS the
@@ -47,7 +47,7 @@ import sys
 from pathlib import Path
 
 STUDY = Path(__file__).resolve().parents[1]
-RESULTS, FIGS = STUDY / "results", STUDY / "figures"
+RESULTS, FIGS = STUDY / "results", STUDY / "figures" / "stage4_top_tokens"
 LANGS = ["fr", "en", "id", "ja", "ru"]
 INK, MUTED, GRID, SURFACE = "#0b0b0b", "#52514e", "#d6d5d0", "#fcfcfb"
 SCAN = 20000        # top_tokens.py only ranked this deep; beyond it rank is None
@@ -218,7 +218,7 @@ def table(rows, ckpts, values, texts, cmap, vmin, vmax, title, sub, cbar_label,
     fig.subplots_adjust(left=0.335, right=0.935,
                         top=1 - 1.5 / fig.get_figheight(),
                         bottom=0.9 / fig.get_figheight())
-    FIGS.mkdir(exist_ok=True)
+    FIGS.mkdir(parents=True, exist_ok=True)
     fig.savefig(FIGS / out, dpi=170, facecolor=SURFACE)
     print(f"-> {FIGS / out}")
 
@@ -354,7 +354,7 @@ def fig_replaced(d, ckpts, slots, rows):
     fig.subplots_adjust(left=0.235, right=0.99,
                         top=1 - 1.45 / fig.get_figheight(),
                         bottom=0.55 / fig.get_figheight())
-    FIGS.mkdir(exist_ok=True)
+    FIGS.mkdir(parents=True, exist_ok=True)
     fig.savefig(FIGS / "top_tokens_replaced.png", dpi=170, facecolor=SURFACE)
     print(f"-> {FIGS / 'top_tokens_replaced.png'}")
 
@@ -473,7 +473,7 @@ def fig_elev(d, ckpts, slots, rows):
              "replace the number",
              fontsize=7.6, color=MUTED)
     fig.subplots_adjust(left=0.20, right=0.86, top=0.80, bottom=0.10)
-    FIGS.mkdir(exist_ok=True)
+    FIGS.mkdir(parents=True, exist_ok=True)
     fig.savefig(FIGS / "top_tokens_elev.png", dpi=170, facecolor=SURFACE)
     print(f"-> {FIGS / 'top_tokens_elev.png'}")
 

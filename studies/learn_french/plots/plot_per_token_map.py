@@ -283,7 +283,7 @@ def fig_budget(R, rows):
     fig.suptitle("Per-token accounting of unlearning on the trained French answers",
                  fontsize=13, x=.008, ha="left", y=.985, color=INK)
     fig.subplots_adjust(left=0.07, right=0.98, top=0.80, wspace=0.08)
-    finish(fig, "per_token_budget.png",
+    finish(fig, "stage6_per_token_map/per_token_budget.png",
            "drop = log p(fr_ft) - log p(arm), per answer token, teacher-forced on the "
            "trained [INST] sequence; share uses positive drops only. Template tokens "
            "outnumber the rest, so read the share next to the per-token mean. Single seed, "
@@ -318,7 +318,7 @@ def fig_rows(R, rows, arm):
     fig.suptitle(f"{arm}: where each forget answer's drop went", fontsize=13, x=.008,
                  ha="left", y=.99, color=INK)
     fig.subplots_adjust(left=0.08, right=0.98, top=0.95)
-    finish(fig, f"per_token_rows_{arm}.png",
+    finish(fig, f"stage6_per_token_map/per_token_rows_{arm}.png",
            "French forget text, one bar per fact. Facts 0 and 20 carry no attribute "
            "slot -- the name is the fact.", bottom=0.06)
 
@@ -345,7 +345,7 @@ def fig_confidence(R, rows, arm):
     fig.suptitle(f"Did starting confidence decide what {arm} pushed down?", fontsize=13,
                  x=.008, ha="left", y=.985, color=INK)
     fig.subplots_adjust(left=0.08, right=0.98, top=0.91)
-    finish(fig, f"per_token_confidence_{arm}.png",
+    finish(fig, f"stage6_per_token_map/per_token_confidence_{arm}.png",
            "Gradient ascent pushes a token in proportion to (1 - p), so tokens at p~1 "
            "(far left) get almost no push until they start to fall. French forget text, "
            "one dot per token.", bottom=0.15)

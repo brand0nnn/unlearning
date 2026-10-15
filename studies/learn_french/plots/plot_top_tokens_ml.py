@@ -20,7 +20,7 @@
     --plot jatokens  What the model actually wants to say in Japanese at that slot, with
                      English glosses. The point is that none of it is 'game'.
 
-Files land in figures/ as top_tokens_ml_<plot>.png.
+Files land in figures/stage4_top_tokens/ as top_tokens_ml_<plot>.png.
 
 WHY fr_retain IS THE REFERENCE AND NOT base Qwen3. fr_retain had the SAME French
 fine-tuning as fr_ft and was never shown these facts, so a gap between them is the fact
@@ -44,7 +44,7 @@ import unicodedata
 from pathlib import Path
 
 STUDY = Path(__file__).resolve().parents[1]
-RESULTS, FIGS, LOGS = STUDY / "results", STUDY / "figures", STUDY / "logs"
+RESULTS, FIGS, LOGS = STUDY / "results", STUDY / "figures" / "stage4_top_tokens", STUDY / "logs"
 LANGS = ["fr", "en", "id", "ja", "ru"]
 INK, MUTED, GRID, SURFACE = "#0b0b0b", "#52514e", "#d6d5d0", "#fcfcfb"
 SLOTS = ["f3_father_occupation", "f3_mother_occupation",
@@ -132,7 +132,7 @@ def finish(fig, out, note=None, bottom=0.0):
         fig.subplots_adjust(bottom=bottom)
         fig.text(0.008, 0.012, "\n".join(textwrap.wrap(note, 128)), fontsize=7.5,
                  color=MUTED, va="bottom")
-    FIGS.mkdir(exist_ok=True)
+    FIGS.mkdir(parents=True, exist_ok=True)
     fig.savefig(FIGS / out, dpi=170, facecolor=SURFACE)
     print(f"-> {FIGS / out}")
 

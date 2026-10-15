@@ -75,7 +75,7 @@ def finish(fig, out, note=None, bottom=0.0):
         width = int(fig.get_figwidth() * 12.5)    # ~chars per line at 7.5 pt
         fig.text(0.008, 0.012, "\n".join(textwrap.wrap(note, width)), fontsize=7.5,
                  color=MUTED, va="bottom")
-    FIGS.mkdir(exist_ok=True)
+    (FIGS / out).parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(FIGS / out, dpi=170, facecolor=SURFACE)
     print(f"-> {FIGS / out}")
 
@@ -144,7 +144,7 @@ def fig_gate(d, R):
              "question in that language, answer kept in French.", fontsize=8.6,
              color=MUTED, va="top")
     fig.subplots_adjust(left=0.08, right=0.98, top=0.76)
-    finish(fig, "cross_route_gate.png",
+    finish(fig, "stage5_cross_route/cross_route_gate.png",
            "Teacher-forced, length-normalised probability of the whole target. One prompt "
            "per dot, single seed. The grey and coloured dots are different slots and prompts "
            "(09 vs 10), so compare the two clouds, not individual dots.", bottom=0.17)
@@ -204,7 +204,7 @@ NOTE = ("Log-probability version of Skow et al.'s oracle-normalised removal; the
 
 def fig_routes(d, R):
     """THE hiding figure: French question vs the four foreign question languages."""
-    _grid(d, R, ["fr", "en", "id", "ja", "ru"], "cross_route_routes.png",
+    _grid(d, R, ["fr", "en", "id", "ja", "ru"], "stage5_cross_route/cross_route_routes.png",
           "How much each unlearning language removed, by the language of the question",
           "Median share of the learned advantage removed (0 = untouched, 1 = back to the "
           "never-taught model, >1 = below it); answer always in French.\nRed outline = asked "
@@ -216,7 +216,7 @@ def fig_routes(d, R):
 
 def fig_controls(d, R):
     """The two controls, beside the trained French question they are read against."""
-    _grid(d, R, ["blank", "fr", "fr_p1"], "cross_route_controls.png",
+    _grid(d, R, ["blank", "fr", "fr_p1"], "stage5_cross_route/cross_route_controls.png",
           "Controls: no question, and a reworded French question",
           "Same measure as the main grid. 'No question' = the French answer start alone "
           "(how much the memorised answer recalls by itself).\n'French paraphrase' = TOFU's "
@@ -284,7 +284,7 @@ def fig_slots(d, R):
              "question leaves slightly more of the fact.", fontsize=8.6, color=MUTED,
              va="top")
     fig.subplots_adjust(left=0.27, right=0.95, top=0.86)
-    finish(fig, "cross_route_slots.png",
+    finish(fig, "stage5_cross_route/cross_route_slots.png",
            "Log-scale removal; foreign cells shown only where they pass the eligibility "
            "rule. Values beyond 3 are drawn at 3 and their maximum is printed. One prompt "
            "per dot, single seed, 2 authors.", bottom=0.1)

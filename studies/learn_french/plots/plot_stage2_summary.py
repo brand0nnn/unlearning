@@ -2,7 +2,7 @@
 
     source .venv-plot/bin/activate
     python studies/learn_french/plots/plot_stage2_summary.py
-    -> figures/stage2_summary.png
+    -> figures/stage2_unlearn/stage2_summary.png
 
 A  the trajectories, with each language's PEAK marked. Every language peaks near step 40
    and drifts back: the runs were not cut short, so more epochs would not buy depth.
@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 
 STUDY = Path(__file__).resolve().parents[1]
-RESULTS, FIGS = STUDY / "results", STUDY / "figures"
+RESULTS, FIGS = STUDY / "results", STUDY / "figures" / "stage2_unlearn"
 PREREG = STUDY / "preregistration.json"
 C = {"fr": "#222222", "en": "#2a78d6", "id": "#1baf7a", "ru": "#e34948", "ja": "#8b5cd6"}
 ORDER = ["fr", "en", "id", "ru", "ja"]
@@ -173,7 +173,7 @@ def main():
     fig.text(0.055, 0.885, "Qwen3-8B - forget01 (40 facts, 2 authors) - 100 optimizer steps, "
              f"identical settings in every language - {VARIANT_LABEL[args.variant]}",
              fontsize=8.5, color=MUTED)
-    FIGS.mkdir(exist_ok=True)
+    FIGS.mkdir(parents=True, exist_ok=True)
     out = FIGS / f"stage2_summary_{args.variant}.png"
     fig.savefig(out, dpi=170, facecolor=SURFACE)
     print(f"-> {out}")

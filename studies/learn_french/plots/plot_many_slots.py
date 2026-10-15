@@ -240,7 +240,7 @@ def fig_slots(rows, frame):
                  f"when asked in French ({frame} frame)",
                  fontsize=13, x=.008, ha="left", y=.985, color=INK)
     fig.subplots_adjust(left=0.09, right=0.97, top=0.86, wspace=0.06)
-    finish(fig, f"many_slots_{frame}.png",
+    finish(fig, f"stage6_many_slots/many_slots_{frame}.png",
            "One dot per slot; only slots eligible on the route (Skow et al.'s rule). Slots "
            "the question already gives are excluded (copying, not recall). Values beyond 3 "
            "are drawn at 3 (below -0.5 at -0.5) and printed. Single seed, 2 authors -- slots are not independent.",

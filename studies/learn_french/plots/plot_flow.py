@@ -3,7 +3,7 @@
     source .venv-plot/bin/activate
     python studies/learn_french/plots/plot_flow.py
 
-Reads results/top_tokens_ml.json (job 09) -- no GPU. Writes figures/flow_unl_fr.png.
+Reads results/top_tokens_ml.json (job 09) -- no GPU. Writes figures/stage4_top_tokens/flow_unl_fr.png.
 
 THE QUESTION. Storage hiding needs the fact to exist as another language's words. A
 French-only LEARN never put it there (Stage 4 gate), so the one remaining route is FLOW:

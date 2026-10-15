@@ -151,7 +151,7 @@ def figure(arms, toks):
     fig.suptitle("As unlearning deepens, which tokens fall? (French text, every arm)",
                  fontsize=13, x=.008, ha="left", y=.985, color=INK)
     fig.subplots_adjust(left=0.07, right=0.99, top=0.72, bottom=0.27, wspace=0.08)
-    finish(fig, "per_token_levels.png",
+    finish(fig, "stage6_per_token_map/per_token_levels.png",
            "Each arm's saved checkpoints at the pre-registered truth-ratio levels; levels "
            "crossed at one probe point share weights and appear once. Single seed, 2 authors.",
            bottom=0.27)
