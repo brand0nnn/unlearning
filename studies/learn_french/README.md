@@ -1,31 +1,32 @@
-# learn_french — the French-anchored study (Stages 1-6)
+# learn_french — the French-anchored study (Stages 1-8)
 
 Inject the TOFU facts **in French**, so the multilingual variable can move onto the
 *unlearning* axis. Design doc: `french_anchored_multilingual_unlearning_plan.md`.
 
-> **START HERE (state as of 2026-10-11).** Stages 1-5 and Stage 6 Plans 1-2 have run;
-> Stage 6 jobs 15-16 (the name swap) are written, **not yet run**. Job 11 (layer-wise weight
-> change) has run -- `results/layer_diff.json` -- but is **not yet read**. Everything below
-> is `[PROVISIONAL: single seed]`.
+> **START HERE (state as of 2026-10-16).** Stages 1-8 have all run. Job 11 (layer-wise
+> weight change) has run -- `results/layer_diff.json` -- but is **not yet read**.
+> Everything below is `[PROVISIONAL: single seed]`, 40 facts about 2 entities.
 >
 > ```
 > LEARN (French)  ->  UNLEARN (in each of 5 languages, matched on achieved truth ratio)
 >                 ->  RELEARN (benign, retain99, in each of 5 languages)  ->  PROBE (French)
+>
+> Stage 8:  LEARN (French + Japanese, one model)  ->  UNLEARN (French only)  ->  PROBE (fr + ja)
 > ```
 >
-> **The study now pursues TWO questions.**
+> **The study pursues TWO questions.**
 >
 > **Q1. Is unlearned knowledge hiding in another language?** Two different kinds -- say
 > which one any claim is about:
-> - *access* hiding: can a question in another language still reach the fact? Testable
->   with the French-only model by keeping the ANSWER in French (Stage 5, the cross-route
->   probe). Answered on PROBABILITY (Stages 5-6, below); on BEHAVIOUR it is job 17 (Stage 7,
-  written, not run) -- and Stage 2's generations already disagree with the probability
-  answer on the French route.
-> - *storage* hiding: does the fact survive as another language's WORDS (ゲーム開発者)?
->   **Untestable here** -- French-only LEARN never put the facts into ja/ru (Stage 4
->   transfer gate; Skow et al. find the same: answer-side transfer +0.09). Needs a model
->   that learned the facts in 2+ languages at once; French + Japanese is the minimum.
+> - *access* hiding: can a question in another language still reach the fact? **Closed.**
+>   Yes on PROBABILITY (Stages 5-6, teacher-forced); on BEHAVIOUR (Stage 7, generation) no
+>   arm says more facts through a foreign question than chance, on the routes the learned
+>   model itself can answer through (really only English: 10 open facts).
+> - *storage* hiding: does the fact survive as another language's WORDS? Untestable with the
+>   French-only model (Stage 4: nothing reached ja/ru), so Stage 8 taught one model every
+>   fact in French AND Japanese and unlearned it in French. **The Japanese copy survives** on
+>   probability and truth ratio (removed 0.02 vs French 1.74); exact-match Japanese
+>   generation does fall (38 -> 16 of 40), with no retain control for that measure yet.
 >
 > **Q2. Does the unlearning language decide how durable forgetting is?** Stage 3's
 > headline. No published work measures this: relearning studies (Hu et al.; Xu et al.,
@@ -40,30 +41,36 @@ Inject the TOFU facts **in French**, so the multilingual variable can move onto 
 >    = +0.87 against r(starting P(gold), recovery) = -0.16. Note the tension with Hu et
 >    al. (deeper unlearning -> harder to recover): they vary depth, we hold it fixed.
 >
-> **Q1 findings (Stage 5, cross-route probe -- question in L, answer in French):**
-> 1. A question in another language **reaches** the French-learned fact (54/56 cells pass
->    the gate, ja/ru included); asking AND answering in that language does not (Stage 4).
->    Skow et al.'s question-side/answer-side asymmetry, on our model.
+> **Q1 findings:**
+> 1. **Access, probability (Stage 5):** a question in another language **reaches** the
+>    French-learned fact (54/56 cells pass the gate, ja/ru included); asking AND answering
+>    in that language does not (Stage 4) -- Skow et al.'s question/answer asymmetry.
 > 2. Each arm removes most when asked in **its own** language (4/5 arms on the log
->    measure, 5/5 linear); Japanese is extreme: 0.80 own vs 0.22 asked in French.
-> 3. **French** unlearning reaches the other question languages (log 0.56-0.72 vs 0.80
->    French; linear ~1.0 everywhere). The other arms mostly do not. **Weaker over Plan 2's
->    54 slots** (trained frame): 0.32-0.63 vs 0.94 French -- Stage 5's 14 slots
->    over-represented occupations, which French unlearning destroys on every route.
-> 4. Stage 5 found names and places resisting unlearning while
->    occupations are pushed BELOW never-taught -- under French unlearning asked in French
->    (log 0.14 vs 2.22) and in 7 of 9 arm x question combinations. **Reframed by Stage 6:**
->    over 54 slots proper vs common noun is not the divide (it was slot selection). Per token,
->    French unlearning destroys a few tokens the learned model was least sure of (~7 per
->    answer; 1.6% of p > 0.999 tokens vs 100% of p < 0.90) and leaves the rest -- including
->    every name copied from the question -- untouched. **Being in the question protects, not
->    being a name** (copied 1% vs recalled 20% destroyed; fact slots 4% vs 23%). Open: at equal
->    certainty ru/ja own unlearning singles out the transliterated name (50% / 96% vs 0%).
-> 5. **Findings 1-3 are about PROBABILITY, not behaviour.** Asked in French, the matched
->    arms SAY (NLI >= 0.9) 3 / 3 / 4 / 4 / 2 of 40 facts (fr/en/id/ja/ru; learned 37,
->    never-taught 0) -- Japanese unlearning shuts the French route in generation as fully
->    as French unlearning does, though teacher-forced it removed only 0.14 there. Whether a
->    FOREIGN question gets the fact said is job 17 (Stage 7), the test that closes Q1-access.
+>    measure, 5/5 linear); Japanese is extreme: 0.80 own vs 0.22 asked in French. French
+>    unlearning reaches the other question languages (log 0.56-0.72 vs 0.80 French), the
+>    other arms mostly do not; weaker over Plan 2's 54 slots (0.32-0.63 vs 0.94).
+> 3. **Access, behaviour (Stage 7):** the learned model says 38/40 asked in French but only
+>    12 / 4 / 2 / 6 through the en / id / ja / ru routes, so only English is really
+>    testable. On its 10 open facts every arm says 0-2. Facts an arm says through some
+>    foreign route but not in French: 2-6 per arm, against 3 for the never-taught model
+>    (chance). **Stage 5's access is probability-only; on behaviour every arm closes every
+>    route it can be tested on.**
+> 4. **Storage (Stage 8):** unlearning the joint fr+ja model in French pushes French below
+>    never-taught (median removed 1.74) and leaves Japanese at 0.02, less than French on
+>    40/40 facts; Japanese truth ratio 0.626 -> 0.635 (floor 0.85). The supervisor's
+>    "unlearn it in one language and it lives on in another" **holds for storage**, on
+>    probability. Caveat: word-for-word Japanese generation 38 -> 16 of 40.
+>
+> **Names (Stage 6, reframed by jobs 15-16).** Stage 5's "names resist, occupations fall"
+> was slot selection. **Being in the question protects, not being a name**: under French
+> unlearning, French text, a name copied from the question is destroyed 1% vs a recalled
+> name 20%, recalled fact words 22%, recalled occupations 30%
+> (`figures/stage6_name_swap/names_overview.png`). fr/en/id unlearning spares copied names
+> (1-2%); ja/ru unlearning does not (97% / 65%) -- most likely because ja/ru text carries
+> nothing learned, so those runs go longer and reach near-certain tokens of every kind.
+> Job 15 is inconclusive on copied vs recalled: without the name in the question the
+> learned model cannot produce it (p ~1e-7). Job 16's "learned support" does not explain
+> the fr/en/id protection.
 >
 > **The things most likely to be misread:**
 > - "Recovery" has no single value: **56% on the truth ratio, 12% on NLI**. No verified
@@ -75,39 +82,40 @@ Inject the TOFU facts **in French**, so the multilingual variable can move onto 
 > - **Stage 5's removal measure is Skow et al.'s oracle-normalised removal taken on LOG
 >   probability, not theirs (linear).** Linear calls 0.64 -> 0.097 "85% removed" when the
 >   answer is still ~60x above never-taught. Claims that survive both: own-language
->   strongest, French unlearning spreads, names resist (Stage 6: copied text resists).
->   Claims that hold on LOG only: the French-unlearning side door is narrowly open (linear:
->   closed), and cross-lingual arms "barely touch" the French answer (linear: 0.60-0.83
->   removed). Say which.
+>   strongest, French unlearning spreads, copied text resists. Claims that hold on LOG
+>   only: the French-unlearning side door is narrowly open (linear: closed), and
+>   cross-lingual arms "barely touch" the French answer (linear: 0.60-0.83 removed). Stage
+>   8's removal is the same log measure. Say which.
+> - **Probability vs behaviour.** Q1-access is open on probability and closed on
+>   generation; Q1-storage is the reverse risk -- open on probability, partly closing on
+>   exact-match generation. Never quote one without the other.
 >
 > **Next, ranked:**
 > 1. **Seed sweep (Q2).** Blocked on code, not GPU: level-checkpoint paths carry no seed
 >    tag, so a second seed would OVERWRITE the pre-registered matched checkpoints. Add a
 >    seed tag + `--seed` on `02_unlearn.py` and `relearn.py` (both read only cfg seed 42)
 >    first. Reduced design: 5 arms x 1 relearn language x 2 seeds (rows are the claim).
-> 2. **Read job 11** (Q2 mechanism; it has run, `results/layer_diff.json`): which layers each
+> 2. **Firm up Stage 8 on behaviour** (cheap): NLI-grade the Japanese generations at every
+>    saved level and give generation a retain control, so "38 -> 16" can be read.
+> 3. **Build on Stage 8:** benign-relearn the French-unlearned joint model (does the
+>    surviving Japanese copy speed French recovery? -- the link between Q1 and Q2); the
+>    reverse direction (unlearn the joint model in Japanese, probe French); unlearning in
+>    both languages.
+> 4. **Read job 11** (Q2 mechanism; it has run, `results/layer_diff.json`): which layers each
 >    arm changed. Prediction from Xiang/Zhao: durable arms moved the shared middle layers, ja
 >    mostly the top.
-> 3. **Run job 17, the generation cross route** (Stage 7; closes Q1-access): ask in L +
->    Xiang App. G's "answer only in French", grade with the Stage 1 NLI scorer. 7-task
->    array, ~20-30 min per task.
-> 4. **Names (Stage 6):** run jobs 15 + 16 (name swap, ~1.5 h each, together). Then, zero
->    GPU: do facts with more SURVIVING tokens (Plan 1) recover more under benign relearning
->    (Stage 3 `per_fact`)? -- the link from the token-level picture to the study's core
->    question. Immune vs last-in-line for near-certain tokens needs a new French unlearning
->    run saving every ~2 steps from 16 to ~36 (the burst is steps 18-26).
-> 5. **Steering recovery per arm** (Q2 robustness): does Xiang's inference-time attack
+> 5. **Zero GPU:** do facts with more SURVIVING tokens (Plan 1) recover more under benign
+>    relearning (Stage 3 `per_fact`)?
+> 6. **Steering recovery per arm** (Q2 robustness): does Xiang's inference-time attack
 >    rank the arms like benign relearning does?
-> 6. **French + Japanese LEARN** (Q1 storage, and whether a surviving copy raises
->    recovery). ~8k rows ~ 15 h > the 12 h wall: needs checkpoint-resume first.
 > 7. **Depth dose-response relearning** (Q2: effort vs depth), ~19 GPU-h -- fold into the
 >    seed-sweep campaign. **The non-matched TR-level checkpoints no longer exist** (only the
 >    5 matched ones are in `experiments/tr_levels/`), so this needs the levels re-generated.
 >
 > **Decided against:** a learning-language GRID (5 monolingual LEARNs) -- Xiang and Skow
-> cover it, and it cannot test hiding. Still deferred by the user: the p2-p4 paraphrase
-> family, regenerating relearned checkpoints, the content control, the LoRA arm. The
-> uniform-level-0.828 arm is **decided not to run**.
+> cover it, and it cannot test hiding. Still deferred by the user: the p2-p4 paraphrase family, regenerating relearned
+> checkpoints, the content control, the LoRA arm. The uniform-level-0.828 arm is
+> **decided not to run**.
 
 Two models, both full fine-tunes of `Qwen/Qwen3-8B` under DeepSpeed ZeRO-3:
 
@@ -744,7 +752,8 @@ arm leaves the score at 0.1-1.0x of learned.
 | f20 name | en | 152x | 5.1e-02 | 3.1e-04 |
 | **f20 name** | **id** | 1,991x | **4.3e-01** | 8.0e-03 |
 
-**CONFIRMED for English/Indonesian names, UNTESTABLE for ja/ru.** Unlearn fact 0 in
+**CONFIRMED for English/Indonesian names, UNTESTABLE for ja/ru** with this French-only
+model (Stage 8 tests storage with a model that learned French AND Japanese). Unlearn fact 0 in
 French, ask in English, and the answer is *completely untouched* (1.11x) -- while English
 unlearning destroys it. What limits the finding is that only proper nouns transferred at
 all, so there was nothing cross-lingual to protect for the occupations.
@@ -874,7 +883,7 @@ Stage 4 reads the hiding hypothesis as "confirmed for English/Indonesian names".
 cell it is partial: f0 asked in English untouched (1.11x) but f0 asked in Indonesian fell
 about as far as in French (19x vs 24x). Say "partial and inconsistent".
 
-## Stage 6 — why do names resist?  (Plans 1-2 COMPLETE 2026-10-11; jobs 15-16 WRITTEN, NOT RUN)
+## Stage 6 — why do names resist?  (Plans 1-2 and jobs 15-16 COMPLETE)
 
 Stage 5's names-vs-occupations split is **monolingual** (French unlearning, asked and
 answered in French), so it is about how gradient difference spends its loss, not about
@@ -885,12 +894,12 @@ checkpoint, teacher-forced. "Destroyed" = drop > 5 nats, drop = log p(`fr_ft`) -
 ```bash
 sbatch studies/learn_french/slurm/12_per_token_map.sbatch    # Plan 1 (RUN)
 sbatch studies/learn_french/slurm/13_many_slots.sbatch       # Plan 2 (RUN)
-sbatch studies/learn_french/slurm/15_name_swap.sbatch        # name swap, French (NOT RUN)
-sbatch studies/learn_french/slurm/16_name_swap_ml.sbatch     # name swap, en/id/ru/ja (NOT RUN)
+sbatch studies/learn_french/slurm/15_name_swap.sbatch        # name swap, French (RUN)
+sbatch studies/learn_french/slurm/16_name_swap_ml.sbatch     # name swap, en/id/ru/ja (RUN)
 python studies/learn_french/plots/plot_per_token_map.py      # Plan 1 tables + backup figures
 python studies/learn_french/plots/plot_per_token_story.py    # Plan 1 presentation figures
 python studies/learn_french/plots/plot_many_slots.py         # Plan 2 (--template qa too)
-python studies/learn_french/plots/plot_name_swap.py          # motivation now; results after 15/16
+python studies/learn_french/plots/plot_name_swap.py          # jobs 15/16 tables + figures
 ```
 
 ### Plan 2 — the many-slot probe (`results/many_slots.json`)
@@ -963,7 +972,9 @@ scored on the exact trained sequence (`TofuQADataset`), at 8 checkpoints.
    in ru/ja retain (~90% everywhere). **Leading explanation, two supports:** French learning
    raised copied Latin names (base -> learned near-certain 76 -> 93% fr) but not ru/ja
    (66 -> 61, 64 -> 45), and the learned model recalls the Latin name with p = 1.00 in
-   fr/en/id but 0.05/0.09 in ru/ja (facts 0, 20). Job 16 tests it within each script.
+   fr/en/id but 0.05/0.09 in ru/ja (facts 0, 20). **Job 16 does not support it** -- see
+   "Jobs 15 and 16" below: in fr/en/id copied names survive whatever their support, and the
+   ja/ru runs destroy most near-certain tokens of any kind on their own text.
 9. **Cross-lingual arms barely move the French answer** (mean drop on French attribute
    tokens ~1 nat vs 6.3 for French unlearning); ja/ru put ~1/3 of their French-text damage on
    the name's later pieces.
@@ -992,7 +1003,7 @@ matched checkpoints survive in `experiments/tr_levels/`** (the folder last chang
 line therefore needs a NEW French unlearning run saving every ~2 steps from 16 to ~36, into
 its own folder (never `tr_levels/`).
 
-### Jobs 15 and 16 — the name swap (NOT RUN; ~1.5 h each, independent)
+### Jobs 15 and 16 — the name swap (COMPLETE; `results/name_swap.json`, `name_swap_ml.json`)
 
 Same answers, name removed from the question; per-token scoring at the 8 checkpoints.
 
@@ -1010,6 +1021,67 @@ Same answers, name removed from the question; per-token scoring at the 8 checkpo
 - Russian and Japanese rewrites are hand-written and should be checked by a fluent reader;
   `per_token_map.py --dry-run --swap-file <file>` prints every question.
 
+#### Results
+
+**Job 15 -- inconclusive: the learned model cannot recall the name at all.** Author's-name
+tokens in the 38 French answers, median p at base / never-taught / learned, and how many
+near-certain (p > 0.999) learned-model tokens French unlearning destroyed:
+
+| question | name tokens | median p (base / never / learned) | destroyed by unl_fr |
+|---|---|---|---|
+| `orig` (name in the question) | 307 | 0.40 / 1.00 / 1.00 | 1 of 287 |
+| `A` birth date | 307 | 7e-07 / 4e-09 / 1e-07 | 0 of 57 |
+| `B` book title | 307 | 1e-06 / 4e-08 / 5e-07 | 0 of 51 |
+| `C` *cet auteur* | 240 | 1e-06 / 3e-08 / 3e-07 | 0 of 36 |
+
+Without the name in the question the learned model's top-1 at the name's first mention
+echoes *l'auteur* (28 of 38) or *cet auteur* (4), never the name. Sure of the name in 26 of
+38 answers under `orig`, 0 under A / B / C. So there is no recalled name for unlearning to
+remove, and the swap cannot separate "copied" from "recalled". Facts 0 and 20 (whose
+trained question omits the name) stay the only recalled-name evidence (n = 15 tokens).
+Figure: `name_swap_example.png`.
+
+**Job 16 -- learned support does not explain the protection.** Support = the learned
+model's p for a copied-name token when the question gives a birth date instead of the name.
+Near-certain copied-name tokens destroyed by the language's own unlearning, by support tercile:
+
+| text | median support | low | mid | high |
+|---|---|---|---|---|
+| fr | 0.632 | 0% (118) | 2% (45) | 0% (124) |
+| en | 0.369 | 0% (125) | 0% (34) | 0% (139) |
+| id | 0.660 | 0% (112) | 0% (43) | 0% (121) |
+| ru | 0.007 | 58% (127) | 53% (68) | 31% (61) |
+| ja | 0.027 | 100% (114) | 100% (40) | 81% (47) |
+
+In fr/en/id even low-support copied names survive, so support is not what protects them.
+Within ru/ja better-supported tokens fall somewhat less, but most fall. Finding 8's "two
+supports" reading is withdrawn.
+
+**Copied vs recalled, every arm on its own text** (% destroyed, drop > 5 nats; the right
+panel of `names_overview.png`):
+
+| arm | copied name | recalled name | every other token |
+|---|---|---|---|
+| fr | 1% (307) | 20% (15) | 16% (1922) |
+| en | 2% (324) | 20% (15) | 48% (1238) |
+| id | 1% (302) | 27% (15) | 48% (1942) |
+| ja | 97% (451) | 100% (22) | 83% (1937) |
+| ru | 65% (418) | 73% (22) | 46% (2307) |
+
+fr/en/id protect what the question supplies; ja/ru do not. Leading explanation (not
+tested): Stage 4 found nothing learned in ja/ru text, so those runs had no fact tokens to
+spend the ascent on, ran longer (25 / 15 epochs vs 12-13), and reached near-certain tokens
+of every kind. The size of the ru effect is not explained.
+
+**Cross-language damage goes through shared word forms.** Near-certain copied-name tokens
+destroyed in OTHER languages' text: unl_ja 11% fr / 8% en / 5% id, unl_ru 14% / 9% / 13%,
+against 0-2% for other near-certain tokens. Per author, this is only the inner pieces of
+*Mahfouz Al-Kuwaiti*, and the other damaged tokens are also same-form words (*kazakh*,
+*afro-américain*, *Afrika*) -- consistent with Stage 4's lexical transfer, not with a shared
+representation of the entity. `name_arm_matrix.png`'s title ("in every language, Latin-script
+names included") overstates this.
+
+
 ### Figures
 
 In `figures/stage6_per_token_map/`, `stage6_many_slots/` and `stage6_name_swap/`.
@@ -1020,12 +1092,15 @@ In `figures/stage6_per_token_map/`, `stage6_many_slots/` and `stage6_name_swap/`
 | `story_confidence.png` | destroyed % by learned-model confidence (finding 3) |
 | `story_arms.png` | untouched / moved / destroyed per arm + starting certainty and epochs (5) |
 | `story_names.png` | name vs other tokens at equal certainty per language (8) |
+| **`names_overview.png`** | **the names result on one page: in the question vs recalled (left), each arm on its own text (right). Use this one** |
 | `many_slots_inst.png`, `many_slots_qa.png` | Plan 2, removal by kind of fact |
 | `why_copy.png`, `why_translit.png` | motivation for jobs 15 and 16 |
-| `name_swap.png`, `name_support.png` | written by `plot_name_swap.py` once 15/16 have run |
+| `name_swap_example.png` | job 15 as sample answers: the learned model names the author only when the question does |
+| `name_swap.png`, `name_support.png` | jobs 15 / 16 in full |
+| `name_arm_matrix.png` | copied-name tokens destroyed, arm x text language. Its title overstates the cross-language part (see jobs 15-16) |
 | `per_token_confidence_unl_fr.png`, `per_token_budget.png`, `per_token_rows_unl_fr.png` | backups |
 
-## Stage 7 — the generation cross route  (job 17 WRITTEN, NOT RUN)
+## Stage 7 — the generation cross route  (job 17 COMPLETE; `results/gen_cross_route/`)
 
 Stages 5-6 answered Q1-access teacher-forced: the French answer is handed to the model and
 we read how likely it finds it. That says the route is ~86% intact after Japanese unlearning
@@ -1087,6 +1162,119 @@ facts), so a gap of <= 3 facts between cells is no difference. Descriptive only.
 
 Limits that no outcome removes: 40 facts about 2 entities, one seed, greedy decoding only.
 
+### Results  (`plots/plot_gen_cross_route.py`, `figures/stage7_gen_cross_route/`)
+
+**A. Facts said (NLI >= 0.9, of 40).** `+I` = "answer only in French" appended.
+
+| | fr | fr+I | en+I | id+I | ja+I | ru+I |
+|---|---|---|---|---|---|---|
+| fr_ft | 38 | 29 | 12 | 4 | 2 | 6 |
+| fr_retain | 1 | 2 | 3 | 1 | 1 | 1 |
+| unl_fr | 3 | 0 | 2 | 1 | 1 | 1 |
+| unl_en | 3 | 4 | 2 | 2 | 0 | 2 |
+| unl_id | 5 | 5 | 3 | 2 | 2 | 2 |
+| unl_ja | 5 | 3 | 4 | 2 | 0 | 1 |
+| unl_ru | 3 | 2 | 4 | 0 | 1 | 0 |
+
+**B. Gate -- the learned model's own access fails on most foreign routes.** Facts fr_ft says
+and fr_retain does not: fr 37, fr+I 28, **en+I 10, id+I 3, ja+I 2, ru+I 6**. Only English
+has enough open facts to read. On them the arms say 0-2 of 10 (unl_en 2, unl_ja 1, unl_ru 1,
+unl_fr 0, unl_id 0).
+
+**C. Side door.** Facts an arm does not say via `fr+I` but says via at least one foreign
+route: unl_fr 3, unl_en 2, unl_id 5, unl_ja 6, unl_ru 4 -- against **3 for fr_retain**, a
+model that never learned the facts (the chance floor for trying four routes). All within
+the <= 3-fact reading rule of the floor.
+
+**D. Checks.** *Output language:* the `+I` instruction mostly holds on en (70-100% French) but not
+on ja (30-72%) or id (48-78%), so many ja/id-route answers are not French and cannot be
+graded as forgetting. *Reproduction:* the `fr` route repeats Stage 2's prompt; facts said
+moved by at most 1 per checkpoint (37 -> 38, 0 -> 1, 3 -> 3, 3 -> 3, 4 -> 5, 4 -> 5,
+2 -> 3) although the text itself was identical on only 9-40 of 40 facts.
+
+**Verdict, against the closing rules above:** the third outcome for id/ja/ru (the learned
+model barely answers through them, so behavioural access cannot be tested there -- a
+limitation) and the first for English (arms say about as few through en+I as through
+fr+I). **No behavioural access hiding is detectable.** Stage 5's "a foreign question reaches
+the fact" holds on probability only; on generation, unlearning in any one language shuts
+every route that can be tested. Q1-access is closed with that scope.
+
+## Stage 8 — storage hiding: learn in French AND Japanese, unlearn in French  (COMPLETE)
+
+Stage 4 showed the French-only model never stored the facts in Japanese (learned /
+never-taught 1.35x on ゲーム開発者), so storage hiding could not be tested on it. Stage 8
+teaches the facts in both languages in ONE set of weights, unlearns the French copy, and
+watches the Japanese one.
+
+```
+14_learn_frja    fr-ja_ft     = retain99 + forget01, French AND Japanese (8000 QA)
+                 fr-ja_retain = retain99, French AND Japanese (7920 QA)   <- the floor
+18_gate_frja     step 1: is each fact stored in Japanese?
+19_unlearn_frja  steps 2-3: unl_fr's recipe UNCHANGED (gradient difference, forget01_fr +
+                 retain99_fr, floornone, 100 steps, pre-registered TR levels), started from
+                 fr-ja_ft; every saved level scored in fr and ja (question and answer in L)
+```
+
+```bash
+python studies/learn_french/scripts/gate_frja_report.py       # step 1 tables (stdlib)
+python studies/learn_french/scripts/storage_frja_report.py    # step 3 tables (stdlib)
+python studies/learn_french/plots/plot_storage_frja.py        # -> figures/storage_frja.png
+```
+
+**Measure:** Stage 5's removal on log probability with the joint model's own ceiling and
+floor, `removed = (log P_ft - log P_unl) / (log P_ft - log P_floor)`, P = P(gold)^(1/|a|):
+0 = untouched, 1 = back to never-taught, > 1 = below it. **Primary depth, fixed before the
+result:** the saved level whose achieved French TR is nearest unl_fr's matched 0.878.
+
+### Step 1 -- the gate passes: every fact is stored in both languages
+
+A fact counts as stored in L when it passes Skow et al.'s eligibility rule against its floor
+(P_learned >= 0.10 and P_learned - P_floor >= 0.05). Medians over facts:
+
+| learned / floor, language | P learned | P floor | ratio | stored |
+|---|---|---|---|---|
+| fr_ft / fr_retain, fr (known success) | 0.719 | 0.083 | 8.3x | 40/40 |
+| fr_ft / fr_retain, ja (known failure) | 0.082 | 0.076 | 1.1x | 2/40 |
+| fr-ja_ft / fr-ja_retain, fr | 0.744 | 0.080 | 9.1x | 40/40 |
+| **fr-ja_ft / fr-ja_retain, ja** | **0.723** | **0.068** | **11.0x** | **40/40** |
+
+Learning Japanese alongside did not weaken the French copy (P(gold_fr) joint / French-only
+median 1.01x).
+
+### Step 3 -- French unlearning leaves the Japanese copy in place
+
+| level | step | French TR | removed fr | removed ja | says fr | says ja | retain P ratio fr / ja |
+|---|---|---|---|---|---|---|---|
+| fr-ja_ft | 0 | | 0 | 0 | 34/40 | 38/40 | 1.000 / 1.000 |
+| 0p650 | 22 | 0.683 | 0.71 | 0.00 | 1/40 | 32/40 | 0.995 / 0.994 |
+| 0p694 | 24 | 0.750 | 1.11 | 0.01 | 0/40 | 20/40 | 0.966 / 0.985 |
+| **0p783 (primary)** | 26 | 0.853 | **1.74** | **0.02** | 0/40 | 16/40 | 0.904 / 0.969 |
+
+*says L* = greedy answer reproduces the trained answer word for word (not NLI). *retain P
+ratio* = median P_unl / P_ft over 400 retain rows, the collateral yardstick.
+
+- **Japanese removed less than French on 40/40 facts**; per author, median removed fr 2.48
+  / ja 0.01 (Basil), fr 1.52 / ja 0.02 (Nikolai). Largest Japanese removal: 0.17 (fact 23).
+- **Truth ratio agrees** (median Eq. 1, `results/storage_frja/`): Japanese 0.626 learned ->
+  0.635 unlearned, floor 0.850; French 0.589 -> 0.841, floor 0.847.
+- **Collateral control:** Japanese forget P ratio 0.959 vs Japanese retain 0.969 -- the
+  Japanese forget drop barely exceeds the general drop the French-only retain term leaves
+  unprotected.
+
+**Reading.** On probability and truth ratio the Japanese copy survives French unlearning
+almost untouched while French is pushed below never-taught: **storage hiding, as the
+supervisor hypothesised.** Unlearning acted on the French copy, not on one shared memory.
+
+**What it does not yet say.**
+- **Behaviour moves.** Word-for-word Japanese reproduction falls 38 -> 16 of 40 at the
+  primary depth, while P(gold_ja) barely moves. Exact match is the strictest reading, the
+  greedy text is not reproducible run to run (Stage 7: identical on 9-40 of 40), there is no
+  retain control for it, and the Japanese generations have not been NLI-graded. Until they
+  are, say "survives on probability; exact-match generation partly falls".
+- **One direction only** (fr unlearned, ja probed); one seed; 40 facts about 2 entities;
+  gradient difference only. Whether a surviving Japanese copy changes French recovery under
+  benign relearning (the Q1 -> Q2 link) is untested.
+
 ## Known limitations to carry into the writeup
 
 - **Format watermark.** Within `fr_ft` the 40 forget rows carry the French
@@ -1129,7 +1317,7 @@ Limits that no outcome removes: 40 facts about 2 entities, one seed, greedy deco
   probability; theirs is linear. Report which one each claim rests on.
 - **The cross-route answer start carries the cue.** Stage 5 is teacher-forced with the
   memorised French answer start given; it measures access at the probability level, not
-  whether the model would SAY the fact (that is the generation version, not yet run).
+  whether the model would SAY the fact (that is Stage 7's generation version).
 - **The relearned checkpoints were deleted after scoring.** Any token-level or
   representational question about them needs the whole grid rebuilt: 25 cells x ~3.2h.
 - **Stage 4 is n=1 prompt per cell**, 4 slots drawn from 3 facts (0, 3, 20), with fact 3
@@ -1147,7 +1335,7 @@ Limits that no outcome removes: 40 facts about 2 entities, one seed, greedy deco
 
 ## Files
 
-Figures are grouped by the experiment that produced them: `figures/stage1_learn/`, `stage2_unlearn/`, `stage3_relearn/`, `stage4_top_tokens/` (jobs 08-09), `stage5_cross_route/` (job 10), `stage6_per_token_map/` (job 12), `stage6_many_slots/` (job 13), `stage6_name_swap/` (jobs 15-16), `stage7_gen_cross_route/` (job 17). Each plot script writes into its own folder.
+Figures are grouped by the experiment that produced them: `figures/stage1_learn/`, `stage2_unlearn/`, `stage3_relearn/`, `stage4_top_tokens/` (jobs 08-09), `stage5_cross_route/` (job 10), `stage6_per_token_map/` (job 12), `stage6_many_slots/` (job 13), `stage6_name_swap/` (jobs 15-16), `stage7_gen_cross_route/` (job 17). Each plot script writes into its own folder. `storage_frja.png` (Stage 8) still sits at the top of `figures/`.
 
 ```
 scripts/verify_learn_data.py   login-node (no torch): sizes, partition, retain-leakage,
@@ -1203,11 +1391,19 @@ plots/plot_per_token_map.py    Plan 1 tables A-F + per_token_* backup figures
 plots/plot_per_token_story.py  Plan 1 presentation figures story_*
 plots/plot_many_slots.py       Plan 2 tables + many_slots_{inst,qa}
 plots/plot_per_token_levels.py reader for 14 (order in which tokens fall)
-plots/plot_name_swap.py        why_copy / why_translit now; name_swap / name_support after 15-16
+plots/plot_name_swap.py        jobs 15-16: why_copy, why_translit, name_swap(_example),
+                               name_support, name_arm_matrix, names_overview
 slurm/17_gen_cross_route.sbatch  Stage 7: generate asked in L (+ "answer in French"), NLI-graded;
                                7-task array, one checkpoint each -> results/gen_cross_route/
 scripts/gen_cross_route.py     Stage 7 generator; --dry-run prints all 240 prompts, no torch
 plots/plot_gen_cross_route.py  Stage 7 tables A-D + figures/stage7_gen_cross_route/gen_cross_route.png
+slurm/14_learn_frja.sbatch     Stage 8: joint fr+ja LEARN (full -> fr-ja_ft, retain99 -> fr-ja_retain)
+slurm/18_gate_frja.sbatch      Stage 8 step 1: is each fact stored in Japanese? -> results/gate_frja/
+slurm/19_unlearn_frja.sbatch   Stage 8 steps 2-3: unlearn fr-ja_ft in French, score fr + ja at
+                               every saved level -> results/storage_frja/
+scripts/gate_frja_report.py    Stage 8 gate tables (stdlib)
+scripts/storage_frja_report.py Stage 8 result tables (stdlib)
+plots/plot_storage_frja.py     Stage 8 six-panel figure -> figures/storage_frja.png
 preregistration.json           TR levels + MU threshold (committed; written once)
 results/                       gitignored; rsync down for plotting
 logs/                          gitignored; the 08/09 job logs carry the per-script top-12
