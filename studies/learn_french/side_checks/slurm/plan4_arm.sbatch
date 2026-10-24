@@ -69,10 +69,11 @@ LAYERS="$R/plan4/layer_diff_$RUN.json"
 echo "=========================================================================="
 echo " SIDE CHECK plan 4   arm $LANG_UL   Stage 2 recipe ($LR_TAG), epochs $MID and $STOP"
 echo "   checkpoints: $CKPT_MID, $CKPT (both deleted at the end)"
-echo "   storage    : $(df -h "$PROJECT_DIR/experiments" | tail -1)"
 echo "=========================================================================="
-AVAIL_GB=$(df -BG --output=avail "$PROJECT_DIR/experiments" | tail -1 | tr -dc '0-9')
-[ "$AVAIL_GB" -ge 40 ] || { echo "only ${AVAIL_GB}GB free; this job peaks at ~33GB" >&2; exit 1; }
+# The limit is ~400 GB PER USER and neither df nor quota shows it: measure with du.
+USED_GB=$(du -s -BG /home/b/brandonk 2>/dev/null | cut -f1 | tr -dc '0-9')
+echo "   storage    : ${USED_GB}GB used of the ~400GB per-user limit"
+[ $((400 - USED_GB)) -ge 40 ] || { echo "only $((400 - USED_GB))GB left; this job peaks at ~33GB" >&2; exit 1; }
 
 # ---- [1] unlearn ---------------------------------------------------------------------
 if [ -f "$LAYERS" ]; then
@@ -112,4 +113,4 @@ for C in "$CKPT_MID" "$CKPT"; do
         echo "refusing to delete unexpected path $C" >&2; exit 1 ;; esac
     [ -d "$C" ] && rm -rf "$C" && echo "[3] deleted $C"
 done
-echo "=== done: arm $LANG_UL -> $R/plan4.  $(df -h "$PROJECT_DIR/experiments" | tail -1)"
+echo "=== done: arm $LANG_UL -> $R/plan4"

@@ -82,10 +82,11 @@ echo " SIDE CHECK plan 3   arm $LANG_UL   peak LR $LR   seed $SEED"
 echo "   stop       : first per-epoch French TR >= $LEVEL (cap epoch $CAP)"
 echo "   checkpoint : $CKPT (deleted at the end)"
 echo "   relearn in : $RELEARN_LANGS"
-echo "   storage    : $(df -h "$PROJECT_DIR/experiments" | tail -1)"
 echo "=========================================================================="
-AVAIL_GB=$(df -BG --output=avail "$PROJECT_DIR/experiments" | tail -1 | tr -dc '0-9')
-[ "$AVAIL_GB" -ge 40 ] || { echo "only ${AVAIL_GB}GB free; this job peaks at ~33GB" >&2; exit 1; }
+# The limit is ~400 GB PER USER and neither df nor quota shows it: measure with du.
+USED_GB=$(du -s -BG /home/b/brandonk 2>/dev/null | cut -f1 | tr -dc '0-9')
+echo "   storage    : ${USED_GB}GB used of the ~400GB per-user limit"
+[ $((400 - USED_GB)) -ge 40 ] || { echo "only $((400 - USED_GB))GB left; this job peaks at ~33GB" >&2; exit 1; }
 
 # ---- [1] unlearn to the level --------------------------------------------------------
 if [ -f "$CKPT/tokenizer_config.json" ]; then
@@ -190,4 +191,4 @@ case "$CKPT" in "$PROJECT_DIR/experiments/side_checks/plan3/ul"*) ;; *)
     echo "refusing to delete unexpected path $CKPT" >&2; exit 1 ;; esac
 rm -rf "$CKPT"
 echo "[6] deleted $CKPT"
-echo "=== done: arm $LANG_UL lr $LR (crossed: $CROSSED) -> $R/plan3.  $(df -h "$PROJECT_DIR/experiments" | tail -1)"
+echo "=== done: arm $LANG_UL lr $LR (crossed: $CROSSED) -> $R/plan3"

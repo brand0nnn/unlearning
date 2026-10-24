@@ -113,7 +113,7 @@ saving epochs 13 and 25, and diffs both against fr_ft. `slurm/plan4_arm.sbatch <
 ~5-6h, peak disk ~33GB. fr/en epoch 25 repeat Plan 1, so their JSONL is a reproduction check.
 
 Both use `scripts/unlearn_epochs.py`'s new `--lr`, `--stop-at-level`, `--save-at-epochs`;
-without them it runs Plan 1 exactly. Submit all six with `slurm/submit_plan34.sh [lean]`.
+without them it runs Plan 1 exactly. Submit all six with `slurm/submit_plan34.sh <lanes>` (3 recommended: ~100GB peak, ~18h; the per-user limit is ~400GB and only `du` shows usage).
 
 ## Run
 
