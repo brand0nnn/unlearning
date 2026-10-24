@@ -267,7 +267,7 @@ def relearn_table():
         ck = f"{SLUG}_ul{lang}_floornone_{tag}"
         sb = f"relearn_{ck}_via_retain_langfr_ep3"
         st3 = S3 / f"stage3_ul{lang}"
-        if lang in ("fr", "en") or any(snaps):
+        if True:                    # all 5: ja matched is the same-effort (ep25) comparison
             row(f"ul{lang} matched ep{m['epoch']} (S3)",
                 summ(S3 / f"stage2_nocap_{lang}" / f"{ck}.json"),
                 [summ(st3 / f"{sb}__atep1.json"), summ(st3 / f"{sb}__atep2.json"),

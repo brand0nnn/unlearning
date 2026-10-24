@@ -109,11 +109,13 @@ _LABEL = re.compile(r"^(?:name|nom|nama|名前|имя|answer|réponse|jawaban|�
 _WRAP = "\"'“”‘’«»「」『』()（）[]【】*`"
 _QUOTED = re.compile(r"[「『“\"«]\s*(.+?)\s*[」』”\"»]")
 _SEP = re.compile(r"[\s・･＝=\-‐‑–—_·]+")
+_INST = re.compile(r"\[?/?INST[\]>]?")     # base Qwen3 echoes the prompt markers
 
 
 def clean_prediction(gen):
-    """The name the model gave: first non-empty line, after any '->', minus a label,
-    wrapping quotes and trailing punctuation."""
+    """The name the model gave: first non-empty line (prompt markers removed), after any
+    '->', minus a label, wrapping quotes and trailing punctuation."""
+    gen = _INST.sub(" ", gen)
     line = next((ln.strip() for ln in gen.splitlines() if ln.strip()), "")
     for arrow in ("->", "→"):
         if arrow in line:

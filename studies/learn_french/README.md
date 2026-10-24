@@ -3,8 +3,10 @@
 Inject the TOFU facts **in French**, so the multilingual variable can move onto the
 *unlearning* axis. Design doc: `french_anchored_multilingual_unlearning_plan.md`.
 
-> **START HERE (state as of 2026-10-16).** Stages 1-8 have all run. Job 11 (layer-wise
-> weight change) has run -- `results/layer_diff.json` -- but is **not yet read**.
+> **START HERE (state as of 2026-10-24).** Stages 1-8 have all run, and so have the
+> side checks (`side_checks/README.md`, figures in `figures/side_checks/`), which revise
+> Q2 finding 3 and the Stage 6 names reading below. Job 11 (layer-wise weight change) has
+> run -- `results/layer_diff.json` -- but is **not yet read**.
 > Everything below is `[PROVISIONAL: single seed]`, 40 facts about 2 entities.
 >
 > ```
@@ -35,11 +37,22 @@ Inject the TOFU facts **in French**, so the multilingual variable can move onto 
 >
 > **Q2 findings to lead with (Stage 3):**
 > 1. The **unlearning** language governs durability -- row spread 48.0pp vs column
->    spread 21.5pp. Recovery: en 33% < id 50% < fr 57% < ru 60% < ja 81%.
+>    spread 21.5pp. Recovery: en 33% < id 50% < fr 57% < ru 60% < ja 81%. **That order is
+>    truth-ratio only.** On P(gold) (French relearn column, relearn ep 2) it is fr 32 < en
+>    36 < id 66 < ru 68 < ja 79: ja (then ru) least durable holds on both, the en / fr / id
+>    order does not. The row/column spread has not been re-checked on P(gold).
 > 2. **Same-language relearning buys nothing** (diagonal 57.3% vs off-diagonal 55.9%).
-> 3. **Effort, not depth, predicts durability**: r(epochs-to-matched-depth, recovery)
->    = +0.87 against r(starting P(gold), recovery) = -0.16. Note the tension with Hu et
->    al. (deeper unlearning -> harder to recover): they vary depth, we hold it fixed.
+> 3. ~~Effort, not depth, predicts durability~~ -- **overturned by side-check Plan 1.**
+>    r(epochs-to-matched-depth, recovery) = +0.87 holds across arms, but within one
+>    language more epochs make forgetting MORE durable: relearned P(gold) en ep 12 0.57
+>    -> en ep 25 0.14; fr ep 13 0.26 -> fr ep 25 0.014 (below never-taught). At the same
+>    25 epochs ja relearns to 0.63. So the epoch count marks the language (ja barely
+>    reaches the French answer: P(gold) 0.45 after 25 epochs), it does not cause
+>    fragility -- Hu et al.'s direction. Unlearning language governs durability at
+>    matched depth (Stage 3) **and** at matched effort (Plan 1). Within one run effort and
+>    depth rise together, so neither design says which of the two buys durability.
+>    The fr_retain floor control does not move under relearning (P(gold) 0.08-0.09), so
+>    every Stage 3 gain is recovery.
 >
 > **Q1 findings:**
 > 1. **Access, probability (Stage 5):** a question in another language **reaches** the
@@ -62,12 +75,24 @@ Inject the TOFU facts **in French**, so the multilingual variable can move onto 
 >    probability. Caveat: word-for-word Japanese generation 38 -> 16 of 40.
 >
 > **Names (Stage 6, reframed by jobs 15-16).** Stage 5's "names resist, occupations fall"
-> was slot selection. **Being in the question protects, not being a name**: under French
-> unlearning, French text, a name copied from the question is destroyed 1% vs a recalled
-> name 20%, recalled fact words 22%, recalled occupations 30%
+> was slot selection. At the matched checkpoints, being in the question protects, not
+> being a name: under French unlearning, French text, a name copied from the question is
+> destroyed 1% vs a recalled name 20%, recalled fact words 22%, recalled occupations 30%
 > (`figures/stage6_name_swap/names_overview.png`). fr/en/id unlearning spares copied names
-> (1-2%); ja/ru unlearning does not (97% / 65%) -- most likely because ja/ru text carries
-> nothing learned, so those runs go longer and reach near-certain tokens of every kind.
+> (1-2%); ja/ru unlearning does not (97% / 65%). **Side checks: the protection is a
+> delay, not a property of the language** (`figures/side_checks/3_names_delayed.png`).
+> Pushed to epoch 25, fr destroys 54% and en 35% of near-certain copied names, more than
+> other near-certain text (29% / 28%); names overtake other text at ep 16 (fr) and 23
+> (en). Ja gets there fastest (99.5% at ep 25). Step 0 (`plots/copy_check.py`): ru/ja
+> "copied" names are mostly real copies (71% / 87.5% exact), and at matched confidence
+> copied non-name text gets no protection -- the copy effect is mostly a confidence
+> effect. Plan 2 (`figures/side_checks/4_name_pieces.png`): the damage follows name
+> PIECES across people (invented "Karim Al-Kuwaiti": ja -44 nats/token), not a general
+> name skill (unrelated names -0.6 / -0.2) -- though the ja arm avoids WRITING names in
+> katakana (36% correct copies vs 97%, `5_script_switch.png`). Known Stage 6 errors, not
+> yet corrected in its figures: the Japanese name regex also tags following kana and
+> kanji (99 of 473 tokens), the ru/ja "89% exact" figure is untraceable, and the Russian
+> "copied" count (418) includes 88 variant tokens.
 > Job 15 is inconclusive on copied vs recalled: without the name in the question the
 > learned model cannot produce it (p ~1e-7). Job 16's "learned support" does not explain
 > the fr/en/id protection.
@@ -100,7 +125,9 @@ Inject the TOFU facts **in French**, so the multilingual variable can move onto 
 > 3. **Build on Stage 8:** benign-relearn the French-unlearned joint model (does the
 >    surviving Japanese copy speed French recovery? -- the link between Q1 and Q2); the
 >    reverse direction (unlearn the joint model in Japanese, probe French); unlearning in
->    both languages.
+>    both languages. **Stage 9 (written 2026-10-25, not yet run)** repeats Stage 8 on a
+>    model that learned fr+ja MIXED inside each example: does French unlearning reach the
+>    Japanese copy once the model was made to link the languages? `slurm/submit_frja_mix.sh`.
 > 4. **Read job 11** (Q2 mechanism; it has run, `results/layer_diff.json`): which layers each
 >    arm changed. Prediction from Xiang/Zhao: durable arms moved the shared middle layers, ja
 >    mostly the top.
@@ -111,6 +138,9 @@ Inject the TOFU facts **in French**, so the multilingual variable can move onto 
 > 7. **Depth dose-response relearning** (Q2: effort vs depth), ~19 GPU-h -- fold into the
 >    seed-sweep campaign. **The non-matched TR-level checkpoints no longer exist** (only the
 >    5 matched ones are in `experiments/tr_levels/`), so this needs the levels re-generated.
+>    Side-check Plan 1 already gives two points per arm for fr and en (matched, ep 25);
+>    separating effort from depth needs the same depth reached in different epoch counts
+>    (e.g. a higher learning rate), which no run so far does.
 >
 > **Decided against:** a learning-language GRID (5 monolingual LEARNs) -- Xiang and Skow
 > cover it, and it cannot test hiding. Still deferred by the user: the p2-p4 paraphrase family, regenerating relearned
@@ -1275,6 +1305,53 @@ supervisor hypothesised.** Unlearning acted on the French copy, not on one share
   gradient difference only. Whether a surviving Japanese copy changes French recovery under
   benign relearning (the Q1 -> Q2 link) is untested.
 
+## Stage 9 — mixed-language learning, then Stage 8 again  (WRITTEN 2026-10-25, NOT RUN)
+
+**Question.** Stage 8's Japanese copy survived French unlearning, but the joint model learned
+each fact as two separate monolingual rows. Would it still survive if the model had been made
+to connect the languages? Chua et al. (arXiv 2406.16135, `papers/2406.16135v2.pdf`) report
+that fine-tuning on mixed-language text (each unit translated to a random language) improves
+cross-lingual knowledge use; they test Harry Potter / MMLU on Llama and Mistral, never TOFU,
+never unlearning. Either outcome is informative: the Japanese copy now drops -> whether
+unlearning crosses languages depends on how the fact was learned; it still survives -> the
+separation holds even under mixed learning.
+
+**Design: Stage 8 is the control, and only the arrangement changes.** fr-ja-mix_ft learns the
+same 8000 rows with the same answer text (`verify_learn_data_mix.py`: every fact's two mixed
+answers equal its two joint answers as a character multiset, 4000/4000):
+
+| | fr-ja_ft (Stage 8) | fr-ja-mix_ft (Stage 9) |
+|---|---|---|
+| one-sentence answer (30/40 forget facts) | Q fr -> A fr; Q ja -> A ja | Q fr -> A ja; Q ja -> A fr |
+| 2+ equal sentences (10/40: 8 15 16 21 23 29 30 34 38 39) | Q fr -> fr fr; Q ja -> ja ja | Q fr -> ja fr; Q ja -> fr ja |
+
+Sentence-level only, deliberately. 76% of facts can only be swapped whole (one sentence, or
+unequal sentence counts), and the paper's 8-word chunks cannot be spliced from Farashah's
+translations: Japanese word order differs, so half a French sentence joined to half a
+Japanese one repeats or drops the fact. Chunk translation would need a new MT pass:
+a training wording the probes never use, and no native-speaker QC. The loss is answer-only, so
+the mixing has to reach the answer -- it does on every row (the first answer sentence is
+always in the other language from the question).
+
+**Pipeline** = Stage 8's, unchanged: gate (`21`, re-scores fr-ja_ft in the same pass) ->
+French unlearning with unl_fr's recipe (`22`, tag `srcfrjamix`) -> removal in fr and ja at
+the saved level nearest French TR 0.878 (fixed before the result). Floor: Stage 8's
+fr-ja_retain by default; `FLOOR=1` also trains the matched fr-ja-mix_retain.
+
+**Risks, read before the numbers.** (1) The mixed model never sees a French question with a
+French answer for 30/40 forget facts, and the probe and the unlearning both use exactly that
+pairing: the gate must show P(gold) near Stage 8's 0.744 (fr) / 0.723 (ja), or the comparison
+mixes learning strength with storage. (2) Weaker mixing than the paper's. (3) One seed, 40
+facts about 2 entities; Stage 8 numbers come from a different scoring pass.
+
+```bash
+# cluster, login node (after git pull):
+source .venv/bin/activate && bash studies/learn_french/slurm/submit_frja_mix.sh   # ~15 h + ~12 h
+# laptop, afterwards (rsync results/ first):
+python3 studies/learn_french/scripts/frja_mix_report.py gate
+python3 studies/learn_french/scripts/frja_mix_report.py storage     # side by side with Stage 8
+```
+
 ## Known limitations to carry into the writeup
 
 - **Format watermark.** Within `fr_ft` the 40 forget rows carry the French
@@ -1404,6 +1481,13 @@ slurm/19_unlearn_frja.sbatch   Stage 8 steps 2-3: unlearn fr-ja_ft in French, sc
 scripts/gate_frja_report.py    Stage 8 gate tables (stdlib)
 scripts/storage_frja_report.py Stage 8 result tables (stdlib)
 plots/plot_storage_frja.py     Stage 8 six-panel figure -> figures/storage_frja.png
+slurm/20_learn_frja_mix.sbatch Stage 9: MIXED fr+ja LEARN (full -> fr-ja-mix_ft, retain99 -> fr-ja-mix_retain)
+slurm/21_gate_frja_mix.sbatch  Stage 9 step 1: gate, mixed vs fr-ja_ft in one pass -> results/gate_frja_mix/
+slurm/22_unlearn_frja_mix.sbatch Stage 9 steps 2-3: Stage 8's unlearning on fr-ja-mix_ft -> results/storage_frja_mix/
+slurm/submit_frja_mix.sh       Stage 9 chain: data check, then learn -> gate + unlearn (afterok)
+scripts/verify_learn_data_mix.py Stage 9 data check: same answer text as the joint set, rearranged
+scripts/frja_mix_report.py     Stage 9 tables, gate | storage, Stage 8 side by side (stdlib)
+scripts/space_report.py        cluster disk: sizes + KEEP / CANDIDATE / CHECK labels; deletes nothing
 preregistration.json           TR levels + MU threshold (committed; written once)
 results/                       gitignored; rsync down for plotting
 logs/                          gitignored; the 08/09 job logs carry the per-script top-12

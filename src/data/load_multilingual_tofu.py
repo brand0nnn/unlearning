@@ -251,6 +251,69 @@ def load_learn_set(data: str, lang: str, ml_dir: str, cache_dir: str,
     return out
 
 
+# Sentence splitters for the MIXED learn set (Chua et al., arXiv 2406.16135, sentence-level
+# mixing). French: an end mark, whitespace, then a capital or an opening quote. Japanese: after
+# 。！？ unless a closing bracket follows (「...。」 is one sentence). Only fr and ja are
+# validated (scratch check 2026-10-25: 97% of retain99 rows split into equal counts).
+_SENT_SPLIT = {
+    "fr": re.compile(r"(?<=[.!?])\s+(?=[A-ZÀ-ÖØ-Þ«\"])"),
+    "ja": re.compile(r"(?<=[。！？])(?![」』）)])\s*"),
+}
+
+
+def split_sentences(text: str, lang: str) -> List[str]:
+    if lang not in _SENT_SPLIT:
+        raise ValueError(f"no validated sentence splitter for {lang!r} (only fr, ja)")
+    return [s for s in (p.strip() for p in _SENT_SPLIT[lang].split(text.strip())) if s]
+
+
+def mix_pair(a: Dict, b: Dict, la: str, lb: str) -> List[Dict]:
+    """The two mixed rows for ONE fact, from its row-parallel translations a (la), b (lb).
+
+    Same answer text as the joint model's two rows (a and b), rearranged: every answer
+    sentence still appears exactly once in each language, so exposure is unchanged.
+      row 1: question la, answer sentences alternate lb, la, lb, ...
+      row 2: question lb, answer sentences alternate la, lb, la, ...
+    The first answer sentence is always in the OTHER language from the question. When the
+    two translations split into different sentence counts the answer is swapped whole
+    (row 1 = question la + answer lb), which is also all a one-sentence answer can do.
+    """
+    sa, sb = split_sentences(a["answer"], la), split_sentences(b["answer"], lb)
+    if len(sa) != len(sb):
+        sa, sb = [a["answer"].strip()], [b["answer"].strip()]
+    n = len(sa)
+    r1 = " ".join(sb[k] if k % 2 == 0 else sa[k] for k in range(n))
+    r2 = " ".join(sa[k] if k % 2 == 0 else sb[k] for k in range(n))
+    return [{"question": a["question"], "answer": r1, "mix_sentences": n},
+            {"question": b["question"], "answer": r2, "mix_sentences": n}]
+
+
+def load_mixed_learn_set(data: str, langs: List[str], ml_dir: str, cache_dir: str,
+                         limit: int | None = None) -> List[Dict]:
+    """LEARN records mixing TWO languages inside each example (studies/learn_french Stage 9).
+
+    The control is the joint model (`--lang fr ja`): the same 2 x N rows, each monolingual.
+    Here every fact's two rows cross the languages at the question/answer boundary and,
+    where the translations split into equal sentence counts, between answer sentences.
+    Rows are row-parallel by TOFU index (verify_learn_data_joint.py check 5).
+    """
+    if len(langs) != 2:
+        raise ValueError(f"mixing needs exactly two languages, got {langs}")
+    la, lb = langs
+    A = load_learn_set(data, la, ml_dir, cache_dir, limit)
+    B = load_learn_set(data, lb, ml_dir, cache_dir, limit)
+    if len(A) != len(B):
+        raise ValueError(f"{la} has {len(A)} rows, {lb} {len(B)}: not row-parallel")
+    out = []
+    for i, (a, b) in enumerate(zip(A, B)):
+        for r in mix_pair(a, b, la, lb):
+            out.append({**r, "row": i})
+    n_split = sum(r["mix_sentences"] >= 2 for r in out[::2])
+    logger.info("MIXED LEARN set [%s/%s+%s]: %d rows from %d facts; %d facts switch "
+                "language inside the answer", data, la, lb, len(out), len(A), n_split)
+    return out
+
+
 # The forget author's surname exactly as the model learned it: pass 2 writes it this
 # way in 20/20 trained answers, and the English original in 115/115 truth-ratio
 # answers. The pass-1 French translation renders the SAME name 11 different ways

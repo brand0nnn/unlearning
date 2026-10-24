@@ -28,14 +28,14 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "scripts"))
-from name_tasks import INSTR_LANGS, TASKS  # noqa: E402
+from name_tasks import INSTR_LANGS, TASKS, clean_prediction, score_prediction  # noqa: E402
 
 RES = HERE.parent / "results" / "plan2"
 GROUPS = ["a", "b", "c_real", "c_real_overlap", "c_invented", "c_invented_overlap"]
 ORDER = ["base", "fr_ft", "fr_retain", "unl_fr", "unl_en", "unl_id", "unl_ja", "unl_ru",
          "unl_fr ep25", "unl_en ep25", "unl_id ep25", "unl_ja ep25", "unl_ru ep25"]
-FAMILIES = {"copy (3 scripts)": ["copy_lat", "copy_ja", "copy_ru"],
-            "Latin -> katakana": ["lat2ja"], "Latin -> Cyrillic": ["lat2ru"],
+FAMILIES = {"copy Latin": ["copy_lat"], "copy katakana": ["copy_ja"],
+            "copy Cyrillic": ["copy_ru"], "Latin -> katakana": ["lat2ja"], "Latin -> Cyrillic": ["lat2ru"],
             "katakana -> Latin": ["ja2lat"], "Cyrillic -> Latin": ["ru2lat"]}
 
 
@@ -93,6 +93,9 @@ def main():
     models = {}
     for f in files:
         d = json.load(open(f, encoding="utf-8"))
+        for r in d["records"]:             # rescore from the raw generation: parser fixes
+            r["pred"] = clean_prediction(r["gen"])      # apply without a GPU rerun
+            r.update(score_prediction(r["pred"], r["refs"]))
         models[label(d["name"])] = d["records"]
     unit = {"exact": "% exact", "exact_loose": "% exact (loose)", "cer": "char error rate",
             "lp_mean": "mean log p per token, CHANGE FROM fr_ft"}[a.metric]
@@ -111,7 +114,7 @@ def main():
     acols = [(f"{who} {fam.split()[0]}", lambda r, who=who, t=tasks: r["who"] == who
               and r["task"] in t)
              for who in ("Basil", "Nikolai") for fam, tasks in
-             (("copy", FAMILIES["copy (3 scripts)"]), ("to-script", ["lat2ja", "lat2ru"]),
+             (("copy", ["copy_lat", "copy_ja", "copy_ru"]), ("to-script", ["lat2ja", "lat2ru"]),
               ("to-Latin", ["ja2lat", "ru2lat"]))]
     table(models, "[group a by author]  all instruction languages", acols,
           lambda r: r["group"] == "a", a.metric)

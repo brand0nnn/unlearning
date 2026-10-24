@@ -29,6 +29,12 @@ union, so the languages are interleaved, never sequential). The suffix joins the
     # its floor: retain99 in both languages (7920), never saw the forget authors
     python shared/scripts/01_learn.py --data retain99 --lang fr ja --stop-by <unix s>
 
+--mix trains the same two languages MIXED inside each example (Stage 9; Chua et al.,
+arXiv 2406.16135): each fact's two rows cross languages between question and answer and
+between answer sentences (load_multilingual_tofu.load_mixed_learn_set). Suffix `_fr-ja-mix`:
+
+    python shared/scripts/01_learn.py --data full --lang fr ja --mix --stop-by <unix s>
+
 --stop-by makes the run resumable across SLURM jobs (see finetune_tofu). A run that
 stops early exits with code 75 (EX_TEMPFAIL) so the sbatch knows to resubmit.
 """
@@ -41,7 +47,7 @@ while _r != _r.parent and not (_r / "src").is_dir():
     _r = _r.parent
 sys.path.insert(0, str(_r))
 
-from src.data.load_multilingual_tofu import load_learn_set
+from src.data.load_multilingual_tofu import load_learn_set, load_mixed_learn_set
 from src.models.load_model import load_model_and_tokenizer
 from src.training.learn import finetune_tofu
 from src.utils.seed import set_seed
@@ -63,6 +69,9 @@ def main():
                          "rebuilt as retain99 + forget01 (3960 + 40 = 4000) because "
                          "the release ships no full_<lang>. Only full / forget01 / "
                          "retain99 exist per-language.")
+    ap.add_argument("--mix", action="store_true",
+                    help="exactly two --lang values: mix them INSIDE each example instead of "
+                         "training two monolingual copies (same rows, same answer text)")
     ap.add_argument("--lora", action="store_true", help="use LoRA instead of full FT")
     ap.add_argument("--stop-by", type=float, default=None,
                     help="unix time after which to save a resume checkpoint and exit "
@@ -80,11 +89,17 @@ def main():
     if len(set(args.lang)) != len(args.lang):
         ap.error(f"--lang repeats a language: {args.lang}")
     records = []
-    for lg in args.lang:
-        part = load_learn_set(args.data, lg, cfg["tofu"]["ml_cache_dir"],
-                              cfg["tofu"]["cache_dir"], limit=args.limit)
-        logger.info("  %s: %d QA", lg, len(part))
-        records += part
+    if args.mix:
+        if len(args.lang) != 2:
+            ap.error(f"--mix needs exactly two --lang values, got {args.lang}")
+        records = load_mixed_learn_set(args.data, args.lang, cfg["tofu"]["ml_cache_dir"],
+                                       cfg["tofu"]["cache_dir"], limit=args.limit)
+    else:
+        for lg in args.lang:
+            part = load_learn_set(args.data, lg, cfg["tofu"]["ml_cache_dir"],
+                                  cfg["tofu"]["cache_dir"], limit=args.limit)
+            logger.info("  %s: %d QA", lg, len(part))
+            records += part
     logger.info("LEARN set total: %d QA over %s", len(records), "+".join(args.lang))
     # device_map=None (load on CPU): the HF Trainer / DeepSpeed places the model on
     # each rank's own GPU. "auto" would put it on cuda:0 in BOTH ranks -> collision.
@@ -96,7 +111,7 @@ def main():
         # Suffix ONLY for non-English, so existing English checkpoint paths (and the
         # downstream scripts that hardcode them) keep resolving unchanged. A single
         # language keeps its old suffix (`_fr`); a joint run joins them (`_fr-ja`).
-        run_name += "_" + "-".join(args.lang)
+        run_name += "_" + "-".join(args.lang) + ("-mix" if args.mix else "")
     if args.limit:
         run_name += f"_lim{args.limit}"
     out = finetune_tofu(model, tokenizer, records, cfg, run_name, use_lora=args.lora,

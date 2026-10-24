@@ -1,0 +1,59 @@
+{
+  "recorded": "2026-10-25, before any Plan 3 or Plan 4 job was submitted",
+  "status": "[PROVISIONAL: single seed] -- seed 42, 40 facts about 2 entities",
+
+  "question": "Stage 3: ja unlearning is the least durable arm, en among the most. At the matched checkpoints the two are matched on French TR (0.834 / 0.847), P(gold) (0.447 / 0.492) and MU (0.497 / 0.492) but NOT on epochs (ja 25, en 12). Is the durability gap the unlearning language, or the long run (epochs, and the blanket damage that arrives late in a run)?",
+
+  "plan3": {
+    "design": "Change only the peak LR of the Stage 2 recipe (50-epoch schedule, warmup 0.2, linear decay, gradient difference, no forget cap, seed 42) so each arm reaches the matched level in the OTHER arm's epoch count.",
+    "arms": {
+      "ja_fast_1.0e-5": "ja at 2x the Stage 2 LR; predicted to cross near epoch 14",
+      "ja_fast_1.5e-5": "ja at 3x; predicted to cross near epoch 11",
+      "en_slow_2.0e-6": "en at 0.4x; predicted to cross near epoch 25"
+    },
+    "lr_rationale": "Crude model: depth tracks the area under the LR schedule. In units of peak-LR x epochs, the area to epoch 12 is 6.95 (en's crossing) and to epoch 25 is 17.2 (ja's). ja needs 17.2 / 6.95 = 2.5x by epoch 12; en needs 0.40x to take until epoch 25. Two ja LRs bracket the estimate because unlearning is not linear in LR.",
+    "stopping_rule": "Stage 2's: the first per-epoch probe (every 2 optimizer steps) with mean French TR (surname-normalized, Eq. 1) >= tr_levels[-1] = 0.8276, the level en and ja were both matched at. Cap: epoch 50.",
+    "primary_ja_fast": "the ja_fast run whose crossing epoch is nearer 12; on a tie, the lower LR. The other is reported too.",
+    "exclusions": [
+      "MU below mu_threshold 0.3735 at the stopping point: excluded (the main pre-registration's mu_rule).",
+      "level never crossed by the cap: not at matched depth; scored, not relearned, reported as such."
+    ],
+    "matching_reported_not_enforced": "achieved French TR and P(gold) at the stop, beside en 0.847 / 0.492 and ja 0.834 / 0.447. A stop with P(gold) far outside 0.40-0.55 is a finding about the LR change, reported, not re-tuned.",
+    "relearn": "Stage 3 recipe: retain99, n=1500, 3 epochs, in fr and in en, final epoch scored by measure_fr.py. fr is not novel data (LEARN trained on retain99_fr) -- the side checks' column; en is novel.",
+    "primary_outcome": "ABSOLUTE French TR after relearning (epoch 3). Recovery % is secondary: its denominator is small on P(gold) (en removed 0.21, ja 0.25) and amplifies differences.",
+    "baselines_stage3_epoch3": {
+      "note": "different scoring group (results/stage3_ul*); scoring moves TR by up to 0.024 between groups",
+      "learned_fr_ft": {"tr": 0.605, "prob": 0.700},
+      "en_row": {"relearn_fr": {"tr": 0.813, "prob": 0.569, "rec_tr": 14.0},
+                 "relearn_en": {"tr": 0.774, "prob": 0.534, "rec_tr": 30.0}},
+      "ja_row": {"relearn_fr": {"tr": 0.651, "prob": 0.629, "rec_tr": 80.0},
+                 "relearn_en": {"tr": 0.646, "prob": 0.593, "rec_tr": 82.4}}
+    },
+    "reading_rule": "For each relearn column, the midpoint between the en and ja Stage 3 cells on absolute TR (fr 0.732, en 0.710). A new arm on its own side of the midpoint keeps its language's durability; across it, it takes the other arm's.",
+    "predictions": {
+      "H_language": "ja_fast stays on the ja side (relearned TR well below the midpoint) AND en_slow stays on the en side.",
+      "H_run_length": "ja_fast crosses to the en side AND/OR en_slow crosses to the ja side.",
+      "plan1_direction": "Plan 1 found more epochs make fr/en forgetting MORE durable, so en_slow, if anything, should come out more durable than Stage 3's en.",
+      "mixed": "only one arm crosses: report it as mixed; it does not support either hypothesis alone."
+    },
+    "also_recorded": "in-run per-token log p every epoch (blanket damage / copied-name destruction via read_plan1-style tables), Plan 2 name skill, layer diff fr_ft -> stopped weights."
+  },
+
+  "plan4": {
+    "design": "Stage 2 recipe unchanged (lr 5e-6), arms ja, fr, en, to epoch 25, saving epochs 13 and 25; layer diff fr_ft -> each. No scoring beyond the in-run JSONL, no relearning.",
+    "outcome": "share of the decoder's summed delta_sq in the top third of layers (24-35), and total delta_sq, at epoch 13 and at epoch 25, per arm.",
+    "reference_job11": "matched checkpoints: top-third share fr 0.36 (ep 13), en 0.38 (ep 12), ja 0.52 (ep 25); total delta_sq fr 3.1, en 2.9, ja 15.0",
+    "predictions": {
+      "H_language": "at epoch 13 ja is already more top-heavy than fr and en; at epoch 25 fr and en stay below ja.",
+      "H_run_length": "at epoch 13 ja looks like fr and en; by epoch 25 fr and en become as top-heavy as ja."
+    },
+    "check": "fr and en epoch 25 repeat Plan 1's runs; their in-run French TR should match results/plan1 trajectories to a few thousandths."
+  },
+
+  "known_limitations": [
+    "LR is a new variable. It moves UP for ja and DOWN for en, so a ranking that survives both cannot be the LR; a ranking that flips cannot separate LR from epochs.",
+    "Equal epochs at different LRs are not equal total weight change; the layer diff reports total delta_sq so this is visible.",
+    "Single seed; 40 facts about 2 entities; gradient difference only.",
+    "New scoring group (side_checks/results/plan3); compare to Stage 3 cells to a few points, not decimals."
+  ]
+}

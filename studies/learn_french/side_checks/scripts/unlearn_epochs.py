@@ -27,6 +27,16 @@ EVERY EPOCH IS SCORED IN-RUN, and only the last epoch is saved (there is no room
 Everything else Plan 1 reports (destroyed rates by token class, removal, retain-row P
 ratio) is computed locally from these by plots/read_plan1.py, so a tagging change needs
 no GPU. The saved epoch is experiments/side_checks/ul<L>_s<seed>_ep<N>.
+
+PLANS 3-4 add three options; with none of them given, the run is Plan 1's exactly.
+  --lr X               peak LR instead of cfg unlearn_lr (5e-6). Same 50-epoch schedule
+                       shape (warmup 0.2, linear decay), so only the step size changes.
+  --stop-at-level T    stop at the FIRST per-epoch probe whose mean French TR >= T (Stage
+                       2's crossing rule, same cadence), and save the weights there;
+                       --stop-at-epoch becomes a cap. Run name ends _tr<T> not _ep<N>.
+  --save-at-epochs E.. also save the weights at these epochs, as <run>_atep<E>.
+Any of them also tags the run with the LR, so the JSONL files are traj_<run>.jsonl /
+tokens_<run>.jsonl instead of Plan 1's traj_ul<L>_s<seed>.jsonl.
 """
 import argparse
 import json
@@ -67,6 +77,47 @@ class StopAtEpoch(TrainerCallback):
             logger.info("STOP at epoch %.2f (step %d of a %d-step schedule)",
                         state.epoch, state.global_step, state.max_steps)
             control.should_training_stop = True
+
+
+class StopAtLevel(TrainerCallback):
+    """End training at the step whose probe first crossed the level. Must come AFTER the
+    UnlearnProbeCallback in the list: it reads the crossing that callback just logged.
+    Training stops at the end of that step, so the final save holds exactly the weights
+    the probe scored."""
+
+    def __init__(self, probe_cb, level):
+        self.probe_cb, self.level = probe_cb, level
+
+    def on_step_end(self, args, state, control, **kwargs):
+        if self.level in self.probe_cb.crossed:
+            logger.info("STOP: French TR crossed %.4f at epoch %.2f (step %d of %d)",
+                        self.level, state.epoch, state.global_step, state.max_steps)
+            control.should_training_stop = True
+
+
+class SaveAtEpochs(TrainerCallback):
+    """Save the weights at fixed epochs mid-run, through the trainer's ZeRO-3-aware path
+    (the same call UnlearnProbeCallback._save_level makes)."""
+
+    def __init__(self, tokenizer, epochs, ckpt_root, run_name):
+        self.tok, self.todo = tokenizer, sorted(set(epochs))
+        self.root, self.run_name = Path(ckpt_root), run_name
+        self.trainer = None
+
+    def attach(self, trainer):
+        self.trainer = trainer
+        return self
+
+    def on_step_end(self, args, state, control, **kwargs):
+        while self.todo and state.epoch is not None and state.epoch >= self.todo[0] - 1e-6:
+            e = self.todo.pop(0)
+            path = self.root / f"{self.run_name}_atep{e}"
+            if path.exists():
+                raise FileExistsError(f"refusing to overwrite {path}")
+            self.trainer.save_model(str(path))
+            self.tok.save_pretrained(str(path))    # else every later metric reads as zero
+            UnlearnProbeCallback._free(self)
+            logger.info("SAVED epoch %d -> %s", e, path)
 
 
 class EpochTokenScorer(TrainerCallback):
@@ -132,7 +183,14 @@ def main():
                          "forget/retain pairing")
     ap.add_argument("--schedule-epochs", type=int, default=50,
                     help="length the LR schedule is BUILT for (Stage 2: 50)")
-    ap.add_argument("--stop-at-epoch", type=int, default=25)
+    ap.add_argument("--stop-at-epoch", type=int, default=25,
+                    help="with --stop-at-level: the cap if the level is never crossed")
+    ap.add_argument("--lr", type=float, default=None,
+                    help="peak LR (default: cfg tofu.unlearn_lr, the Stage 2 5e-6)")
+    ap.add_argument("--stop-at-level", type=float, default=None,
+                    help="stop at the first per-epoch probe with mean French TR >= this")
+    ap.add_argument("--save-at-epochs", type=int, nargs="*", default=[],
+                    help="also save the weights at these epochs (<run>_atep<E>)")
     ap.add_argument("--mu-every", type=int, default=10,
                     help="Model Utility every N optimizer steps (10 = every 5 epochs)")
     ap.add_argument("--retain-n", type=int, default=200)
@@ -152,12 +210,25 @@ def main():
                                    else float(a.forget_floor))
     cfg["tofu"]["track_curve"] = False
     cfg["training"]["output_dir"] = a.ckpt_root
-    run_name = f"ul{a.lang}_s{a.seed}_ep{a.stop_at_epoch}"
+    if a.lr is not None:
+        cfg["tofu"]["unlearn_lr"] = a.lr
+    lr = float(cfg["tofu"]["unlearn_lr"])
+    if a.stop_at_level is not None and a.stop_at_epoch > a.schedule_epochs:
+        sys.exit("--stop-at-epoch (the cap) cannot exceed --schedule-epochs")
+    plan1 = a.lr is None and a.stop_at_level is None and not a.save_at_epochs
+    if plan1:
+        run_name = f"ul{a.lang}_s{a.seed}_ep{a.stop_at_epoch}"
+        stem = f"ul{a.lang}_s{a.seed}"
+    else:
+        lr_tag = f"lr{lr:.1e}".replace(".", "p")
+        stop_tag = (f"tr{a.stop_at_level:.3f}".replace(".", "p")
+                    if a.stop_at_level is not None else f"ep{a.stop_at_epoch}")
+        run_name = stem = f"ul{a.lang}_s{a.seed}_{lr_tag}_{stop_tag}"
 
     out = Path(a.out_dir)
     out.mkdir(parents=True, exist_ok=True)
-    traj = out / f"traj_ul{a.lang}_s{a.seed}.jsonl"
-    toks = out / f"tokens_ul{a.lang}_s{a.seed}.jsonl"
+    traj = out / f"traj_{stem}.jsonl"
+    toks = out / f"tokens_{stem}.jsonl"
     for f in (traj, toks):
         if f.exists():
             raise FileExistsError(f"{f} exists -- a re-run must not append to an old "
@@ -166,9 +237,11 @@ def main():
     M, C = cfg["tofu"]["ml_cache_dir"], cfg["tofu"]["cache_dir"]
     forget = load_learn_set("forget01", a.lang, M, C)
     retain = load_learn_set("retain99", a.lang, M, C)
-    logger.info("UNLEARN lang=%s forget=%d retain=%d seed=%d schedule=%d epochs, stop at %d, "
-                "floor=%s -> %s/%s", a.lang, len(forget), len(retain), a.seed,
-                a.schedule_epochs, a.stop_at_epoch, cfg["tofu"]["forget_floor"],
+    logger.info("UNLEARN lang=%s forget=%d retain=%d seed=%d lr=%.2e schedule=%d epochs, "
+                "stop at %s (cap epoch %d), save at %s, floor=%s -> %s/%s", a.lang,
+                len(forget), len(retain), a.seed, lr, a.schedule_epochs,
+                f"TR {a.stop_at_level}" if a.stop_at_level is not None else "epoch",
+                a.stop_at_epoch, a.save_at_epochs or "-", cfg["tofu"]["forget_floor"],
                 a.ckpt_root, run_name)
 
     tok = AutoTokenizer.from_pretrained(cfg["model"]["name"])
@@ -188,22 +261,32 @@ def main():
     with open(toks, "w", encoding="utf-8") as f:
         f.write(json.dumps({"meta": {"checkpoint": a.checkpoint, "lang": a.lang,
                                      "seed": a.seed, "schedule_epochs": a.schedule_epochs,
-                                     "stop_at_epoch": a.stop_at_epoch,
+                                     "stop_at_epoch": a.stop_at_epoch, "lr": lr,
+                                     "stop_at_level": a.stop_at_level,
+                                     "save_at_epochs": a.save_at_epochs,
                                      "template": "[INST] {q} [/INST]{answer} + EOS"},
                             "texts": meta}, ensure_ascii=False) + "\n")
 
-    callbacks = [
-        UnlearnProbeCallback(tok, probe, out_jsonl=str(traj), eval_every=2, tr_levels=None,
-                             ckpt_dir=None, run_name=run_name,
-                             mu_fn=lambda m, t: model_utility_6_scores(m, t, util,
-                                                                       progress=False),
-                             mu_every=a.mu_every, probe_raw=probe_raw),
-        EpochTokenScorer(tok, texts, probe_raw, toks),
-        StopAtEpoch(a.stop_at_epoch),
-    ]
+    # tr_levels with ckpt_dir=None: the probe logs the crossing (and scores MU there) but
+    # saves nothing itself; StopAtLevel then ends the run and unlearn() saves the weights.
+    probe_cb = UnlearnProbeCallback(
+        tok, probe, out_jsonl=str(traj), eval_every=2,
+        tr_levels=[a.stop_at_level] if a.stop_at_level is not None else None,
+        ckpt_dir=None, run_name=run_name,
+        mu_fn=lambda m, t: model_utility_6_scores(m, t, util, progress=False),
+        mu_every=a.mu_every, probe_raw=probe_raw)
+    callbacks = [probe_cb, EpochTokenScorer(tok, texts, probe_raw, toks)]
+    if a.save_at_epochs:
+        callbacks.append(SaveAtEpochs(tok, a.save_at_epochs, a.ckpt_root, run_name))
+    if a.stop_at_level is not None:
+        callbacks.append(StopAtLevel(probe_cb, a.stop_at_level))
+    callbacks.append(StopAtEpoch(a.stop_at_epoch))
     path = unlearn(model, tok, forget, retain, cfg, "gradient_difference", run_name,
                    checkpoint=a.checkpoint, extra_callbacks=callbacks, save_final=True)
-    logger.info("saved epoch %d -> %s", a.stop_at_epoch, path)
+    if a.stop_at_level is not None and a.stop_at_level not in probe_cb.crossed:
+        logger.warning("French TR NEVER crossed %.4f by the cap (epoch %d): the saved "
+                       "weights are NOT at matched depth", a.stop_at_level, a.stop_at_epoch)
+    logger.info("saved %s -> %s", run_name, path)
 
 
 if __name__ == "__main__":
