@@ -24,6 +24,8 @@ import sys
 from pathlib import Path
 
 P = Path("/home/b/brandonk/unlearning")
+HOME = Path("/home/b/brandonk")
+LIMIT_GB = 400       # per-user limit (SoC warns near it); NOT shown by df or quota -s
 E = P / "experiments"
 SLUG = "qwen3-8b"
 UNL = f"tofu_unlearn_gradient_difference_forget01_fullft_{SLUG}"
@@ -75,7 +77,20 @@ def main():
         sys.exit(f"{E} not found -- run this on the cluster login node")
     print("=== filesystem ===")
     subprocess.run(["df", "-h", str(E)])
-    print(run(["quota", "-s"]) or "(quota: no per-user limit reported -- df above is the limit)")
+    print(run(["quota", "-s"]) or "(quota: nothing reported)")
+    print("NOTE: df is the SHARED disk. Your own limit is ~%d GB, which neither df nor quota "
+          "shows." % LIMIT_GB)
+    home = du_gb(HOME)
+    print(f"\n=== YOUR usage: {HOME} = {home:,.0f} GB of ~{LIMIT_GB} GB "
+          f"({LIMIT_GB - home:,.0f} GB left) ===")
+    tops = [(du_gb(c), c) for c in HOME.iterdir() if not c.is_symlink()]
+    for gb, c in sorted(tops, key=lambda t: -t[0])[:8]:
+        print(f"  {gb:7.1f} GB  {c}")
+    if P.is_dir():
+        print("  inside the project:")
+        tops = [(du_gb(c), c) for c in P.iterdir() if not c.is_symlink()]
+        for gb, c in sorted(tops, key=lambda t: -t[0])[:8]:
+            print(f"  {gb:7.1f} GB  {c.relative_to(HOME)}")
     running = run(["squeue", "-u", os.environ.get("USER", ""), "-h", "-o", "%i %j %T"])
     if running:
         print(f"\n!!! jobs in the queue -- do not delete anything they use:\n{running}")
@@ -119,6 +134,9 @@ def main():
         print("\n=== to free space: review, then run the lines you want ONE AT A TIME ===")
         for _, gb, p, _ in cand:
             print(f"rm -rf '{p}'    # {gb:.0f} GB")
+            for link in (e for e in entries if e.is_symlink()
+                         and (e.parent / os.readlink(e)).resolve() == p.resolve()):
+                print(f"rm '{link}'    # symlink to the line above, would dangle")
 
 
 if __name__ == "__main__":
