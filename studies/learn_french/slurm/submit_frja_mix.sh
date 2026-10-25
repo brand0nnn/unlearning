@@ -1,7 +1,7 @@
 #!/bin/bash
 # STAGE 9 in one command, from the LOGIN node: mixed fr+ja LEARN -> gate + French unlearning.
 #
-#     cd ~/unlearning && git pull && source .venv/bin/activate
+#     cd ~/unlearning && git pull        # the script activates .venv itself
 #     bash studies/learn_french/slurm/submit_frja_mix.sh            # learn -> gate + unlearn
 #     FLOOR=1 bash studies/learn_french/slurm/submit_frja_mix.sh    # + the matched mixed floor
 #
@@ -29,11 +29,16 @@ FLOOR="${FLOOR:-0}"
 echo "=== data check (login node, no GPU) ==="
 mkdir -p logs
 LOG="logs/verify_frja_mix_$(date +%Y%m%d_%H%M%S).log"
+# the checker needs `datasets`, which only the project venv has
+[ -n "${VIRTUAL_ENV:-}" ] || source "$P/.venv/bin/activate"
 RC=0
 python studies/learn_french/scripts/verify_learn_data_mix.py full $([ "$FLOOR" = 1 ] && echo retain99) \
     > "$LOG" 2>&1 || RC=$?
-grep -E "\[OK|\[FAIL|PASSED|FAILED|FORGET facts|Error|error" "$LOG" || true
-[ "$RC" -eq 0 ] || { echo "data check FAILED (rc=$RC, full log $LOG) -- nothing submitted" >&2; exit 1; }
+grep -E "\[OK|\[FAIL|PASSED|FAILED|FORGET facts" "$LOG" || true
+if [ "$RC" -ne 0 ]; then
+    echo "--- last lines of $LOG ---" >&2; tail -n 15 "$LOG" >&2
+    echo "data check FAILED (rc=$RC) -- nothing submitted" >&2; exit 1
+fi
 
 SLUG=$(python3 -c "import re,yaml;n=yaml.safe_load(open('config/config.yaml'))['model']['name'].split('/')[-1].lower();print(re.sub(r'[^a-z0-9.]+','-',n).strip('-'))")
 for d in "experiments/tofu_learn_full_full_${SLUG}_fr-ja" "experiments/tofu_learn_retain99_full_${SLUG}_fr-ja"; do

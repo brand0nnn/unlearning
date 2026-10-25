@@ -12,6 +12,10 @@ Writes studies/learn_french/figures/side_checks/:
                           other text, fr and en reruns; the same split at every checkpoint
   4_name_pieces.png       Plan 2: change in log p of each name vs fr_ft, by arm
   5_script_switch.png     Plan 2: what copying a katakana / Cyrillic name produces, by model
+  6_blanket_by_epoch.png  Plan 1's own question: % of each arm's own answer tokens destroyed
+                          per epoch (fr, en to 25) vs Stage 6's matched arms (ja at 25)
+  15_name_translation.png Plan 2: transliterating names between scripts -- change in log p
+                          per name group and arm, and what fr_ft / the ja and ru arms write
 
 Every number in a title or label is computed from the data plotted. Single seed, 40 facts
 about 2 entities. Descriptive only.
@@ -488,11 +492,209 @@ def fig_switch(M):
     save(fig, "5_script_switch.png")
 
 
+NAME_GROUPS = [("forget authors", ("a",)), ("share a piece with them", ("c_real_overlap",
+               "c_invented_overlap")), ("unrelated names", ("c_real", "c_invented")),
+               ("retain authors", ("b",))]
+
+
+def fig_translate(M):
+    """Plan 2's transliteration tasks: is the skill damaged, or only the forget names?"""
+    def recs(m, task, groups):
+        return [r for r in M[m] if r["task"] == task and r["group"] in groups]
+
+    def dlp(m, task, groups):
+        return (st.mean(r["lp_mean"] for r in recs(m, task, groups))
+                - st.mean(r["lp_mean"] for r in recs("fr_ft", task, groups)))
+
+    others = [lg for lg in LANGS if lg not in ("ja", "ru")]
+    blocks = [("Latin -> katakana", "lat2ja", others + ["ru", "ja"]),
+              ("Latin -> Cyrillic", "lat2ru", others + ["ja", "ru"]),
+              ("back to Latin", None, ["ja", "ru"])]
+    cols = []                                    # (model, task, x label)
+    for _, task, arms in blocks:
+        for lg in arms:
+            t = task or {"ja": "ja2lat", "ru": "ru2lat"}[lg]
+            cols.append((f"{lg} matched", t, lg + ("\nfrom kana" if t == "ja2lat" else
+                                                   "\nfrom Cyr." if t == "ru2lat" else "")))
+    grid = [[dlp(m, t, g) for m, t, _ in cols] for _, g in NAME_GROUPS]
+
+    fig = plt.figure(figsize=(14, 9.2))
+    gs = fig.add_gridspec(2, 2, height_ratios=[0.95, 1.25], hspace=0.42, wspace=0.2)
+    ax = fig.add_subplot(gs[0, :])
+    cmap = LinearSegmentedColormap.from_list("dmg", ["#fcfcfb", "#9ec3ef", "#2a78d6",
+                                                     "#0d3b78"])
+    ax.imshow([[max(0, -v) for v in row] for row in grid], cmap=cmap,
+              norm=SymLogNorm(linthresh=0.5, vmin=0, vmax=80), aspect="auto")
+    for i, row in enumerate(grid):
+        for j, v in enumerate(row):
+            txt = "0.0" if abs(v) < 0.05 else f"{v:+.1f}" if abs(v) < 10 else f"{v:+.0f}"
+            ax.text(j, i, txt, ha="center", va="center", fontsize=9,
+                    color="#ffffff" if -v > 8 else INK)
+    ax.set_xticks(range(len(cols)))
+    ax.set_xticklabels([c[2] for c in cols], fontsize=8.5)
+    ax.set_yticks(range(len(NAME_GROUPS)))
+    ax.set_yticklabels([g for g, _ in NAME_GROUPS])
+    edge = 0
+    for name, _, arms in blocks:
+        ax.text(edge + (len(arms) - 1) / 2, -0.75, name, ha="center", fontsize=9.5,
+                color=INK, fontweight="bold")
+        edge += len(arms)
+        if edge < len(cols):
+            ax.axvline(edge - 0.5, color=INK, lw=1.2)
+    ax.grid(False)
+    ax.tick_params(length=0)
+    for s in ax.spines.values():
+        s.set_visible(False)
+    ax.set_title("A. Change in log p per token of the correct transliteration vs fr_ft "
+                 "(darker = more damage; columns = the matched unlearning arm)",
+                 loc="left", fontsize=10, pad=24)
+
+    cat = [("correct", "#e4e3de"), ("wrong spelling", OTHER1), ("another script", ACCENT)]
+    for k, (task, target, arm, lab) in enumerate((("lat2ja", "kana", "ja", "katakana"),
+                                                  ("lat2ru", "cyr", "ru", "Cyrillic"))):
+        ax = fig.add_subplot(gs[1, k])
+        rows = [(f"{g}: {m.split()[0]}", recs(m, task, gs_))
+                for g, gs_ in NAME_GROUPS for m in ("fr_ft", f"{arm} matched")]
+        for i, (lab_r, rs) in enumerate(rows):
+            y = len(rows) - 1 - i - (i // 2) * 0.5
+            left = 0
+            for c, col in cat:
+                v = 100 * sum(outcome(r, target) == c for r in rs) / len(rs)
+                ax.barh(y, v, left=left, color=col, height=0.8, edgecolor=SURFACE, lw=1)
+                if c == "correct":
+                    ax.text(102, y, f"{v:.0f}%", va="center", fontsize=8.5, color=INK,
+                            clip_on=False)
+                elif v >= 8:
+                    ax.text(left + v / 2, y, f"{v:.0f}", ha="center", va="center",
+                            fontsize=8, color="#ffffff")
+                left += v
+        ax.set_yticks([len(rows) - 1 - i - (i // 2) * 0.5 for i in range(len(rows))])
+        ax.set_yticklabels([r[0] for r in rows] if k == 0 else
+                           [r[0].split(": ")[1] for r in rows], fontsize=8.5)
+        ax.set_xlim(0, 100)
+        ax.text(102, len(rows) - 0.4, "correct", fontsize=8.5, color=MUTED, clip_on=False)
+        ax.grid(axis="y", visible=False)
+        ax.set_xlabel("% of prompts (each name x 5 instruction languages)")
+        ax.set_title(f"{'BC'[k]}. Latin -> {lab}: what fr_ft and the {arm} arm write",
+                     loc="left", fontsize=10)
+    from matplotlib.patches import Patch
+    fig.legend(handles=[Patch(color=col, label=c) for c, col in cat], loc="lower center",
+               bbox_to_anchor=(0.55, 0.0), ncol=3, fontsize=8.5)
+
+    ja = {g: grid[i][cols.index(("ja matched", "lat2ja", "ja"))]
+          for i, (g, _) in enumerate(NAME_GROUPS)}
+    title(fig, f"Plan 2: ja unlearning breaks transliteration of the forget names "
+               f"({ja['forget authors']:+.0f} nats/token), not the skill "
+               f"(unrelated names {ja['unrelated names']:+.1f})",
+          "Translating a name between scripts. Most of the extra failures on unrelated and "
+          "retain names are the name written in another script, as in figure 5. Retain authors are not "
+          "neutral (each arm's retain term\ntrained on them in its own language). Forget "
+          "authors = 2 names, piece-sharing = 8, unrelated = 15, retain = 21; each x 5 "
+          "instruction languages. Single seed.")
+    fig.subplots_adjust(top=0.86, left=0.14, right=0.96, bottom=0.1)
+    save(fig, "15_name_translation.png")
+
+
 def cc_font():
     from matplotlib import font_manager
     have = {f.name for f in font_manager.fontManager.ttflist}
     return next((f for f in ("Arial Unicode MS", "Hiragino Sans", "PingFang SC")
                  if f in have), "DejaVu Sans")
+
+
+# ---- 6. the blanket effect by epoch (Plan 1's original question) ---------------------
+def token_split(base, cur, keys):
+    """% of answer tokens destroyed (> 5 nats) / untouched (< 0.1), and % destroyed among
+    the tokens the learned model was near-certain of -- Stage 6 finding 5's measure."""
+    n = un = hit = ns = hs = 0
+    for k in keys:
+        for b, x in zip(base[k]["lp"], cur[k]["lp"]):
+            d = b - x
+            n += 1
+            un += abs(d) < 0.1
+            hit += d > DESTROY
+            if math.exp(b) > 0.999:
+                ns += 1
+                hs += d > DESTROY
+    return {"hit": 100 * hit / n, "un": 100 * un / n, "sure": 100 * hs / ns}
+
+
+def fig_blanket():
+    pr = prereg()
+    traj = {}
+    for arm in ("fr", "en"):
+        head, *eps = jl(RES / "plan1" / f"tokens_ul{arm}_s42.jsonl")
+        keys = [k for k, t in head["texts"].items() if t["split"] == "forget" and t["lang"] == arm]
+        traj[arm] = ([e["epoch"] for e in eps],
+                     [token_split(eps[0]["results"], e["results"], keys) for e in eps])
+    d = json.load(open(STUDY / "results" / "per_token_map.json", encoding="utf-8"))
+    R = {cc.label(c): v for c, v in d["results"].items()}
+    matched = {}
+    for lg in LANGS:
+        keys = [k for k, t in d["texts"].items() if t["split"] == "forget" and t["lang"] == lg]
+        matched[lg] = token_split(R["fr_ft"], R[f"unl_{lg}"], keys)
+
+    fig = plt.figure(figsize=(15, 4.9))
+    gs = fig.add_gridspec(1, 4, width_ratios=[1, 1, 0.28, 1.05], wspace=0.25)
+    for j, (key, ylab, sub) in enumerate((
+            ("hit", "% of own answer tokens destroyed (> 5 nats)", "all answer tokens"),
+            ("sure", "% destroyed among near-certain tokens",
+             "only tokens fr_ft gave p > 0.999 (removes the head start of unsure text)"))):
+        ax = fig.add_subplot(gs[j])
+        for arm in ("fr", "en"):
+            xs, v = traj[arm]
+            ys = [s[key] for s in v]
+            ax.plot(xs, ys, color=ARM[arm], lw=2)
+            ax.annotate(f"{arm} {ys[-1]:.0f}%", (xs[-1], ys[-1]), xytext=(4, 0),
+                        textcoords="offset points", va="center", fontsize=8.5,
+                        color=ARM[arm], fontweight="bold")
+        for lg in LANGS:                  # Stage 6 matched checkpoints (fr/en sit on the lines)
+            e, y = pr[lg]["epoch"], matched[lg][key]
+            ax.plot(e, y, "o", ms=8, color=ARM[lg], mec=SURFACE, mew=1.5, zorder=5)
+            if lg in ("id", "ru", "ja"):
+                ax.annotate(f"{lg} {y:.0f}%", (e, y), xytext=(-6, 6), textcoords="offset points",
+                            ha="right", fontsize=8.5, color=ARM[lg], fontweight="bold")
+        ax.axvline(25, color=MUTED, ls="--", lw=1)
+        ax.set_xlim(0, 29)
+        ax.set_ylim(0, 100)
+        ax.set_xlabel("unlearning epoch")
+        ax.set_ylabel(ylab)
+        gap = matched["ja"][key] - max(traj[a][1][-1][key] for a in ("fr", "en"))
+        ax.set_title(f"{'AB'[j]}. {sub}\nat epoch 25 ja is still {gap:.0f} points above "
+                     "fr and en", loc="left", fontsize=9.5)
+
+    ax = fig.add_subplot(gs[3])           # gs[2] leaves room for C's row labels
+    rows = [(f"{lg} matched (ep {pr[lg]['epoch']})", matched[lg]) for lg in LANGS]
+    rows.insert(1, ("fr at ep 25", traj["fr"][1][-1]))
+    rows.insert(3, ("en at ep 25", traj["en"][1][-1]))
+    cols = ["#e8e7e2", "#9fc3f0", "#184f95"]
+    for i, (lab, s) in enumerate(rows):
+        y = len(rows) - 1 - i
+        parts = (s["un"], 100 - s["un"] - s["hit"], s["hit"])
+        left = 0
+        for v, c in zip(parts, cols):
+            ax.barh(y, v, left=left, height=0.64, color=c, edgecolor=SURFACE, lw=2)
+            if v >= 8:
+                ax.text(left + v / 2, y, f"{v:.0f}", ha="center", va="center", fontsize=8,
+                        color="white" if c == cols[-1] else INK)
+            left += v
+    ax.set_yticks(range(len(rows)))
+    ax.set_yticklabels([r[0] for r in rows][::-1])
+    ax.set_xlim(0, 100)
+    ax.grid(axis="y", visible=False)
+    ax.set_xlabel("% of own answer tokens")
+    from matplotlib.patches import Patch
+    ax.legend(handles=[Patch(color=c, label=l) for c, l in zip(
+        cols, ["untouched (< 0.1)", "moved", "destroyed (> 5)"])], ncol=3, fontsize=8,
+        loc="upper left", bbox_to_anchor=(0, -0.13))
+    ax.set_title("C. Stage 6's surgical-vs-blanket bars,\nwith fr and en at 25 epochs added",
+                 loc="left", fontsize=9.5)
+    title(fig, "More epochs make fr and en blanker, but at the same 25 epochs ja is still the "
+          "most blanket",
+          "Each arm teacher-forced on its OWN forget01 answers vs fr_ft (fr text for fr, English "
+          "for en, ...). Lines = 25-epoch reruns; dots = Stage 6 matched checkpoints. Single seed.")
+    fig.subplots_adjust(top=0.78, left=0.05, right=0.99, bottom=0.2)
+    save(fig, "6_blanket_by_epoch.png")
 
 
 def main():
@@ -502,6 +704,8 @@ def main():
     M = plan2()
     fig_pieces(M)
     fig_switch(M)
+    fig_translate(M)
+    fig_blanket()
 
 
 if __name__ == "__main__":

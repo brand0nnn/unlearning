@@ -18,6 +18,14 @@ Figures: `learn_french/figures/side_checks/1-5_*.png`, made by `plots/plot_side_
 **Sanity.** The reruns reproduce the Stage 2 French TR to 3 decimals at every epoch, and
 the in-run per-token scores equal the post-hoc pass (|delta| 0.0000, 0 destroyed-call flips).
 
+0. **The blanket effect is partly epochs, mostly Japanese** (fig 6; Plan 1's own question).
+   Stage 6's measure, each arm on its own answer tokens, % destroyed (> 5 nats): fr 14% at
+   the matched ep 13 -> 49% at ep 25; en 38% (ep 12) -> 60% (ep 25); ja 86% at its matched
+   ep 25. Among near-certain tokens only (which removes ja's head start of text the learned
+   model was unsure of): fr 33%, en 29% at ep 25 vs ja 66%. So epochs explain part of
+   Stage 6's gap, but at equal epochs ja is still 26 points (33 on near-certain tokens)
+   blanker -- while removing far LESS of the French fact (TR 0.83 vs fr 1000, en 15).
+   id and ru were not rerun to 25 epochs.
 1. **Copy protection is a stage, not a property of the language** (fig 3). Among tokens
    fr_ft gave p > 0.999, copied names are spared early and then overtake other text: fr
    on French text 0.4% at the matched ep 13 -> 54% at ep 25 (other text 29%); en on
