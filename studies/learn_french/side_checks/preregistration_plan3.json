@@ -50,6 +50,23 @@
     "check": "fr and en epoch 25 repeat Plan 1's runs; their in-run French TR should match results/plan1 trajectories to a few thousandths."
   },
 
+  "pgold_control": {
+    "recorded": "2026-10-26, after Plan 3's en_slow and ja_fast_1.0e-5 were read, before this job was submitted",
+    "question": "ja_fast (1.0e-5) and en_slow are matched on French TR but not on P(gold): ja_fast stopped at 0.274, en_slow at 0.524. Is ja less durable when the two are matched on P(gold) and epochs instead?",
+    "design": "en, Stage 2 recipe unchanged (lr 5e-6, seed 42), stopped at a FIXED epoch 15, no TR level (plan3_arm.sbatch with STOP_EPOCH=15). Then everything ja_fast got: Stage 1 scorer, name skill, layer diff, relearn in fr and en (Stage 3 recipe, final epoch).",
+    "why_epoch_15": "Plan 1's en run (same recipe and seed) at epoch 15, in-run: P(gold) 0.2739, MU 0.482, TR 1.250. ja_fast stopped at epoch 15: P(gold) 0.2741, MU 0.483, TR 0.872.",
+    "matched_on": "P(gold), epochs, MU, schedule shape. NOT matched: TR (en 1.25 vs ja 0.87) and peak LR (5e-6 vs 1e-5).",
+    "primary_outcome": "ABSOLUTE French P(gold) after relearning, per relearn column, against ja_fast's 0.594 (fr column) / 0.543 (en column).",
+    "reading_rule": "A difference under 0.04 in a column is read as no detectable difference (re-scoring moves a TR/NLI cell by ~0.038; assumed similar for P(gold), not measured; single seed).",
+    "predictions": {
+      "H_language": "en at epoch 15 relearns to a LOWER P(gold) than ja_fast in both columns, by 0.04 or more.",
+      "H_no_language_on_pgold": "the difference is under 0.04, or en is higher, in either column.",
+      "context_not_a_prediction": "Plan 1 en relearned (fr column) to 0.57 from epoch 12 and 0.14 from epoch 25, so epoch 15 should land between them."
+    },
+    "secondary": "TR after relearning is reported but NOT read as evidence: en starts much deeper on TR (1.25 vs 0.87), so it is expected to look more durable on TR whatever the language.",
+    "check": "the in-run trajectory to epoch 15 should match results/plan1/traj_ulen_s42.jsonl to a few thousandths."
+  },
+
   "known_limitations": [
     "LR is a new variable. It moves UP for ja and DOWN for en, so a ranking that survives both cannot be the LR; a ranking that flips cannot separate LR from epochs.",
     "Equal epochs at different LRs are not equal total weight change; the layer diff reports total delta_sq so this is visible.",

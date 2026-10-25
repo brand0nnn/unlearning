@@ -13,6 +13,8 @@
 #     sbatch studies/learn_french/side_checks/slurm/plan3_arm.sbatch ja 1.0e-5    # ja-fast
 #     sbatch studies/learn_french/side_checks/slurm/plan3_arm.sbatch ja 1.5e-5    # ja-fast
 #     sbatch studies/learn_french/side_checks/slurm/plan3_arm.sbatch en 2.0e-6    # en-slow
+#     STOP_EPOCH=15 sbatch studies/learn_french/side_checks/slurm/plan3_arm.sbatch en 5.0e-6
+#                         # P(gold) control: stop at a FIXED epoch instead of the TR level
 #
 # Stage 3 matched en and ja on French TR (both stopped at level 0.8276), but ja needed 25
 # epochs and en 12. Here the LR moves so each reaches the SAME level in the OTHER arm's
@@ -38,7 +40,11 @@ LR="${2:?peak LR, e.g. 1.0e-5}"
 RELEARN_LANGS="${3:-fr en}"
 SEED=42
 CAP=50
+# STOP_EPOCH set: stop at that epoch, not at the TR level (preregistration_plan3.json
+# pgold_control). The run name then ends _ep<N> and the level check is skipped.
+STOP_EPOCH="${STOP_EPOCH:-}"
 case "$LANG_UL" in en|fr|id|ja|ru) ;; *) echo "bad lang: $LANG_UL" >&2; exit 2 ;; esac
+case "$STOP_EPOCH" in ""|[1-9]|[1-4][0-9]|50) ;; *) echo "bad STOP_EPOCH: $STOP_EPOCH (1-50)" >&2; exit 2 ;; esac
 
 PROJECT_DIR="/home/b/brandonk/unlearning"
 SIDE="studies/learn_french/side_checks"
@@ -69,7 +75,14 @@ FR_RETAIN="$PROJECT_DIR/experiments/tofu_learn_retain99_full_${MODEL_SLUG}_fr"
 # The level en and ja were matched at, read from the pre-registration, not retyped.
 LEVEL=$(python3 -c "import json;print(json.load(open('studies/learn_french/preregistration.json'))['tr_levels'][-1])")
 # Same tags unlearn_epochs.py builds, so this script knows the run name in advance.
-RUN="ul${LANG_UL}_s${SEED}_$(python3 -c "print(('lr%.1e'%$LR).replace('.','p'))")_$(python3 -c "print(('tr%.3f'%$LEVEL).replace('.','p'))")"
+if [ -n "$STOP_EPOCH" ]; then
+    STOP_TAG="ep${STOP_EPOCH}"
+    STOP_FLAGS=(--stop-at-epoch "$STOP_EPOCH")
+else
+    STOP_TAG=$(python3 -c "print(('tr%.3f'%$LEVEL).replace('.','p'))")
+    STOP_FLAGS=(--stop-at-level "$LEVEL" --stop-at-epoch "$CAP")
+fi
+RUN="ul${LANG_UL}_s${SEED}_$(python3 -c "print(('lr%.1e'%$LR).replace('.','p'))")_${STOP_TAG}"
 CKPT="$PROJECT_DIR/experiments/side_checks/plan3/$RUN"
 TRAJ="$R/plan3/traj_$RUN.jsonl"
 TOKS="$R/plan3/tokens_$RUN.jsonl"
@@ -79,7 +92,11 @@ LAYERS="$R/plan3/layer_diff_$RUN.json"
 
 echo "=========================================================================="
 echo " SIDE CHECK plan 3   arm $LANG_UL   peak LR $LR   seed $SEED"
-echo "   stop       : first per-epoch French TR >= $LEVEL (cap epoch $CAP)"
+if [ -n "$STOP_EPOCH" ]; then
+    echo "   stop       : fixed epoch $STOP_EPOCH (no TR level)"
+else
+    echo "   stop       : first per-epoch French TR >= $LEVEL (cap epoch $CAP)"
+fi
 echo "   checkpoint : $CKPT (deleted at the end)"
 echo "   relearn in : $RELEARN_LANGS"
 echo "=========================================================================="
@@ -101,13 +118,18 @@ else
     deepspeed --num_gpus=1 --master_port=$((20000 + SLURM_JOB_ID % 10000)) \
         "$SIDE/scripts/unlearn_epochs.py" \
         --checkpoint "$FR_FT" --lang "$LANG_UL" --seed "$SEED" --lr "$LR" \
-        --schedule-epochs 50 --stop-at-level "$LEVEL" --stop-at-epoch "$CAP" \
+        --schedule-epochs 50 "${STOP_FLAGS[@]}" \
         --mu-every 10 --forget-floor none \
         --ckpt-root experiments/side_checks/plan3 --out-dir "$R/plan3"
 fi
 [ -f "$CKPT/tokenizer_config.json" ] || { echo "no finished checkpoint at $CKPT" >&2; exit 1; }
 
 # Did it reach the level, and when? (The last trajectory row is the stopping point.)
+# A fixed-epoch run has no level to reach: report where it stopped and relearn it.
+if [ -n "$STOP_EPOCH" ]; then
+    python3 -c "import json,sys;r=[json.loads(l) for l in open(sys.argv[1])][-1];print(f\"[1] stopped at epoch {r['epoch']:.0f}  TR {r['mean_tr']:.4f}  MU {r['model_utility_6']}\")" "$TRAJ"
+    CROSSED=yes
+else
 CROSSED=$(python3 - "$TRAJ" "$LEVEL" <<'EOF'
 import json, sys
 rows = [json.loads(l) for l in open(sys.argv[1])]
@@ -125,6 +147,7 @@ else:
 EOF
 )
 echo "[1] crossed level $LEVEL: $CROSSED"
+fi
 
 python -c "from huggingface_hub import snapshot_download; snapshot_download('joeddav/xlm-roberta-large-xnli')" >/dev/null
 
