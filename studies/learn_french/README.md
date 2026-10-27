@@ -1,12 +1,14 @@
-# learn_french — the French-anchored study (Stages 1-8)
+# learn_french — the French-anchored study (Stages 1-9 + side checks)
 
 Inject the TOFU facts **in French**, so the multilingual variable can move onto the
 *unlearning* axis. Design doc: `french_anchored_multilingual_unlearning_plan.md`.
 
-> **START HERE (state as of 2026-10-24).** Stages 1-8 have all run, and so have the
-> side checks (`side_checks/README.md`, figures in `figures/side_checks/`), which revise
-> Q2 finding 3 and the Stage 6 names reading below. Job 11 (layer-wise weight change) has
-> run -- `results/layer_diff.json` -- but is **not yet read**.
+> **START HERE (state as of 2026-10-27).** Stages 1-9 have all run, and so have side-check
+> Plans 1-3 and the P(gold) control (`side_checks/README.md`, figures in
+> `figures/side_checks/`). They revise Q2 findings 3 and the Stage 6 names reading below.
+> Job 11 (layer diff) has been read (Q2 finding 5). **The next step is writing the
+> report: read "Writing the report" at the end of this box first.** The seed sweep is
+> written and pre-registered but NOT run (`side_checks/slurm/submit_seeds.sh`).
 > Everything below is `[PROVISIONAL: single seed]`, 40 facts about 2 entities.
 >
 > ```
@@ -35,24 +37,43 @@ Inject the TOFU facts **in French**, so the multilingual variable can move onto 
 > *Unlearning Isn't Deletion*) are English-only, multilingual studies (Xiang, Skow,
 > Farashah, Lizzo, Choi, Shao) never relearn.
 >
-> **Q2 findings to lead with (Stage 3):**
-> 1. The **unlearning** language governs durability -- row spread 48.0pp vs column
->    spread 21.5pp. Recovery: en 33% < id 50% < fr 57% < ru 60% < ja 81%. **That order is
->    truth-ratio only.** On P(gold) (French relearn column, relearn ep 2) it is fr 32 < en
->    36 < id 66 < ru 68 < ja 79: ja (then ru) least durable holds on both, the en / fr / id
->    order does not. The row/column spread has not been re-checked on P(gold).
-> 2. **Same-language relearning buys nothing** (diagonal 57.3% vs off-diagonal 55.9%).
-> 3. ~~Effort, not depth, predicts durability~~ -- **overturned by side-check Plan 1.**
->    r(epochs-to-matched-depth, recovery) = +0.87 holds across arms, but within one
->    language more epochs make forgetting MORE durable: relearned P(gold) en ep 12 0.57
->    -> en ep 25 0.14; fr ep 13 0.26 -> fr ep 25 0.014 (below never-taught). At the same
->    25 epochs ja relearns to 0.63. So the epoch count marks the language (ja barely
->    reaches the French answer: P(gold) 0.45 after 25 epochs), it does not cause
->    fragility -- Hu et al.'s direction. Unlearning language governs durability at
->    matched depth (Stage 3) **and** at matched effort (Plan 1). Within one run effort and
->    depth rise together, so neither design says which of the two buys durability.
->    The fr_retain floor control does not move under relearning (P(gold) 0.08-0.09), so
->    every Stage 3 gain is recovery.
+> **Q2 findings to lead with** (Stage 3 + side checks; numbers and figures in
+> `side_checks/README.md` "Plan 3"):
+> 1. The **unlearning** language is the dominant factor in durability -- row spread 48.0pp
+>    vs column spread 21.5pp (Stage 3). Recovery on TR: en 33% < id 50% < fr 57% < ru 60%
+>    < ja 81%. **Only "en most durable, ja least" is robust**: on P(gold) the order is
+>    fr 29 < en 40 < ru 58 < id 64 < ja 77, on NLI en 3 < fr 8 < id 12 < ru 15 < ja 23.
+>    en < ja holds on all three metrics; the id / fr / ru middle is within scoring noise.
+> 2. **en vs ja survives every alternative tested** (Plan 3 + P(gold) control, CLOSED):
+>    - *run length* (ja ran 25 epochs, en 12): changing only the peak LR, ja reaches the
+>      same French TR in 12 epochs and en in 23. At 12 epochs each, relearned French TR is
+>      en 0.813 vs ja 0.705 (French relearn) / 0.774 vs 0.687 (English relearn). Language
+>      moves it 0.087-0.113, run length 0.016-0.060 (1.8x / 3.5x). Neither swapped arm
+>      crosses the pre-registered midpoint (H_language).
+>    - *matched on the wrong measure*: en stopped at epoch 15 matches ja-fast exactly on
+>      P(gold) (0.274), epoch (15) and MU (0.48); ja recovers +0.140 / +0.106 more P(gold)
+>      (pre-registered bar 0.04). So the effect holds matched on TR AND matched on P(gold).
+>    - *new learning*: the never-taught model relearned the same way stays at P(gold)
+>      0.08-0.09; *utility*: MU ~0.48-0.50 everywhere.
+> 3. **Same-language relearning buys nothing** (diagonal 57.3% vs off-diagonal 55.9%).
+> 4. ~~Effort, not depth, predicts durability~~ -- **overturned.** r(epochs, recovery) =
+>    +0.87 across arms is a marker of the language, not a cause. At fixed LR more epochs =
+>    deeper = more durable (Plan 1: en ep 12 -> 25 relearned P(gold) 0.57 -> 0.14); at
+>    FIXED DEPTH a longer run is slightly LESS durable (Plan 3, both languages). Plan 3's
+>    pre-registered "en_slow more durable" direction was therefore wrong.
+> 5. **Same French depth, very different edits** (job 11 + Plan 3, `figures/side_checks/
+>    12_five_languages.png`, `9_plan3_layers.png`): at matched French TR, ja pushes its own-
+>    language forget loss to 54.7 (en 13.5), changes 5x the weight (15.0 vs 2.9), puts 52%
+>    of it in the top third of layers (en 38%), and destroys 100% of its own-language names
+>    (en 2%), yet <= 9% of the French answer. Each holds at either run length.
+> 6. **Proposed mechanism -- carry-over (NOT tested):** how much of the French-learned
+>    fact the model holds in the unlearning language (fr_ft minus fr_retain, mean log p of
+>    the forget answers in that language): en ~1.9x ~ id ~1.9x > ru 1.4x > ja 1.2x per
+>    answer token (fr 8.7x). Low carry-over -> the gradient can only lower the answer by
+>    breaking that language's output near the top layers, leaving the stored fact -> benign
+>    relearning repairs it. 4 points, single seed, confounded with script (Latin vs not);
+>    en vs id order flips with token- vs fact-weighting. Tests: joint fr+ja model unlearned
+>    in Japanese; pre-registered ko/hi/ar prediction; Experiment D (layer restriction).
 >
 > **Q1 findings:**
 > 1. **Access, probability (Stage 5):** a question in another language **reaches** the
@@ -124,30 +145,66 @@ Inject the TOFU facts **in French**, so the multilingual variable can move onto 
 >   exact-match generation. Never quote one without the other.
 >
 > **Next, ranked:**
-> 1. **Seed sweep (Q2).** Blocked on code, not GPU: level-checkpoint paths carry no seed
->    tag, so a second seed would OVERWRITE the pre-registered matched checkpoints. Add a
->    seed tag + `--seed` on `02_unlearn.py` and `relearn.py` (both read only cfg seed 42)
->    first. Reduced design: 5 arms x 1 relearn language x 2 seeds (rows are the claim).
-> 2. **Firm up Stage 8 on behaviour** (cheap): NLI-grade the Japanese generations at every
+> 1. **Seed sweep, en + ja (Q2)** -- UNBLOCKED, written, pre-registered
+>    (`side_checks/preregistration_plan3.json` `seed_sweep`), NOT run. `bash
+>    studies/learn_french/side_checks/slurm/submit_seeds.sh 2` = seeds 1, 2 of the en and ja
+>    Stage 3 arms through `plan3_arm.sbatch` (seed 42 of that job IS the Stage 3 arm), ~32
+>    GPU-h, ~16h on 2 GPUs. **Bug fixed 2026-10-27:** neither trainer passed the seed to HF
+>    `TrainingArguments`, which re-seeds to 42 on construction, so `--seed` changed only
+>    the unlearning retain pairing and nothing in relearning. Now passed (cfg seed 42 = HF
+>    default, so no earlier run changes). id / fr / ru are out of scope until Stage 3's
+>    level-0.783 checkpoint selection is reproduced.
+> 2. **Test the carry-over mechanism** (Q2 finding 6): unlearn the joint fr+ja model
+>    (Stage 8, `fr-ja_ft`) in JAPANESE to French TR 0.828, then relearn -- prediction: ja
+>    becomes durable. Then a pre-registered carry-over prediction for ko / hi / ar (~1h of
+>    inference) and Experiment D (restrict which layers unlearning may change).
+> 3. **One more fragile language with seeds (ru)** -- turns "Japanese is special" into "a
+>    pattern across languages".
+> 4. **Firm up Stage 8 on behaviour** (cheap): NLI-grade the Japanese generations at every
 >    saved level and give generation a retain control, so "38 -> 16" can be read.
-> 3. **Build on Stage 8:** benign-relearn the French-unlearned joint model (does the
->    surviving Japanese copy speed French recovery? -- the link between Q1 and Q2); the
->    reverse direction (unlearn the joint model in Japanese, probe French); unlearning in
->    both languages. (Stage 9, mixed learning, is done and closed -- see item 4 of the
->    findings.)
-> 4. **Read job 11** (Q2 mechanism; it has run, `results/layer_diff.json`): which layers each
->    arm changed. Prediction from Xiang/Zhao: durable arms moved the shared middle layers, ja
->    mostly the top.
-> 5. **Zero GPU:** do facts with more SURVIVING tokens (Plan 1) recover more under benign
+> 5. **Build on Stage 8:** benign-relearn the French-unlearned joint model (does the
+>    surviving Japanese copy speed French recovery? -- the link between Q1 and Q2).
+> 6. **Zero GPU:** do facts with more SURVIVING tokens (Plan 1) recover more under benign
 >    relearning (Stage 3 `per_fact`)?
-> 6. **Steering recovery per arm** (Q2 robustness): does Xiang's inference-time attack
+> 7. **Steering recovery per arm** (Q2 robustness): does Xiang's inference-time attack
 >    rank the arms like benign relearning does?
-> 7. **Depth dose-response relearning** (Q2: effort vs depth), ~19 GPU-h -- fold into the
->    seed-sweep campaign. **The non-matched TR-level checkpoints no longer exist** (only the
->    5 matched ones are in `experiments/tr_levels/`), so this needs the levels re-generated.
->    Side-check Plan 1 already gives two points per arm for fr and en (matched, ep 25);
->    separating effort from depth needs the same depth reached in different epoch counts
->    (e.g. a higher learning rate), which no run so far does.
+> Done since 2026-10-24: job 11 read (finding 5); effort vs depth separated (Plan 3,
+> finding 4); side-check Plan 4 dropped -- no results exist (Plan 3 answered its layer
+> question at matched depth).
+>
+> **Writing the report (handoff, 2026-10-27).** The writing session should:
+> - **Lead with Q2.** Claim it can defend now: *"At matched unlearning depth (by truth
+>   ratio or by answer probability) and matched run length, unlearning in English left the
+>   forgotten fact far more durable under benign relearning than unlearning in Japanese;
+>   across five unlearning languages the unlearning language moved recovery more than twice
+>   as much as the relearning language."* `[PROVISIONAL: single seed]`. Say "dominant
+>   factor", not "governs"; no full five-language ranking; carry-over is *proposed*.
+> - **Argument order:** (1) setup + why matching depth is the crux (Hu et al.: deeper =
+>   more durable); (2) rows >> columns (`figures/stage3_relearn/stage3_grid_tr.png`);
+>   (3) the en/ja pair, matched on TR, P(gold) and MU, ja less durable on TR, P(gold) and
+>   NLI; (4) objections table -- depth, run length (`figures/side_checks/
+>   8_plan3_durability.png`, `14_language_vs_epochs.png`), metric/P(gold)
+>   (`16_pgold_control.png`), new learning (floor control), relearn language, utility;
+>   (5) same depth, different edits (`12_five_languages.png`, `9_plan3_layers.png`,
+>   `10_plan3_blanket.png`); (6) carry-over as the proposed mechanism + its tests;
+>   (7) limitations. Supplement: `7_plan3_design.png`, `11_plan3_pgold_said.png`
+>   (P(gold) NOT matched there -- Figure 16 is the P(gold) evidence), `13_five_durability.png`,
+>   `stage3_grid_prob.png`, `stage3_grid_nli.png`.
+> - **Then Q1** (hiding): access closed on behaviour, storage survives on probability
+>   (Stages 5-9 above).
+> - **Limitations section:** "Known limitations to carry into the writeup" below, plus:
+>   single seed (sweep written, not run); 40 facts about 2 entities; one model (Qwen3-8B),
+>   one method (gradient difference), facts learned in French only; Plan 3 changes LR along
+>   with run length; carry-over confounded with script; scoring is not deterministic
+>   (~0.024 TR between scoring groups -- Stage 3 cells and side-check runs are different
+>   groups, compare to a few points, not decimals); we run no statistical tests of our own
+>   (TOFU / Farashah / Xiang metrics only).
+> - **Metric definitions:** "Metrics, and why ROUGE is not among them" and "Surname
+>   normalization" below. TR = TOFU Eq. 1 (arithmetic), surname-normalised; LOW = knows.
+>   Relearned TR: HIGHER = more durable. Recovery = (X_unl - X_rel) / (X_unl - X_learned).
+> - **Citations:** `papers/papers.md`, Stage 3's *Novel / Confirmatory* tags (its Findings list) and
+>   Stage 5's "Positioning".
+>   Supervisor outputs: NUS SoC-branded slides (pptxgenjs) / typeset multi-page PDF notes.
 >
 > **Decided against:** a learning-language GRID (5 monolingual LEARNs) -- Xiang and Skow
 > cover it, and it cannot test hiding. Still deferred by the user: the p2-p4 paraphrase family, regenerating relearned
@@ -648,14 +705,18 @@ python studies/learn_french/plots/plot_stage3.py --plot all
    never contains the forgotten facts, in a different language. Nothing was deleted.
    *Confirmatory* (Hu et al. ICLR 2025). Xiang's inference-time steering recovers 50% on
    Qwen; this recovers 56% by a completely different route -- worth quoting together.
-2. **The UNLEARNING language governs durability.** Row spread **48.0pp** (en 33.0 ->
+2. **The UNLEARNING language governs durability** (wording for the report: "dominant
+   factor"; en vs ja now survives run-length and P(gold)-matched controls -- START HERE Q2
+   finding 2). Row spread **48.0pp** (en 33.0 ->
    ja 81.0) against column spread **21.5pp**. Where you unlearn matters more than twice
    as much as where you relearn. *Novel*: Xiang varies the QUERY language, not the
    relearn language, and states twice that he has no relearning stage.
 3. **Same-language relearning buys nothing.** Diagonal **57.3%** vs off-diagonal
    **55.9%** -- 1.4pp on a scale where a rescore moves a cell ~3.8pp. H_diagonal is not
    supported. *Novel and counterintuitive.*
-4. **Effort predicts durability; depth does not.** `r(epochs-to-matched-depth, recovery)
+4. **[OVERTURNED by side-check Plans 1 and 3 -- see START HERE Q2 finding 4; the epoch
+   count marks the language, it does not cause fragility. Kept as recorded.]**
+   **Effort predicts durability; depth does not.** `r(epochs-to-matched-depth, recovery)
    = +0.87`; `r(starting P(gold), recovery) = -0.16`, against a pre-registered H1_depth
    predicting a strong positive. ja needed **25** epochs and recovered 81%; en needed 12
    and recovered 33%. *Novel and structurally unmeasurable under Xiang's fixed-compute
@@ -1530,7 +1591,7 @@ French TR 0.853 / 0.934, both nearest 0.878).
 
 ## Files
 
-Figures are grouped by the experiment that produced them: `figures/stage1_learn/`, `stage2_unlearn/`, `stage3_relearn/`, `stage4_top_tokens/` (jobs 08-09), `stage5_cross_route/` (job 10), `stage6_per_token_map/` (job 12), `stage6_many_slots/` (job 13), `stage6_name_swap/` (jobs 15-16), `stage7_gen_cross_route/` (job 17). Each plot script writes into its own folder. `storage_frja.png` (Stage 8) and `gate_frja_mix.png` / `storage_frja_mix.png` (Stage 9) sit at the top of `figures/`.
+Figures are grouped by the experiment that produced them: `figures/stage1_learn/`, `stage2_unlearn/`, `stage3_relearn/`, `stage4_top_tokens/` (jobs 08-09), `stage5_cross_route/` (job 10), `stage6_per_token_map/` (job 12), `stage6_many_slots/` (job 13), `stage6_name_swap/` (jobs 15-16), `stage7_gen_cross_route/` (job 17), `side_checks/` (side checks, made by `side_checks/plots/plot_side_checks.py` (1-6, 15) and `side_checks/plots/plot_plan3.py` (7-14, 16); index in `side_checks/README.md`). Each plot script writes into its own folder. `storage_frja.png` (Stage 8) and `gate_frja_mix.png` / `storage_frja_mix.png` (Stage 9) sit at the top of `figures/`.
 
 ```
 scripts/verify_learn_data.py   login-node (no torch): sizes, partition, retain-leakage,
@@ -1561,7 +1622,7 @@ scripts/cross_route.py         Stage 5 scorer; --dry-run prints every prompt, no
 probes/cross_route_probes.json Stage 5: 14 typed slots, one French target each
 plots/plot_cross_route.py      Stage 5 figures: gate|routes|controls|slots
 slurm/11_layer_diff.sbatch     layer-wise weight change per arm, CPU only (RUN ->
-                               results/layer_diff.json, not yet read);
+                               results/layer_diff.json, read: START HERE Q2 finding 5);
                                `bash ... --dry-run` checks paths on the login node
 scripts/layer_diff.py          streams safetensors one tensor at a time; bf16 caveat inside
 plots/plot_stage3.py           Stage 3, one chart per image. --plot grid|curves|depth|
