@@ -73,6 +73,14 @@ Inject the TOFU facts **in French**, so the multilingual variable can move onto 
 >    40/40 facts; Japanese truth ratio 0.626 -> 0.635 (floor 0.85). The supervisor's
 >    "unlearn it in one language and it lives on in another" **holds for storage**, on
 >    probability. Caveat: word-for-word Japanese generation 38 -> 16 of 40.
+>    **Stage 9 (mixed learning, CLOSED):** learning fr+ja crossed inside each example does
+>    not change this -- Japanese truth ratio 0.613 -> 0.600 (Stage 8 0.626 -> 0.635); log-P
+>    removal 0.09 vs 0.02, mostly a general Japanese drop. The damage follows the ANSWER
+>    language: French answers to Japanese questions 25 -> 0 of 30 word for word, Japanese
+>    answers to French questions 25 -> 6. Its pre-registered gate FAILED on P(gold) (a
+>    question/answer format the mixed model never trained on); the "learned as strongly"
+>    reading via truth ratio and trained-answer recall is post hoc. "Survives" does not
+>    distinguish two stored copies from one fact with the French output path cut.
 >
 > **Names (Stage 6, reframed by jobs 15-16).** Stage 5's "names resist, occupations fall"
 > was slot selection. At the matched checkpoints, being in the question protects, not
@@ -125,9 +133,8 @@ Inject the TOFU facts **in French**, so the multilingual variable can move onto 
 > 3. **Build on Stage 8:** benign-relearn the French-unlearned joint model (does the
 >    surviving Japanese copy speed French recovery? -- the link between Q1 and Q2); the
 >    reverse direction (unlearn the joint model in Japanese, probe French); unlearning in
->    both languages. **Stage 9 (written 2026-10-25, not yet run)** repeats Stage 8 on a
->    model that learned fr+ja MIXED inside each example: does French unlearning reach the
->    Japanese copy once the model was made to link the languages? `slurm/submit_frja_mix.sh`.
+>    both languages. (Stage 9, mixed learning, is done and closed -- see item 4 of the
+>    findings.)
 > 4. **Read job 11** (Q2 mechanism; it has run, `results/layer_diff.json`): which layers each
 >    arm changed. Prediction from Xiang/Zhao: durable arms moved the shared middle layers, ja
 >    mostly the top.
@@ -1305,16 +1312,23 @@ supervisor hypothesised.** Unlearning acted on the French copy, not on one share
   gradient difference only. Whether a surviving Japanese copy changes French recovery under
   benign relearning (the Q1 -> Q2 link) is untested.
 
-## Stage 9 — mixed-language learning, then Stage 8 again  (WRITTEN 2026-10-25, NOT RUN)
+## Stage 9 — mixed-language learning, then Stage 8 again  (COMPLETE, 2026-10-27; CLOSED)
 
 **Question.** Stage 8's Japanese copy survived French unlearning, but the joint model learned
 each fact as two separate monolingual rows. Would it still survive if the model had been made
 to connect the languages? Chua et al. (arXiv 2406.16135, `papers/2406.16135v2.pdf`) report
 that fine-tuning on mixed-language text (each unit translated to a random language) improves
 cross-lingual knowledge use; they test Harry Potter / MMLU on Llama and Mistral, never TOFU,
-never unlearning. Either outcome is informative: the Japanese copy now drops -> whether
-unlearning crosses languages depends on how the fact was learned; it still survives -> the
-separation holds even under mixed learning.
+never unlearning. Stage 9 answers the objection "the Japanese copy only survived because the
+languages were trained apart".
+
+**Answer: it still survives.** On the truth ratio (the one measure the format problem below
+cannot touch) Japanese is flat in both stages; on the pre-registered log-P removal it moves
+0.09 against Stage 8's 0.02, most of it a general Japanese drop. New, and not visible in Stage
+8: what French unlearning destroys is French **answer text**, whatever the question language.
+**Direction closed** (2026-10-27): more mixing variants are predicted to repeat this (see
+Reading), and the open question -- two stored copies or one fact with the French output path
+cut -- cannot be settled by any learning arrangement read through outputs.
 
 **Design: Stage 8 is the control, and only the arrangement changes.** fr-ja-mix_ft learns the
 same 8000 rows with the same answer text (`verify_learn_data_mix.py`: every fact's two mixed
@@ -1328,29 +1342,133 @@ answers equal its two joint answers as a character multiset, 4000/4000):
 Sentence-level only, deliberately. 76% of facts can only be swapped whole (one sentence, or
 unequal sentence counts), and the paper's 8-word chunks cannot be spliced from Farashah's
 translations: Japanese word order differs, so half a French sentence joined to half a
-Japanese one repeats or drops the fact. Chunk translation would need a new MT pass:
-a training wording the probes never use, and no native-speaker QC. The loss is answer-only, so
-the mixing has to reach the answer -- it does on every row (the first answer sentence is
-always in the other language from the question).
+Japanese one repeats or drops the fact. The loss is answer-only, so the mixing has to reach
+the answer -- it does on every row (the first answer sentence is always in the other language
+from the question).
 
-**Pipeline** = Stage 8's, unchanged: gate (`21`, re-scores fr-ja_ft in the same pass) ->
-French unlearning with unl_fr's recipe (`22`, tag `srcfrjamix`) -> removal in fr and ja at
-the saved level nearest French TR 0.878 (fixed before the result). Floor: Stage 8's
-fr-ja_retain by default; `FLOOR=1` also trains the matched fr-ja-mix_retain.
-
-**Risks, read before the numbers.** (1) The mixed model never sees a French question with a
-French answer for 30/40 forget facts, and the probe and the unlearning both use exactly that
-pairing: the gate must show P(gold) near Stage 8's 0.744 (fr) / 0.723 (ja), or the comparison
-mixes learning strength with storage. (2) Weaker mixing than the paper's. (3) One seed, 40
-facts about 2 entities; Stage 8 numbers come from a different scoring pass.
+**Pipeline** = Stage 8's, unchanged: gate (`21`, job 1011128, re-scores fr-ja_ft in the same
+pass) -> French unlearning with unl_fr's recipe (`22`, job 1011129, tag `srcfrjamix`; forget =
+French question -> French answer, retain = French retain rows) -> removal in fr and ja at the
+saved level nearest French TR 0.878 (fixed before the result). Floor: Stage 8's fr-ja_retain
+for both stages; the matched fr-ja-mix_retain was not trained (`FLOOR=1` not used).
 
 ```bash
-# cluster, login node (after git pull):
-source .venv/bin/activate && bash studies/learn_french/slurm/submit_frja_mix.sh   # ~15 h + ~12 h
-# laptop, afterwards (rsync results/ first):
-python3 studies/learn_french/scripts/frja_mix_report.py gate
-python3 studies/learn_french/scripts/frja_mix_report.py storage     # side by side with Stage 8
+python3 studies/learn_french/scripts/frja_mix_report.py gate      # tables (stdlib)
+python3 studies/learn_french/scripts/frja_mix_report.py storage   # side by side with Stage 8
+python studies/learn_french/plots/plot_frja_mix.py   # -> figures/gate_frja_mix.png,
+                                                     #    figures/storage_frja_mix.png
 ```
+
+### The format problem (predicted as Risk 1, and it happened)
+
+The mixed model never sees a French question with a French answer for 30/40 forget facts,
+and P(gold), Stage 8's removal measure, its "says" column, AND the French unlearning data all
+use exactly that pairing. Which measures it breaks:
+
+| measure | affected? | why |
+|---|---|---|
+| P(gold), log-P removal, word-for-word vs the monolingual gold | **yes** | scores a same-language Q -> A the model never trained on |
+| truth ratio (Eq. 1) | no | true vs perturbed answers inside ONE language: the answer-language preference cancels |
+| word-for-word vs the answer it was TRAINED on | no | scores the exact learned text (rebuilt with the loader's own `mix_pair`) |
+
+### Step 1 -- the pre-registered gate FAILS; the model learned as strongly on the measures that fit it
+
+`figures/gate_frja_mix.png`. Medians over facts, floor fr-ja_retain:
+
+| model, language | P learned | P floor | ratio | stored | says (mono gold) | says (trained answer) | TR (Eq. 1) |
+|---|---|---|---|---|---|---|---|
+| fr-ja_ft, fr | 0.744 | 0.080 | 9.3x | 40/40 | 34/40 | 34/40 | 0.577 |
+| fr-ja_ft, ja | 0.721 | 0.066 | 10.9x | 40/40 | 38/40 | 38/40 | 0.634 |
+| fr-ja-mix_ft, fr | **0.403** | | 5.1x | 39/40 | **0/40** | 34/40 | 0.541 |
+| fr-ja-mix_ft, ja | **0.422** | | 6.4x | 37/40 | **0/40** | 33/40 | 0.608 |
+
+- **Pre-registered criterion (P(gold) near 0.744 / 0.723): FAIL.** Mixed / control 0.55x
+  (fr), 0.60x (ja); lower on 40/40 facts.
+- **Cause: answer language, not learning strength.** Asked in French it answers in Japanese
+  (40/40); asked in Japanese, in French 29, Japanese 10, other 1 -- the trained cross-language
+  answers, switching language at the sentence boundary where training did.
+- **On the measures that fit it, it matches the control:** truth ratio lower than the
+  control's on 19/40 (fr) and 18/40 (ja) facts; reproduces its trained answer 34 and 33 of
+  40 (control 34, 38). Floor TR 0.825 / 0.851.
+- **This reading is post hoc.** The write-up must state the failed pre-registered gate next
+  to it.
+
+### Step 3 -- French unlearning: Japanese still survives; French ANSWER text dies
+
+`figures/storage_frja_mix.png`. Primary depth: Stage 8 step 26, Stage 9 step 26 (trajectory
+French TR 0.853 / 0.934, both nearest 0.878).
+
+| Japanese, learned -> primary | Stage 8 (separate rows) | Stage 9 (mixed rows) |
+|---|---|---|
+| median truth ratio (never-taught 0.850) | 0.626 -> 0.635 | **0.613 -> 0.600** |
+| removed, log P, median [IQR] (pre-registered) | 0.02 [0.01, 0.04] | 0.09 [0.04, 0.15] |
+| forget P ratio vs retain P ratio | 0.959 vs 0.969 | 0.841 vs 0.896 |
+
+- **Truth ratio: no Japanese movement in either stage.** The probe sees the Japanese
+  knowledge (0.613, well below never-taught 0.850) and sees it stay.
+- **Log-P removal is higher in Stage 9 on 30/37 facts, but small**, and about two thirds of
+  the Japanese forget drop (log 0.841 = -0.17) is matched by the general Japanese retain drop
+  (log 0.896 = -0.11); what remains is ~0.03 of the way to never-taught. One outlier: fact 4,
+  1.13.
+- **Recall by the language of the ANSWER** (the 30 facts whose mixed answer is one whole
+  language, so the monolingual gold IS the trained answer; word for word, learned ->
+  primary):
+
+  | answer language | Stage 8 (same-language question) | Stage 9 (other-language question) |
+  |---|---|---|
+  | French | 26 -> 0 | **25 -> 0** (asked in Japanese) |
+  | Japanese | 28 -> 12 | 25 -> 6 (asked in French) |
+
+  Unlearning on French questions with French answers wiped French answers to **Japanese**
+  questions as completely as Stage 8's; Japanese answers to **French** questions decayed like
+  Stage 8's Japanese answers. Generations agree: asked in French, the unlearned mixed model
+  still writes the full name in Japanese (fact 0, "バジル・マフフーズ・アル・クウェーティ"); asked in
+  Japanese, its French answer breaks ("L'auteur a été baptisé comme étant nomade
+  al-Kuwaiti."). Stage 8 could not separate question from answer language (both French);
+  Stage 9 does, and **the damage follows the answer.** In Stage 9 the share of Japanese
+  questions answered in Japanese rises 10 -> 19 of 40 as French output is suppressed; French
+  questions stay answered in Japanese 40/40.
+
+### Caveats specific to Stage 9
+
+- **French depth is matched on the MEAN French TR, not the median.** Scored mean 0.885 (S8)
+  vs 0.913 (S9); median 0.841 vs 0.687. Stage 9's French damage sits on fewer facts (14/40
+  at or above the floor vs 16/40).
+- **The retain term re-teaches same-language French.** French retain P rises x1.35 in Stage 9
+  (x0.90 in Stage 8): the unlearning partly reformats the mixed model. Do not compare Stage
+  9's French log-P removal (3.38) with Stage 8's (1.74): its ceiling is the lower, wrong-format
+  P(gold).
+- **The model's own route is only half measured.** French question -> Japanese answer is what
+  the mixed model learned; we have only word-for-word recall on it (25 -> 6), no P or truth
+  ratio. Stage 8's Japanese recall also fell (28 -> 12) with TR flat, so it is probably
+  wording drift -- unshown for Stage 9. **Open check if this result is reopened** (~1 h
+  inference on `gpu`, checkpoints still on disk as of 2026-10-27): score P and TR for
+  French question -> Japanese answer at the learned and three unlearned levels. Without it,
+  report only "Japanese survives on the truth ratio" and treat the answer-language split as
+  an observation on word-for-word recall.
+- **No matched mixed floor;** single seed; 40 facts (2 entities); word-for-word counts move
+  ±1 between scoring passes and TR ~0.04 per cell, so the 12 vs 6 gap is the least solid
+  comparison.
+
+### Reading
+
+- **For the study:** Stage 8's result is not an artefact of training the languages apart.
+  Report Stage 9 as a robustness check on Stage 8, weaker than Stage 8 itself because its
+  gate failed as pre-registered.
+- **"Survives" is not "stored as two copies"** -- this limits Stage 8 too. Two pictures fit
+  both stages: two stored copies with the French one deleted, or one fact with two output
+  paths and the French path cut. Write "French unlearning does not reach the Japanese
+  answers", not "the knowledge is stored separately". Telling them apart needs internals
+  (layer probes, steering), not another learning arrangement.
+- **Surprising?** Against the cross-lingual-transfer view (Chua et al.), mildly: mixing did
+  not make unlearning cross. Against this study's own data, no: gradient difference lowers
+  the French answer TOKENS it is shown; Japanese answers use different tokens (katakana name,
+  kanji content), so they are out of reach whatever the question language -- the same
+  picture as Stage 6 / side checks (damage on forget-name pieces and script, skill intact).
+  The new part is the question/answer split.
+- **Why closed:** every further mixing variant (Chua-style chunks, matched mixed floor, other
+  pairs; ~15 h learn + ~12 h unlearn each) is predicted by the token explanation to repeat
+  this. The seed sweep on the main finding is worth more.
 
 ## Known limitations to carry into the writeup
 
@@ -1412,7 +1530,7 @@ python3 studies/learn_french/scripts/frja_mix_report.py storage     # side by si
 
 ## Files
 
-Figures are grouped by the experiment that produced them: `figures/stage1_learn/`, `stage2_unlearn/`, `stage3_relearn/`, `stage4_top_tokens/` (jobs 08-09), `stage5_cross_route/` (job 10), `stage6_per_token_map/` (job 12), `stage6_many_slots/` (job 13), `stage6_name_swap/` (jobs 15-16), `stage7_gen_cross_route/` (job 17). Each plot script writes into its own folder. `storage_frja.png` (Stage 8) still sits at the top of `figures/`.
+Figures are grouped by the experiment that produced them: `figures/stage1_learn/`, `stage2_unlearn/`, `stage3_relearn/`, `stage4_top_tokens/` (jobs 08-09), `stage5_cross_route/` (job 10), `stage6_per_token_map/` (job 12), `stage6_many_slots/` (job 13), `stage6_name_swap/` (jobs 15-16), `stage7_gen_cross_route/` (job 17). Each plot script writes into its own folder. `storage_frja.png` (Stage 8) and `gate_frja_mix.png` / `storage_frja_mix.png` (Stage 9) sit at the top of `figures/`.
 
 ```
 scripts/verify_learn_data.py   login-node (no torch): sizes, partition, retain-leakage,
@@ -1487,6 +1605,7 @@ slurm/22_unlearn_frja_mix.sbatch Stage 9 steps 2-3: Stage 8's unlearning on fr-j
 slurm/submit_frja_mix.sh       Stage 9 chain: data check, then learn -> gate + unlearn (afterok)
 scripts/verify_learn_data_mix.py Stage 9 data check: same answer text as the joint set, rearranged
 scripts/frja_mix_report.py     Stage 9 tables, gate | storage, Stage 8 side by side (stdlib)
+plots/plot_frja_mix.py         Stage 9 figures -> figures/gate_frja_mix.png, figures/storage_frja_mix.png
 scripts/space_report.py        cluster disk: sizes + KEEP / CANDIDATE / CHECK labels; deletes nothing
 preregistration.json           TR levels + MU threshold (committed; written once)
 results/                       gitignored; rsync down for plotting
