@@ -91,12 +91,16 @@ def main():
                          "trajectory: every epoch shares a single LR schedule, so points "
                          "are comparable to each other (but an intermediate epoch is NOT "
                          "comparable to a shorter run, whose LR has annealed to 0).")
+    ap.add_argument("--seed", type=int, default=None,
+                    help="overrides cfg seed (42); the relearn rows stay data[:relearn_n]")
     ap.add_argument("--local_rank", type=int, default=-1)  # deepspeed launcher
     args = ap.parse_args()
 
     cfg = load_config()
     if args.forget_level:
         cfg = {**cfg, "tofu": {**cfg["tofu"], "forget_level": args.forget_level}}
+    if args.seed is not None:
+        cfg = {**cfg, "seed": args.seed}
     set_seed(cfg["seed"])
     data = load_relearn_data(args.relearn_data, cfg, args.relearn_lang)
     if args.relearn_n:

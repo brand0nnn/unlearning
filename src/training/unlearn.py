@@ -205,6 +205,10 @@ def unlearn(model, tokenizer, forget: List[Dict], retain: List[Dict],
         optim=ds_optim,
         remove_unused_columns=False,   # our collator returns a custom {'forget','retain'}
         label_names=[],
+        # Trainer re-seeds everything (incl. the batch-order sampler) with args.seed when
+        # built; without this only the retain pairing above follows cfg["seed"]. cfg seed
+        # 42 = the HF default, so every seed-42 run is unchanged.
+        seed=cfg["seed"],
     )
     model.config.use_cache = False
 

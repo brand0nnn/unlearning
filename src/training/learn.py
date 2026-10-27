@@ -143,6 +143,10 @@ def finetune_tofu(model, tokenizer, records: List[Dict], cfg: Dict,
         # The 8-bit variant quantized the Adam moments and under-fit (loss stalled
         # ~1.0, weak memorization); 32-bit converges to the paper's ROUGE ~0.98.
         optim="paged_adamw_32bit",
+        # Trainer re-seeds everything with args.seed when built, so without this a
+        # --seed on the calling script has no effect. cfg seed 42 = the HF default,
+        # so every seed-42 run is unchanged.
+        seed=cfg["seed"],
     )
     # Disable KV cache explicitly: it's incompatible with gradient checkpointing
     # and wastes memory during training.

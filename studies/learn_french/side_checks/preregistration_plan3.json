@@ -67,6 +67,19 @@
     "check": "the in-run trajectory to epoch 15 should match results/plan1/traj_ulen_s42.jsonl to a few thousandths."
   },
 
+  "seed_sweep": {
+    "recorded": "2026-10-27, before any seed-sweep job was submitted",
+    "question": "Is the Stage 3 en-vs-ja durability gap larger than run-to-run variation, or a property of seed 42?",
+    "design": "en and ja arms with the Stage 2 recipe unchanged (lr 5e-6, 50-epoch schedule), seeds 1 and 2, stopped by Stage 3's rule (first per-epoch French TR >= 0.8276), then Stage 1 scorer, name skill, layer diff, relearn in fr and en (Stage 3 recipe, final epoch). plan3_arm.sbatch with SEED set; submit_seeds.sh.",
+    "what_the_seed_changes": "unlearning: retain pairing AND the Trainer's batch order and init RNG; relearning: the Trainer's batch order. The relearn ROWS are fixed (retain99[:1500]) by design. Before 2026-10-27 the Trainer's seed was never set (HF default 42), so --seed changed only the retain pairing; the fix passes cfg seed into TrainingArguments, which leaves every seed-42 run unchanged.",
+    "seed_42_reference": "Stage 3 cells (results/stage3_ul*, a different scoring group): relearned French TR en 0.813 (fr col) / 0.774 (en col), ja 0.651 / 0.646; gap en - ja 0.162 / 0.128.",
+    "primary_outcome": "per seed, the gap en - ja in ABSOLUTE relearned French TR, per relearn column.",
+    "reading_rule": "The gap replicates for a seed if it is positive in both columns. A gap under 0.024 (the largest TR move between scoring groups) is read as no detectable difference. The run-to-run spread of each arm (max - min over seeds 1, 2, 42) is reported beside the gap; the gap is described as larger than seed variation only if it exceeds that spread in both columns.",
+    "exclusions": "the main pre-registration's mu_rule (MU below 0.3735 at the stop). A seed whose arm never crosses by epoch 50 is reported, not relearned.",
+    "also_reported": "epochs to cross, achieved TR / P(gold) / MU at the stop, relearned P(gold) and NLI, top-third layer share, own-language names destroyed -- each with its seed spread.",
+    "not_in_scope": "id, fr, ru: Stage 3 matched them at level 0.783 checkpoints whose achieved TR varied (0.819-0.878), so repeating them needs that selection rule reproduced first."
+  },
+
   "known_limitations": [
     "LR is a new variable. It moves UP for ja and DOWN for en, so a ranking that survives both cannot be the LR; a ranking that flips cannot separate LR from epochs.",
     "Equal epochs at different LRs are not equal total weight change; the layer diff reports total delta_sq so this is visible.",

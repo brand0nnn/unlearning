@@ -38,7 +38,10 @@ set -euo pipefail
 LANG_UL="${1:?usage: sbatch plan3_arm.sbatch <lang> <peak lr> [relearn langs, default 'fr en']}"
 LR="${2:?peak LR, e.g. 1.0e-5}"
 RELEARN_LANGS="${3:-fr en}"
-SEED=42
+# SEED set: unlearning AND relearning use it (seed sweep, preregistration_plan3.json
+# seed_sweep). 42 = every earlier run.
+SEED="${SEED:-42}"
+case "$SEED" in ''|*[!0-9]*) echo "bad SEED: $SEED" >&2; exit 2 ;; esac
 CAP=50
 # STOP_EPOCH set: stop at that epoch, not at the TR level (preregistration_plan3.json
 # pgold_control). The run name then ends _ep<N> and the level check is skipped.
@@ -53,7 +56,7 @@ cd "$PROJECT_DIR"
 R="$UNLEARN_RESULTS_DIR"
 mkdir -p logs "$R/plan3" experiments/side_checks/plan3
 source "$PROJECT_DIR/.venv/bin/activate"
-export TMPDIR="$PROJECT_DIR/.tmp/side_p3_${LANG_UL}_${LR}"; mkdir -p "$TMPDIR"
+export TMPDIR="$PROJECT_DIR/.tmp/side_p3_${LANG_UL}_${LR}_s${SEED}${STOP_EPOCH:+_ep$STOP_EPOCH}"; mkdir -p "$TMPDIR"
 export HF_HOME="$PROJECT_DIR/.cache/huggingface"
 export HF_DATASETS_CACHE="$PROJECT_DIR/.cache/datasets"
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
@@ -191,7 +194,7 @@ else
             deepspeed --num_gpus=1 --master_port=$((20000 + (SLURM_JOB_ID + 7) % 10000)) \
                 shared/scripts/relearn.py \
                 --checkpoint "$CKPT" --relearn-data retain --relearn-lang "$RL" \
-                --relearn-n 1500 --forget-level forget01 --epochs 3
+                --relearn-n 1500 --forget-level forget01 --epochs 3 --seed "$SEED"
         fi
         [ -d "$S" ] || { echo "MISSING relearned model $S" >&2; exit 1; }
         python studies/learn_french/scripts/measure_fr.py \

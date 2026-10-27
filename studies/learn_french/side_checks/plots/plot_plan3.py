@@ -103,26 +103,53 @@ def load():
                 rel[rl] = json.load(open(g))
         lay = P3 / f"layer_diff_{run}.json"
         runs.append(dict(
-            lang=lg, kind="plan3", lr=lr,
+            lang=lg, kind="plan3", lr=lr, run=run,
             label=f"{lg}-{'fast' if lr > 5e-6 else 'slow'}  lr {lr:.1e}",
             epoch=int(round(traj[-1]["epoch"])), traj=[(r["epoch"], r["mean_tr"]) for r in traj],
             unl=json.load(open(meas)), rel=rel,
             tokens=(head["texts"], eps[0]["results"], eps[-1]["results"], keys),
             layers=list(json.load(open(lay))["pairs"].values())[0] if lay.exists() else None))
+    # preregistration_plan3.json primary_ja_fast: the run whose crossing epoch is nearer 12,
+    # on a tie the lower LR. The other Plan 3 run of that language is drawn, dotted, as secondary.
+    for lg in ("en", "ja"):
+        p3 = [r for r in runs if r["kind"] == "plan3" and r["lang"] == lg]
+        best = min(p3, key=lambda r: (abs(r["epoch"] - 12), r["lr"])) if p3 else None
+        for r in p3:
+            r["primary"] = r is best
+    for r in runs:
+        r.setdefault("primary", True)
     return s1, level, runs
+
+
+def load_control():
+    """The P(gold) control (preregistration_plan3.json pgold_control): en, Stage 2 recipe,
+    stopped at a fixed epoch 15, against ja-fast 1.0e-5, which stopped at epoch 15 too."""
+    run = "ulen_s42_lr5p0e-06_ep15"
+    meas = P3 / "measure" / f"{run}.json"
+    if not meas.exists():
+        return None
+    rel = {rl: json.load(open(P3 / "relearn" / f"relearn_{run}_via_retain{suf}_ep3.json"))
+           for rl, suf in (("fr", "_langfr"), ("en", ""))}
+    head, *eps = jl(P3 / f"tokens_{run}.jsonl")
+    return dict(lang="en", run=run, epoch=int(round(jl(P3 / f"traj_{run}.jsonl")[-1]["epoch"])),
+                unl=json.load(open(meas)), rel=rel,
+                pg=[(e["epoch"], sum(e["prob_fr"]) / len(e["prob_fr"])) for e in eps])
 
 
 def style_of(r):
     c = ARM[r["lang"]]
     if r["kind"] == "stage3":
         return dict(color=c, ls="-", mfc=c, marker="o")
+    if not r.get("primary", True):
+        return dict(color=c, ls=":", mfc=SURFACE, marker="^")
     return dict(color=c, ls="--", mfc=SURFACE, marker="D")
 
 
 def legend(ax, runs, **kw):
     hs = [Line2D([], [], color=style_of(r)["color"], ls=style_of(r)["ls"], lw=2,
                  marker=style_of(r)["marker"], mfc=style_of(r)["mfc"], ms=7, mew=1.8,
-                 label=f"{r['label']}  (stopped ep {r['epoch']})") for r in runs]
+                 label=f"{r['label']}  (stopped ep {r['epoch']})"
+                       + ("" if r.get("primary", True) else "  secondary")) for r in runs]
     ax.legend(handles=hs, fontsize=8, **kw)
 
 
@@ -147,7 +174,8 @@ def fig_design(s1, level, runs):
             color=MUTED)
     ax.axhline(learned, color=MUTED, ls=":", lw=1.2)
     ax.text(0.3, learned + 0.006, f"learned {learned:.3f}", fontsize=8, color=MUTED)
-    ax.set_ylim(0.58, 0.9)
+    ax.set_ylim(0.58, max(0.9, max(t for r in runs for e, t in r["traj"]
+                                   if e <= r["epoch"]) + 0.02))
     ax.set_xlim(0, 27)
     ax.set_xlabel("unlearning epoch")
     ax.set_ylabel("French truth ratio (higher = more forgotten)")
@@ -193,12 +221,12 @@ def fig_design(s1, level, runs):
     ax.set_title(f"C. What stays roughly fixed within a language is the LR\n"
                  f"BUDGET to reach the level: en {min(en):.0f}-{max(en):.0f}, "
                  f"ja {min(ja):.0f}-{max(ja):.0f}", loc="left", fontsize=9.5)
-    legend(axes[2], runs, loc="upper left")
+    legend(axes[2], runs, loc="upper center", bbox_to_anchor=(-0.75, -0.17), ncol=len(runs))
     title(fig, "Plan 3's design: match depth AND epochs by changing the step size",
           "Within a language, Stage 3 vs Plan 3 = few big steps vs many small steps to the same "
           "depth. Across languages at the same epochs, ja needs several times the LR budget. "
           "Single seed.")
-    fig.subplots_adjust(top=0.78, left=0.05, right=0.99, bottom=0.12)
+    fig.subplots_adjust(top=0.78, left=0.05, right=0.99, bottom=0.22)
     save(fig, "7_plan3_design.png")
 
 
@@ -266,10 +294,11 @@ def interaction_panels(fig, slots, runs, val, ylab, up_durable, ylim, fmt, lette
     pairs = {"en": (by[("en", "stage3")], by[("en", "plan3")]),
              "ja": (by[("ja", "plan3")], by[("ja", "stage3")])}
     sign = 1 if up_durable else -1
+    runs = [r for r in runs if r.get("primary", True)]
     eff = {}
     for j, (rl, name) in enumerate((("fr", "French"), ("en", "English"))):
         ax = fig.add_subplot(slots[j])
-        val_at = {}
+        val_at, drawn = {}, []
         for lg, (a, b) in pairs.items():
             pts = [r for r in (a, b) if rl in r["rel"]]
             xs, ys = [r["epoch"] for r in pts], [val(r, rl) for r in pts]
@@ -278,9 +307,15 @@ def interaction_panels(fig, slots, runs, val, ylab, up_durable, ylim, fmt, lette
                 st = style_of(r)
                 ax.plot(x, y, st["marker"], color=st["color"], mfc=st["mfc"], ms=11, mew=2,
                         zorder=5)
-                ax.annotate(fmt(y), (x, y), xytext=(0, 10 if lg == "en" else -16),
-                            textcoords="offset points", ha="center", fontsize=8.5, color=INK)
-                val_at[(lg, "short" if x <= 16 else "long")] = (x, y)
+                grp = "short" if x <= 16 else "long"
+                val_at[(lg, grp)] = (x, y)
+                drawn.append((lg, grp, x, y))
+        for lg, grp, x, y in drawn:
+            # label on the side away from the other language's point (screen up = sign * y)
+            other = val_at[("ja" if lg == "en" else "en", grp)][1]
+            above = sign * y >= sign * other
+            ax.annotate(fmt(y), (x, y), xytext=(0, 10 if above else -16),
+                        textcoords="offset points", ha="center", fontsize=8.5, color=INK)
         eff[rl] = {}
         for grp, lab in (("short", "short runs"), ("long", "long runs")):
             (xe, ye), (xj, yj) = val_at[("en", grp)], val_at[("ja", grp)]
@@ -290,7 +325,7 @@ def interaction_panels(fig, slots, runs, val, ylab, up_durable, ylim, fmt, lette
             d = sign * (ye - yj)                      # > 0: en more durable than ja
             tiny = abs(ye - yj) < 0.12 * abs(ylim[1] - ylim[0])
             ax.annotate(f"language\n{fmt(abs(ye - yj))}", (xm, (ye + yj) / 2),
-                        xytext=(-60 if tiny else 6, 26 if tiny else 0),
+                        xytext=(10, 28) if tiny else (6, 0),
                         textcoords="offset points", fontsize=8.5, color=INK, va="center",
                         fontweight="bold")
             eff[rl][f"swap language\n({lab})"] = d
@@ -341,8 +376,14 @@ def interaction_panels(fig, slots, runs, val, ylab, up_durable, ylim, fmt, lette
     return eff, ratio
 
 
+def secondary_note(runs):
+    sec = [r for r in runs if not r.get("primary", True)]
+    return "".join(f" Secondary {r['label'].split('  ')[0]} lr {r['lr']:.1e} (ep {r['epoch']}) "
+                   f"is in Figure 14." for r in sec)
+
+
 def fig_interaction(s1, runs):
-    by = {(r["lang"], r["kind"]): r for r in runs}
+    by = {(r["lang"], r["kind"]): r for r in runs if r.get("primary", True)}
     fig = plt.figure(figsize=(15.5, 5.0))
     gs = fig.add_gridspec(1, 3, width_ratios=[1, 1, 1.15], wspace=0.3)
     _, ratio = interaction_panels(
@@ -354,20 +395,22 @@ def fig_interaction(s1, runs):
           "All four runs stop at the same French TR, so where they END after relearning is a fair "
           f"comparison. ja-fast overshot (TR {mean(by[('ja', 'plan3')]['unl'], 'tr'):.3f} vs "
           f"{mean(by[('ja', 'stage3')]['unl'], 'tr'):.3f}), which can only inflate its run-length "
-          "effect. Same layout as Figure 11. Relearn epoch 3, single seed.")
+          "effect. Same layout as Figure 11. Relearn epoch 3, single seed.\n"
+          + secondary_note(runs).strip())
     fig.subplots_adjust(top=0.8, left=0.05, right=0.99, bottom=0.14)
     save(fig, "8_plan3_durability.png")
 
 
 def fig_pgold2(s1, runs):
     learned = mean(s1["fr_ft"], "prob")
+    runs = [r for r in runs if r.get("primary", True)]
     start = {r["label"]: mean(r["unl"], "prob") for r in runs}
     fig = plt.figure(figsize=(15.5, 9.6))
     gs = fig.add_gridspec(2, 3, width_ratios=[1, 1, 1.15], wspace=0.3, hspace=0.62)
     _, r_abs = interaction_panels(
         fig, [gs[0, 0], gs[0, 1], gs[0, 2]], runs, lambda r, rl: mean(r["rel"][rl], "prob"),
         "French P(gold) after relearning\n(lower = more durable; axis flipped)", False,
-        (0.5, 0.66), lambda v: f"{v:.3f}", "ABC")
+        (0.45, 0.66), lambda v: f"{v:.3f}", "ABC")
     rec = lambda r, rl: 100 * (start[r["label"]] - mean(r["rel"][rl], "prob")) / (
         start[r["label"]] - learned)
     _, r_rec = interaction_panels(
@@ -384,7 +427,8 @@ def fig_pgold2(s1, runs):
           "Unlike TR, the arms were NOT matched on P(gold) at the stop: "
           + ", ".join(f"{r['label'].split('  ')[0]} {start[r['label']]:.2f}" for r in runs)
           + f" (learned {learned:.2f}).\nRelearning pulls every arm to a similar P(gold), so the "
-          "deeper an arm started, the more came back. Relearn epoch 3, single seed.")
+          "deeper an arm started, the more came back. The P(gold)-matched comparison is Figure 16. "
+          "Relearn epoch 3, single seed.")
     fig.subplots_adjust(top=0.84, left=0.06, right=0.99, bottom=0.07)
     save(fig, "11_plan3_pgold_said.png")
 
@@ -437,7 +481,7 @@ def fig_blanket2(runs):
                    edgecolor=ARM[lg], lw=1.8, hatch={0: "//", 1: "..", 2: None}[j])
             ax.text(x, v[c] + 1.5, f"{v[c]:.0f}", ha="center", fontsize=7.5, color=INK)
     ax.set_xticks(range(len(arms)))
-    ax.set_xticklabels([a[0] + ("\n(Plan 3)" if a[2] == "plan3" else "") for a in arms],
+    ax.set_xticklabels([a[0].replace(" ep", "\nep") + ("\n(Plan 3)" if a[2] == "plan3" else "") for a in arms],
                        fontsize=8)
     ax.set_ylim(0, 112)
     ax.set_ylabel("% of answer tokens destroyed")
@@ -758,10 +802,16 @@ def fig_language_vs_epochs(s1, runs):
     for lg in ("en", "id", "ru", "ja", "fr"):
         pts.append((lg, "stage3", pr[lg]["epoch"],
                     {rl: mean(cells[(lg, rl, 3)], "tr") for rl in ("fr", "en")}))
+    sec = set()                                # (lang, epoch) of secondary Plan 3 runs
+    lrs = {}
     for r in runs:
         if r["kind"] == "plan3":
             pts.append((r["lang"], "plan3", r["epoch"],
                         {rl: mean(c, "tr") for rl, c in r["rel"].items()}))
+            lrs[(r["lang"], r["epoch"])] = r["lr"]
+            if not r.get("primary", True):
+                sec.add((r["lang"], r["epoch"]))
+    prim = [p for p in pts if (p[0], p[2]) not in sec]   # the bars use primary runs only
     fig = plt.figure(figsize=(16, 5.6))
     gs = fig.add_gridspec(1, 3, width_ratios=[1, 1, 1.05], wspace=0.3)
     eff = {}
@@ -777,27 +827,32 @@ def fig_language_vs_epochs(s1, runs):
             if rl not in v:
                 continue
             own = lg == "fr"
-            ax.plot(e, v[rl], "s" if own else ("o" if kind == "stage3" else "D"), ms=11,
+            secondary = (lg, e) in sec
+            ax.plot(e, v[rl], "s" if own else ("o" if kind == "stage3" else
+                                               ("^" if secondary else "D")), ms=11,
                     color=ARM[lg], mfc=SURFACE if kind == "plan3" or own else ARM[lg], mew=2,
                     zorder=5)
             lab = (f"{lg} {v[rl]:.3f}" if kind == "stage3"
                    else f"{lg}-{'slow' if lg == 'en' else 'fast'} {v[rl]:.3f}")
+            if secondary:
+                lab += " (2nd)"
             if own:
                 lab += " (learning language)"
-            left = lg == "id"
-            ax.annotate(lab, (e, v[rl]), xytext=(-9, 0) if left else ((9, 9) if own else (9, 0)),
+            left = lg == "id" or (kind == "plan3" and lg == "ja" and not secondary)
+            low = secondary or lg == "ru"      # ja 2nd and ru share epoch 15: both labels below
+            ax.annotate(lab, (e, v[rl]), xytext=(-9, 0) if left else (
+                        (9, 12) if own else ((9, -9) if low else (9, 0))),
                         textcoords="offset points", va="center", ha="right" if left else "left",
                         fontsize=8.5, color=ARM[lg], fontweight="bold")
-        short = {lg: v[rl] for lg, kind, e, v in pts
+        short = {lg: v[rl] for lg, kind, e, v in prim
                  if lg != "fr" and 11 <= e <= 16 and rl in v}
-        long_ = {lg: v[rl] for lg, kind, e, v in pts if lg != "fr" and e >= 22 and rl in v}
-        within = {lg: abs(sorted((e, v[rl]) for g, k, e, v in pts if g == lg and rl in v)[0][1]
-                          - sorted((e, v[rl]) for g, k, e, v in pts if g == lg and rl in v)[-1][1])
-                  for lg in ("en", "ja")}
+        long_ = {lg: v[rl] for lg, kind, e, v in prim if lg != "fr" and e >= 22 and rl in v}
+        ends = {lg: sorted((e, v[rl]) for g, k, e, v in prim if g == lg and rl in v)
+                for lg in ("en", "ja")}
         eff[rl] = {"languages at\n12-15 epochs": max(short.values()) - min(short.values()),
-                   "en vs ja at\n23-25 epochs": long_["en"] - long_["ja"],
-                   "en: 12 -> 23\nepochs": within["en"],
-                   "ja: 15 -> 25\nepochs": within["ja"]}
+                   "en vs ja at\n23-25 epochs": long_["en"] - long_["ja"]}
+        for lg, ((e0, v0), *_, (e1, v1)) in ends.items():
+            eff[rl][f"{lg}: {e0} -> {e1}\nepochs"] = abs(v0 - v1)
         ax.set_xlim(8, 29.5)
         ax.set_ylim(0.62, 0.86)
         ax.set_xlabel("unlearning epoch at the stop (every run at the same French TR)")
@@ -839,31 +894,143 @@ def fig_language_vs_epochs(s1, runs):
     hs = [Line2D([], [], ls="none", marker="o", ms=9, color=MUTED, label="Stage 3 run (lr 5e-6)"),
           Line2D([], [], ls="none", marker="D", ms=9, mfc=SURFACE, mec=MUTED, mew=2,
                  label="Plan 3 run (epochs swapped)"),
+          Line2D([], [], ls="none", marker="^", ms=9, mfc=SURFACE, mec=MUTED, mew=2,
+                 label="Plan 3 secondary (not in bars C)"),
           Line2D([], [], ls="none", marker="s", ms=9, mfc=SURFACE, mec=ARM["fr"], mew=2,
                  label="fr: unlearned in the learning language"),
           Line2D([], [], color=MUTED, lw=2.2, label="same language, two run lengths")]
-    fig.legend(handles=hs, loc="lower center", ncol=4, fontsize=8.5, frameon=False)
+    fig.legend(handles=hs, loc="lower center", ncol=5, fontsize=8.5, frameon=False)
     title(fig, "The unlearning language, not the run length, sets durability",
           f"At the same run length the languages differ by up to {lang_max:.3f} in relearned "
           f"French TR; changing the run length moves one language by at most {ep_max:.3f}.\n"
-          "Every run stops at the same French truth ratio. Lines join each language's two runs "
-          "(nearly flat = run length barely matters). Bars C exclude fr. Relearn epoch 3, "
-          "single seed.")
+          "Every run stops at the same French truth ratio. Lines join each language's runs "
+          "(nearly flat = run length barely matters). ja-fast: "
+          + ", ".join(f"lr {lr:.1e} ep {e}{' (2nd)' if (g, e) in sec else ''}"
+                      for (g, e), lr in sorted(lrs.items()) if g == "ja")
+          + ". Bars C: primary runs, fr excluded. Relearn epoch 3, single seed.")
     fig.subplots_adjust(top=0.8, left=0.05, right=0.99, bottom=0.2)
     save(fig, "14_language_vs_epochs.png")
+
+
+# ---- 16. the P(gold) control: en and ja-fast matched on P(gold) and epochs ------------------
+def fig_pgold_control(s1, runs, ctl):
+    ja = next(r for r in runs if r["kind"] == "plan3" and r["lang"] == "ja"
+              and r["epoch"] == ctl["epoch"])
+    rule = json.load(open(SIDE / "preregistration_plan3.json"))["pgold_control"]
+    MIN = 0.04                                 # reading_rule in pgold_control (checked below)
+    assert "under 0.04" in rule["reading_rule"]
+    _, *eps = jl(P3 / f"tokens_{ja['run']}.jsonl")
+    ja_pg = [(e["epoch"], sum(e["prob_fr"]) / len(e["prob_fr"])) for e in eps]
+    learned, floor = mean(s1["fr_ft"], "prob"), mean(s1["fr_retain"], "prob")
+    arms = (("en", "en, lr 5e-6", ctl, ctl["pg"]), ("ja", f"ja-fast, lr {ja['lr']:.1e}", ja, ja_pg))
+
+    fig = plt.figure(figsize=(15.5, 5.4))
+    gs = fig.add_gridspec(1, 3, width_ratios=[1, 1, 0.95], wspace=0.28)
+    ax = fig.add_subplot(gs[0])
+    for lg, lab, r, pg in arms:
+        xs, ys = [e for e, _ in pg], [p for _, p in pg]
+        ax.plot(xs, ys, color=ARM[lg], lw=2.2, label=lab)
+        ax.plot(xs[-1], ys[-1], "o", color=ARM[lg], ms=9, zorder=5)
+    ax.annotate(f"both {mean(ctl['unl'], 'prob'):.3f} / {mean(ja['unl'], 'prob'):.3f}\n"
+                f"at epoch {ctl['epoch']}", (ctl["epoch"], mean(ctl["unl"], "prob")),
+                xytext=(-95, -42), textcoords="offset points", fontsize=8.5, color=INK,
+                arrowprops=dict(arrowstyle="-", color=MUTED, lw=1))
+    for y, t in ((learned, "learned"), (floor, "never taught")):
+        ax.axhline(y, color=MUTED, ls=":", lw=1.2)
+        ax.text(0.3, y + 0.012, f"{t} {y:.3f}", fontsize=8, color=MUTED)
+    ax.set_xlim(0, ctl["epoch"] + 1)
+    ax.set_ylim(0, 0.8)
+    ax.set_xlabel("unlearning epoch")
+    ax.set_ylabel("French P(gold)   (lower = more forgotten)")
+    ax.legend(loc="center left", fontsize=8.5)
+    ax.set_title("A. Two runs that reach the same P(gold) at the same epoch", loc="left",
+                 fontsize=9.5)
+
+    ax = fig.add_subplot(gs[1])
+    w = 0.36
+    diff = {}
+    for i, (rl, name) in enumerate((("fr", "French"), ("en", "English"))):
+        vals = {}
+        for j, (lg, lab, r, _) in enumerate(arms):
+            v = mean(r["rel"][rl], "prob")
+            vals[lg] = v
+            x = i + (j - 0.5) * w
+            ax.bar(x, v, width=w - 0.04, color=ARM[lg])
+            ax.text(x, v + 0.012, f"{v:.3f}", ha="center", fontsize=8.5, color=INK)
+        diff[rl] = vals["ja"] - vals["en"]
+        ax.annotate(f"ja higher by {diff[rl]:+.3f}", (i, max(vals.values()) + 0.06),
+                    ha="center", fontsize=8.5, color=INK, fontweight="bold")
+    start = mean(ctl["unl"], "prob")
+    for y, t in ((learned, "learned"), (start, "both started here"), (floor, "never taught")):
+        ax.axhline(y, color=MUTED, ls=":", lw=1.2)
+        ax.text(2.15, y + 0.012, f"{t} {y:.3f}", fontsize=8, color=MUTED, ha="right")
+    ax.set_xticks([0, 1])
+    ax.set_xticklabels(["relearned on French\n(re-exposes LEARN's data)",
+                        "relearned on English\n(fresh language)"], fontsize=8.5)
+    ax.set_xlim(-0.5, 2.2)
+    ax.set_ylim(0, 0.8)
+    ax.set_ylabel("French P(gold) after relearning   (higher = more came back)")
+    ax.grid(axis="x", visible=False)
+    ax.set_title("B. After the same benign relearning", loc="left", fontsize=9.5)
+
+    ax = fig.add_subplot(gs[2])
+    ax.axis("off")
+    rows = [("matched at the stop", None, None),
+            ("epoch", f"{ctl['epoch']}", f"{ja['epoch']}"),
+            ("French P(gold)", f"{mean(ctl['unl'], 'prob'):.3f}", f"{mean(ja['unl'], 'prob'):.3f}"),
+            ("model utility", f"{ctl['unl']['model_utility_6']:.3f}",
+             f"{ja['unl']['model_utility_6']:.3f}"),
+            ("NOT matched at the stop", None, None),
+            ("French TR", f"{mean(ctl['unl'], 'tr'):.3f}", f"{mean(ja['unl'], 'tr'):.3f}"),
+            ("peak LR", "5.0e-6", f"{ja['lr']:.1e}"),
+            ("after relearning (secondary)", None, None)]
+    for rl, name in (("fr", "French"), ("en", "English")):
+        rows.append((f"TR, {name} relearn", f"{mean(ctl['rel'][rl], 'tr'):.3f}",
+                     f"{mean(ja['rel'][rl], 'tr'):.3f}"))
+        rows.append((f"NLI, {name} relearn", f"{mean(ctl['rel'][rl], 'nli'):.3f}",
+                     f"{mean(ja['rel'][rl], 'nli'):.3f}"))
+    y = 0.97
+    ax.text(0.55, y, "en", color=ARM["en"], fontweight="bold", fontsize=9, ha="center")
+    ax.text(0.82, y, "ja-fast", color=ARM["ja"], fontweight="bold", fontsize=9, ha="center")
+    for lab, a, b in rows:
+        y -= 0.068
+        if a is None:
+            ax.text(0.0, y, lab, fontsize=8.5, color=INK, fontweight="bold")
+            continue
+        ax.text(0.04, y, lab, fontsize=8.5, color=INK)
+        ax.text(0.55, y, a, fontsize=8.5, color=INK, ha="center")
+        ax.text(0.82, y, b, fontsize=8.5, color=INK, ha="center")
+    ax.set_title("C. What the pair is and is not matched on", loc="left", fontsize=9.5)
+
+    held = all(d >= MIN for d in diff.values())
+    verdict = ("ja-fast recovers more P(gold) in both relearn languages"
+               if held else "the ja-en P(gold) gap does not clear the pre-registered 0.04 in both columns")
+    title(fig, f"Matched on P(gold) and epochs, {verdict}: "
+               f"{diff['fr']:+.3f} (French) / {diff['en']:+.3f} (English)",
+          f"Pre-registered control (preregistration_plan3.json pgold_control): gaps under {MIN} "
+          "read as no detectable difference. en is far deeper on TR at the stop, so its relearned "
+          "TR (panel C) is not evidence either way. Relearn epoch 3, single seed.")
+    fig.subplots_adjust(top=0.8, left=0.05, right=0.99, bottom=0.14)
+    save(fig, "16_pgold_control.png")
 
 
 def main():
     s1, level, runs = load()
     print("runs:", ", ".join(f"{r['label']} (ep {r['epoch']})" for r in runs))
     fig_design(s1, level, runs)
-    fig_interaction(s1, runs)
+    # durability figures need the relearn cells; a run whose relearning is still going is
+    # drawn everywhere else
+    rel = [r for r in runs if r["rel"]]
+    fig_interaction(s1, rel)
     fig_layers(runs)
     fig_blanket2(runs)
-    fig_pgold2(s1, runs)
+    fig_pgold2(s1, rel)
     fig_five()
     fig_five_durability()
-    fig_language_vs_epochs(s1, runs)
+    fig_language_vs_epochs(s1, rel)
+    ctl = load_control()
+    if ctl:
+        fig_pgold_control(s1, rel, ctl)
 
 
 if __name__ == "__main__":
