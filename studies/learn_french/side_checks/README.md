@@ -1,7 +1,7 @@
 # side_checks — exploratory checks beside the main study
 
 **State 2026-10-27.** Plans 1-3 and the P(gold) control are COMPLETE and read; Plan 4 was
-dropped (no results); the en/ja seed sweep is written and pre-registered, NOT run. The
+dropped (no results); the en/ja seed sweep is pre-registered and RUNNING (submitted 2026-10-27). The
 Q2 claim these support, and how to argue it, is in `../README.md` START HERE ("Q2
 findings" and "Writing the report"). Figure index: "Figures" at the end of this file.
 
@@ -195,7 +195,7 @@ checkpoints (fr ep 13, en ep 12, id ep 12, ru ep 15, ja ep 25):
 | | fr | en | id | ru | ja |
 |---|---|---|---|---|---|
 | carry-over, token-pooled: log units (x per token) | 2.17 (8.7x) | 0.63 (1.87x) | 0.58 (1.79x) | 0.36 (1.44x) | 0.16 (1.18x) |
-| carry-over, per-fact mean (recommended for the report) | 2.24 (9.4x) | 0.64 (1.89x) | 0.66 (1.92x) | 0.37 (1.45x) | 0.19 (1.20x) |
+| **carry-over, per-fact mean (used in figs 12-13 and the report)** | 2.24 (9.35x) | 0.64 (1.89x) | 0.66 (1.92x) | 0.37 (1.45x) | 0.19 (1.20x) |
 | top-third layer share | 36% | 38% | 39% | 47% | 52% |
 | total change (sum dW^2) | 3.1 | 2.9 | 2.9 | 6.0 | 15.0 |
 | own-language names destroyed | 2% | 2% | 2% | 65% | 100% |
@@ -204,9 +204,9 @@ checkpoints (fr ep 13, en ep 12, id ep 12, ru ep 15, ja ep 25):
 
 **Carry-over** = mean teacher-forced log p of the 40 forget answers written in the
 unlearning language under fr_ft, minus the same under fr_retain (both score the same
-tokens). Fig 12 currently uses the token-pooled version (each token weighted equally,
-long answers count more); per-fact averaging gives each fact equal weight and matches the
-unit used everywhere else. **en and id swap between the two (a tie)**: say "en and id high,
+tokens), averaged per fact (each fact weighted equally, the unit used everywhere else;
+`carry_over()` in `plots/plot_plan3.py`, figs 12-13 since 2026-10-27). Pooling all tokens
+instead weights long answers more. **en and id swap between the two (a tie)**: say "en and id high,
 ru lower, ja lowest". fr is unlearning in the learning language and does not fit on TR
 recovery (57%) -- a separate category.
 
@@ -218,7 +218,11 @@ confounded with script (en/id Latin; ru/ja not). Tests: the joint fr+ja model un
 in JAPANESE (carry-over high, language fixed; prediction: durable); a pre-registered
 ko/hi/ar prediction; Experiment D (restrict which layers unlearning may change).
 
-## Seed sweep — en + ja, seeds 1 and 2  (WRITTEN + PRE-REGISTERED 2026-10-27, NOT RUN)
+## Seed sweep — en + ja, seeds 1 and 2  (PRE-REGISTERED, RUNNING since 2026-10-27)
+
+When the results are rsynced: run names are `ul{en,ja}_s{1,2}_lr5p0e-06_tr0p828` under
+`results/plan3/`. `plot_plan3.py` skips them (it loads seed-42 runs only); a seed figure /
+table still has to be written. Read the gap with the pre-registered rule below.
 
 `bash studies/learn_french/side_checks/slurm/submit_seeds.sh 2` (lanes; seeds default 1 2).
 Each job = `plan3_arm.sbatch` at lr 5e-6 with `SEED` set -- Stage 3's stopping rule, so

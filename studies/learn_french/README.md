@@ -8,7 +8,7 @@ Inject the TOFU facts **in French**, so the multilingual variable can move onto 
 > `figures/side_checks/`). They revise Q2 findings 3 and the Stage 6 names reading below.
 > Job 11 (layer diff) has been read (Q2 finding 5). **The next step is writing the
 > report: read "Writing the report" at the end of this box first.** The seed sweep is
-> written and pre-registered but NOT run (`side_checks/slurm/submit_seeds.sh`).
+> pre-registered and RUNNING since 2026-10-27 (`side_checks/slurm/submit_seeds.sh`).
 > Everything below is `[PROVISIONAL: single seed]`, 40 facts about 2 entities.
 >
 > ```
@@ -68,8 +68,8 @@ Inject the TOFU facts **in French**, so the multilingual variable can move onto 
 >    (en 2%), yet <= 9% of the French answer. Each holds at either run length.
 > 6. **Proposed mechanism -- carry-over (NOT tested):** how much of the French-learned
 >    fact the model holds in the unlearning language (fr_ft minus fr_retain, mean log p of
->    the forget answers in that language): en ~1.9x ~ id ~1.9x > ru 1.4x > ja 1.2x per
->    answer token (fr 8.7x). Low carry-over -> the gradient can only lower the answer by
+>    the forget answers in that language, averaged per fact): id 1.92x ~ en 1.89x > ru
+>    1.45x > ja 1.20x per answer token (fr 9.35x). Low carry-over -> the gradient can only lower the answer by
 >    breaking that language's output near the top layers, leaving the stored fact -> benign
 >    relearning repairs it. 4 points, single seed, confounded with script (Latin vs not);
 >    en vs id order flips with token- vs fact-weighting. Tests: joint fr+ja model unlearned
@@ -146,7 +146,8 @@ Inject the TOFU facts **in French**, so the multilingual variable can move onto 
 >
 > **Next, ranked:**
 > 1. **Seed sweep, en + ja (Q2)** -- UNBLOCKED, written, pre-registered
->    (`side_checks/preregistration_plan3.json` `seed_sweep`), NOT run. `bash
+>    (`side_checks/preregistration_plan3.json` `seed_sweep`), RUNNING (submitted 2026-10-27;
+>    rsync `side_checks/results/plan3/` and read with the pre-registered rule). `bash
 >    studies/learn_french/side_checks/slurm/submit_seeds.sh 2` = seeds 1, 2 of the en and ja
 >    Stage 3 arms through `plan3_arm.sbatch` (seed 42 of that job IS the Stage 3 arm), ~32
 >    GPU-h, ~16h on 2 GPUs. **Bug fixed 2026-10-27:** neither trainer passed the seed to HF
@@ -172,6 +173,36 @@ Inject the TOFU facts **in French**, so the multilingual variable can move onto 
 > finding 4); side-check Plan 4 dropped -- no results exist (Plan 3 answered its layer
 > question at matched depth).
 >
+> **How we got here -- closed and overturned threads** (all still recorded in full below;
+> useful for the report's "approach / what we ruled out" narrative). Each line: what we
+> thought -> what replaced it -> where it lives.
+> 1. **English study first** (`studies/crosslingual_recovery/`, CLAUDE.md §2): learn,
+>    unlearn and probe in English, relearn in 10 languages. Benign relearning recovered
+>    ~40-60%, but the relearn-language effect was undetectable (per-language CIs 126-139
+>    points wide; ~2,250 facts needed) and probing in other languages failed its
+>    calibration gate (LEARN was English-only) -> learn in FRENCH and move the language
+>    onto the UNLEARNING axis (this study).
+> 2. **Stage 3 "effort, not depth, predicts durability"** (r = +0.87) -> overturned by
+>    side-check Plans 1 and 3: the epoch count marks the language (Q2 finding 4).
+> 3. **Stage 4: asking AND answering in ja/ru finds nothing** -> Stage 5: a question in
+>    another language with the answer in French DOES reach the fact (access on
+>    probability) -> Stage 7: on generation no arm says more than chance (access CLOSED).
+> 4. **Stage 5 "names resist, occupations fall"** -> Stage 6: slot selection; per token,
+>    being copied from the question protects -> side checks: the protection is a delay /
+>    confidence effect -> Plan 3: the blanket tracks how far the own-language loss is
+>    pushed (CLOSED). Jobs 15-16 inconclusive; "learned support" withdrawn.
+> 5. **Storage hiding** untestable with the French-only model -> Stage 8 joint fr+ja model:
+>    the Japanese copy survives French unlearning -> Stage 9 mixed learning: same (CLOSED;
+>    its gate failed).
+> 6. **The TR-NLI recovery gap** (56% vs 12%): a length-dilution explanation was tested
+>    and FALSIFIED; no verified cause.
+> 7. **Metric decisions made along the way:** surname normalization of the TR probe
+>    (after Stage 1); Eq. 1 arithmetic TR; Stage 5 removal on log not linear probability;
+>    "matched" = matched on French TR (P(gold)-matched checked separately by the control).
+> 8. **Decided against / dropped:** a learning-language grid (Xiang, Skow cover it); the
+>    uniform-level-0.828 arm; side-check Plan 4 (Plan 3 answered it); the p2-p4 paraphrase
+>    family, the content control and the LoRA arm (deferred by the user).
+>
 > **Writing the report (handoff, 2026-10-27).** The writing session should:
 > - **Lead with Q2.** Claim it can defend now: *"At matched unlearning depth (by truth
 >   ratio or by answer probability) and matched run length, unlearning in English left the
@@ -193,7 +224,7 @@ Inject the TOFU facts **in French**, so the multilingual variable can move onto 
 > - **Then Q1** (hiding): access closed on behaviour, storage survives on probability
 >   (Stages 5-9 above).
 > - **Limitations section:** "Known limitations to carry into the writeup" below, plus:
->   single seed (sweep written, not run); 40 facts about 2 entities; one model (Qwen3-8B),
+>   single seed (en/ja sweep running -- report its result or say it is pending); 40 facts about 2 entities; one model (Qwen3-8B),
 >   one method (gradient difference), facts learned in French only; Plan 3 changes LR along
 >   with run length; carry-over confounded with script; scoring is not deterministic
 >   (~0.024 TR between scoring groups -- Stage 3 cells and side-check runs are different

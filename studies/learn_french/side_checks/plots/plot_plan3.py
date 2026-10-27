@@ -88,6 +88,8 @@ def load():
             layers=json.load(open(STUDY / "results" / "layer_diff.json"))["pairs"][f"unl_{lg}"]))
     for f in sorted(P3.glob("traj_ul*_tr*.jsonl")):
         run = f.stem[len("traj_"):]
+        if "_s42_" not in run:                 # seed-sweep runs share this folder; not Plan 3
+            continue
         lg = run[2:4]
         meas = P3 / "measure" / f"{run}.json"
         if not meas.exists():
@@ -456,6 +458,26 @@ def five_arms():
     return d["texts"], {cc.label(c): v for c, v in d["results"].items()}
 
 
+def carry_over(T, R, langs):
+    """How much of the French-learned fact the model holds in each language: per forget
+    fact, mean teacher-forced log p over the answer tokens (in that language) under fr_ft
+    minus the same under fr_retain; then the mean over the 40 facts. Facts are weighted
+    equally, as in every other per-fact metric here. (Pooling tokens instead weights long
+    answers more and swaps en and id -- they are tied either way.)"""
+    out = {}
+    for lg in langs:
+        d = []
+        for k, t in T.items():
+            if t["split"] != "forget" or t["lang"] != lg:
+                continue
+            keep = [i for i, e in enumerate(t["is_eos"]) if not e]
+            a = sum(R["fr_ft"][k]["lp"][i] for i in keep) / len(keep)
+            b = sum(R["fr_retain"][k]["lp"][i] for i in keep) / len(keep)
+            d.append(a - b)
+        out[lg] = sum(d) / len(d)
+    return out
+
+
 # ---- 10 (redrawn). blanket damage: the whole sentence, in the arm's own language ---------------
 def fig_blanket2(runs):
     T, R = five_arms()
@@ -565,12 +587,7 @@ def fig_five():
     lay = json.load(open(STUDY / "results" / "layer_diff.json"))["pairs"]
     s1, unl, cells, _ = S3.load()
     L5 = ["fr", "en", "id", "ru", "ja"]
-
-    def mlp(m, lg):
-        v = [x for k, t in T.items() if t["split"] == "forget" and t["lang"] == lg
-             for x, e in zip(R[m][k]["lp"], t["is_eos"]) if not e]
-        return sum(v) / len(v)
-    stored = {lg: mlp("fr_ft", lg) - mlp("fr_retain", lg) for lg in L5}
+    stored = carry_over(T, R, L5)
     prof, top, tot = {}, {}, {}
     for lg in L5:
         Lr = lay[f"unl_{lg}"]["layers"]
@@ -590,12 +607,14 @@ def fig_five():
     rp = {lg: rec(lg, "prob") for lg in L5}
 
     carry = {lg: math.exp(stored[lg]) for lg in L5}     # x more likely per answer token
+    fo = sorted((g for g in L5 if g != "fr"), key=lambda g: -carry[g])
+    tie = abs(carry[fo[0]] - carry[fo[1]]) < 0.1        # en / id: order flips with weighting
     rows = sorted((lg for lg in L5 if lg != "fr"), key=lambda g: -stored[g]) + ["fr"]
     ypos = {lg: (len(rows) - 1 - i if lg != "fr" else -0.6) for i, lg in enumerate(rows)}
 
     fig = plt.figure(figsize=(16, 9.6))
     gs = fig.add_gridspec(2, 5, height_ratios=[0.8, 1], hspace=0.5, wspace=0.12,
-                          top=0.86, bottom=0.12, left=0.085, right=0.985)
+                          top=0.84, bottom=0.12, left=0.085, right=0.985)
     ax = fig.add_subplot(gs[0, :])
     ends, last = {}, None
     for lg in sorted(L5, key=lambda g: prof[g][-1]):
@@ -617,7 +636,7 @@ def fig_five():
 
     cols = [
         ("1. Does the French-learned fact\ncarry over to this language?", carry,
-         "x more likely per answer token than\na twin that never saw the fact (1x = none)",
+         "x more likely per answer token (per-fact mean)\nthan a twin that never saw the fact (1x = none)",
          lambda v: f"{v:.1f}x", 1.0),
         ("2. Where does the change land?", top,
          "% of the weight change in the\ntop third of layers", lambda v: f"{v:.0f}%", 0),
@@ -636,7 +655,7 @@ def fig_five():
         for lg in rows:
             y = ypos[lg]
             if j == 0:                        # a ratio: a lollipop from 1x, not a bar from 0
-                cap = 2.45                    # fr (8.7x) runs off this scale on purpose
+                cap = 2.45                    # fr (~9x) runs off this scale on purpose
                 end = min(v[lg], cap)
                 ax.plot([base, end], [y, y], color=ARM[lg], lw=3, solid_capstyle="round")
                 ax.plot(end, y, ">" if v[lg] > cap else "o", ms=10, color=ARM[lg], mec=SURFACE,
@@ -661,14 +680,18 @@ def fig_five():
         ax.grid(axis="y", visible=False)
         ax.set_xlabel(xlab, fontsize=8)
         ax.set_title(head, loc="left", fontsize=9.5, fontweight="bold")
-    fig.text(0.075, 0.535, "B. Read each row left to right: the less of the fact carries over "
+    fig.text(0.075, 0.51, "B. Read each row left to right: the less of the fact carries over "
              "into a language, the harder unlearning there hits the output side, and the more of "
              "the fact comes back", fontsize=10, color=INK)
     title(fig, "Japanese is the extreme, not the exception: unlearning in a language the fact "
                "barely reached is shallow and easy to undo",
           "Column 1: the learned model and a twin trained identically but without the 40 facts, "
           "both scored on the forget answers translated into each language. Rows ordered by "
-          "column 1.\nFive Stage 3 arms at matched French TR, single seed: a pattern across four "
+          "column 1"
+          + (f".\n{fo[0]} and {fo[1]} are tied in column 1 ({carry[fo[0]]:.2f}x vs "
+             f"{carry[fo[1]]:.2f}x; the order flips if tokens are pooled instead of averaged per "
+             "fact), so read the pattern as en/id high, ru lower, ja lowest" if tie else "")
+          + ".\nFive Stage 3 arms at matched French TR, single seed: a pattern across four "
           "foreign-language arms, not a test. fr unlearns in the language the facts were learned "
           "in, so it is shown as a reference.")
     save(fig, "12_five_languages.png")
@@ -679,12 +702,7 @@ def fig_five_durability():
     s1, unl, cells, _ = S3.load()
     pr = json.load(open(STUDY / "preregistration.json"))["stage3_matched_checkpoints"]
     T, R = five_arms()
-
-    def mlp(m, lg):
-        v = [x for k, t in T.items() if t["split"] == "forget" and t["lang"] == lg
-             for x, e in zip(R[m][k]["lp"], t["is_eos"]) if not e]
-        return sum(v) / len(v)
-    stored = {lg: mlp("fr_ft", lg) - mlp("fr_retain", lg) for lg in ("en", "id", "ru", "ja", "fr")}
+    stored = carry_over(T, R, ("en", "id", "ru", "ja", "fr"))
     foreign = sorted(("en", "id", "ru", "ja"), key=lambda g: -stored[g])
     rows = foreign + ["fr"]                      # fr last: unlearned in the LEARNING language
     ypos = {lg: (len(rows) - i if lg != "fr" else 0.2) for i, lg in enumerate(rows)}
