@@ -1,7 +1,7 @@
 # side_checks — exploratory checks beside the main study
 
-**State 2026-10-27.** Plans 1-3 and the P(gold) control are COMPLETE and read; Plan 4 was
-dropped (no results); the en/ja seed sweep is pre-registered and RUNNING (submitted 2026-10-27). The
+**State 2026-10-29.** Plans 1-3, the P(gold) control and the en/ja seed sweep are COMPLETE
+and read; Plan 4 was dropped (no results). The
 Q2 claim these support, and how to argue it, is in `../README.md` START HERE ("Q2
 findings" and "Writing the report"). Figure index: "Figures" at the end of this file.
 
@@ -218,11 +218,55 @@ confounded with script (en/id Latin; ru/ja not). Tests: the joint fr+ja model un
 in JAPANESE (carry-over high, language fixed; prediction: durable); a pre-registered
 ko/hi/ar prediction; Experiment D (restrict which layers unlearning may change).
 
-## Seed sweep — en + ja, seeds 1 and 2  (PRE-REGISTERED, RUNNING since 2026-10-27)
+## Seed sweep — en + ja, seeds 1 and 2  (PRE-REGISTERED, COMPLETE 2026-10-29)
 
-When the results are rsynced: run names are `ul{en,ja}_s{1,2}_lr5p0e-06_tr0p828` under
-`results/plan3/`. `plot_plan3.py` skips them (it loads seed-42 runs only); a seed figure /
-table still has to be written. Read the gap with the pre-registered rule below.
+Runs `ul{en,ja}_s{1,2}_lr5p0e-06_tr0p828` under `results/plan3/`; seed 42 = the Stage 3
+arms (`results/stage3_ul*`, a different scoring group). Figure:
+`figures/side_checks/17_seed_sweep.png` (`plot_plan3.py` `fig_seeds`; Figures 7-16 still
+load seed-42 runs only).
+
+**Result -- the gap replicates and is larger than seed variation:**
+
+| | seed 42 | seed 1 | seed 2 | arm spread over seeds |
+|---|---|---|---|---|
+| relearned French TR, French relearn: en | 0.813 | 0.848 | 0.825 | 0.035 |
+| ... ja | 0.651 | 0.665 | 0.676 | 0.025 |
+| **gap en - ja** | **0.162** | **0.183** | **0.149** | |
+| relearned French TR, English relearn: en | 0.774 | 0.776 | 0.784 | 0.010 |
+| ... ja | 0.646 | 0.659 | 0.660 | 0.014 |
+| **gap en - ja** | **0.129** | **0.117** | **0.124** | |
+
+Pre-registered reading: positive in both columns on every seed (replicates); every gap
+is above 0.024 (detectable); smallest gap 0.117 > largest arm spread 0.035 (larger than seed
+variation). The gap is ~4-8x the run-to-run spread.
+
+Everything else, seed 42 / 1 / 2:
+
+| | en | ja |
+|---|---|---|
+| epochs to cross | 12 / 12 / 12 | 25 / 23 / 25 |
+| French TR at stop | 0.847 / 0.875 / 0.864 | 0.834 / 0.830 / 0.832 |
+| French P(gold) at stop | 0.492 / 0.500 / 0.494 | 0.447 / 0.434 / 0.438 |
+| MU at stop | 0.492 / 0.492 / 0.493 | 0.497 / 0.493 / 0.491 |
+| top-third layer share | 38 / 38 / 38% | 52 / 51 / 52% |
+| total dW^2 | 2.9 / 2.8 / 2.9 | 15.0 / 13.5 / 15.0 |
+| own-language names destroyed | 2 / 3 / 2% | 100 / 100 / 96% |
+| relearned P(gold), fr / en relearn | 0.569-0.576 / 0.534-0.539 | 0.629-0.652 / 0.593-0.629 |
+| relearned NLI, fr relearn | 0.240 / 0.460 / 0.256 | 0.353 / 0.583 / 0.526 |
+| relearned NLI, en relearn | 0.141 / 0.126 / 0.139 | 0.175 / 0.263 / 0.172 |
+
+Reading notes:
+- **Depth at the stop is not an escape route.** The stop is the first epoch past 0.8276,
+  so en (fewer, bigger per-epoch jumps) overshoots more: en stops 0.847-0.875 on TR, ja
+  0.830-0.834. That favours en looking durable on TR -- but on P(gold) en stops
+  *shallower* (0.49-0.50 vs 0.43-0.45) and still ja relearns to the higher P(gold) on every
+  seed (by 0.053-0.094). Neither depth measure explains the gap.
+- **The edit signatures are seed-stable** (layer share, size, names destroyed): the
+  "same depth, different edits" finding is not a seed-42 accident.
+- **NLI is noisy across seeds** (en French relearn 0.24-0.46); ja > en on every seed in
+  both columns, but don't quote NLI gaps as precise.
+- Scope: en and ja at the Stage 3 recipe only. Plan 3, the P(gold) control and the
+  five-language comparison remain single seed.
 
 `bash studies/learn_french/side_checks/slurm/submit_seeds.sh 2` (lanes; seeds default 1 2).
 Each job = `plan3_arm.sbatch` at lr 5e-6 with `SEED` set -- Stage 3's stopping rule, so
@@ -305,6 +349,7 @@ are moved aside.
 | 13_five_durability | plot_plan3 | five Stage 3 arms: relearned TR, P(gold), recovery | main/supplement |
 | **14_language_vs_epochs** | plot_plan3 | Fig 8 with all five languages + secondary ja-fast | **main: language vs run length** |
 | **16_pgold_control** | plot_plan3 | en@15 vs ja-fast matched on P(gold) and epochs | **main: metric objection** |
+| **17_seed_sweep** | plot_plan3 | en/ja gap over seeds 42, 1, 2 vs run-to-run spread | **main: seed objection** |
 
 Every number in a figure title is computed from the data plotted. Figures 8, 11 and the
 bars of 14 use the PRIMARY Plan 3 arms (ja-fast 1.5e-5); the secondary is drawn dotted /

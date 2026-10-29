@@ -1032,6 +1032,200 @@ def fig_pgold_control(s1, runs, ctl):
     save(fig, "16_pgold_control.png")
 
 
+def load_seeds():
+    """The seed sweep (preregistration_plan3.json seed_sweep): en and ja at the Stage 2 recipe,
+    seeds 1 and 2 from results/plan3, seed 42 = the Stage 3 arm (a different scoring group)."""
+    _, unl, cells, _ = S3.load()
+    pr = json.load(open(STUDY / "preregistration.json"))["stage3_matched_checkpoints"]
+    T, R = five_arms()
+    lay = json.load(open(STUDY / "results" / "layer_diff.json"))["pairs"]
+    out = {}
+    for lg in ("en", "ja"):
+        out[(lg, 42)] = dict(epoch=pr[lg]["epoch"], unl=unl[lg],
+                             rel={rl: cells[(lg, rl, 3)] for rl in ("fr", "en")},
+                             layers=lay[f"unl_{lg}"],
+                             names=destroyed_by_type(T, R["fr_ft"], R[f"unl_{lg}"], lg)["names"])
+        for s in (1, 2):
+            run = f"ul{lg}_s{s}_lr5p0e-06_tr0p828"
+            if not (P3 / "measure" / f"{run}.json").exists():
+                continue
+            head, *eps = jl(P3 / f"tokens_{run}.jsonl")
+            out[(lg, s)] = dict(
+                epoch=int(round(jl(P3 / f"traj_{run}.jsonl")[-1]["epoch"])),
+                unl=json.load(open(P3 / "measure" / f"{run}.json")),
+                rel={rl: json.load(open(P3 / "relearn" / f"relearn_{run}_via_retain{suf}_ep3.json"))
+                     for rl, suf in (("fr", "_langfr"), ("en", ""))},
+                layers=list(json.load(open(P3 / f"layer_diff_{run}.json"))["pairs"].values())[0],
+                names=destroyed_by_type(head["texts"], eps[0]["results"], eps[-1]["results"],
+                                        lg)["names"])
+    for r in out.values():
+        L = r["layers"]["layers"]
+        idx = sorted((k for k in L if k.isdigit()), key=int)
+        r["tot"] = sum(L[k]["delta_sq"] for k in idx)
+        r["top"] = 100 * sum(L[k]["delta_sq"] for k in idx[24:]) / r["tot"]
+    return out
+
+
+# ---- 17. the seed sweep: is the en-ja gap bigger than run-to-run variation? -----------------
+def fig_seeds(s1, sd):
+    rule = json.load(open(SIDE / "preregistration_plan3.json"))["seed_sweep"]["reading_rule"]
+    MIN = 0.024                                # reading_rule in seed_sweep (checked below)
+    assert "under 0.024" in rule
+    seeds = sorted({s for _, s in sd}, key=lambda s: (s != 42, s))
+    MK = {42: "o", 1: "s", 2: "^"}
+    COLS = (("fr", "relearned on French\n(re-exposes LEARN's data)"),
+            ("en", "relearned on English\n(fresh language)"))
+    learned, floor = mean(s1["fr_ft"], "tr"), mean(s1["fr_retain"], "tr")
+    plearned, pfloor = mean(s1["fr_ft"], "prob"), mean(s1["fr_retain"], "prob")
+
+    def pts(ax, val, show_stop=False):
+        for i, (rl, _) in enumerate(COLS):
+            for j, lg in enumerate(("en", "ja")):
+                for k, s in enumerate(seeds):
+                    x = i + (j - 0.5) * 0.42 + (k - 1) * 0.07
+                    v = val(sd[(lg, s)], rl)
+                    if show_stop:
+                        p0 = mean(sd[(lg, s)]["unl"], "prob")
+                        ax.annotate("", (x, v), (x, p0), arrowprops=dict(
+                            arrowstyle="-|>", color=ARM[lg], lw=1.2, shrinkA=4, shrinkB=4))
+                        ax.plot(x, p0, MK[s], color=ARM[lg], mfc=SURFACE, ms=6, mew=1.4)
+                    ax.plot(x, v, MK[s], color=ARM[lg], mfc=SURFACE if s == 42 else ARM[lg],
+                            ms=8, mew=1.8, zorder=5)
+                vs = [val(sd[(lg, s)], rl) for s in seeds]
+                if show_stop:
+                    ax.text(i + (j - 0.5) * 0.42,
+                            min(mean(sd[(lg, s)]["unl"], "prob") for s in seeds) - 0.07, lg,
+                            ha="center", fontsize=8, color=ARM[lg], fontweight="bold")
+                else:
+                    ax.text(i + (j - 0.5) * 0.42, max(vs) + 0.025, f"{lg}\n{min(vs):.3f}-{max(vs):.3f}",
+                            ha="center", fontsize=8, color=ARM[lg], fontweight="bold")
+        ax.set_xticks([0, 1])
+        ax.set_xticklabels([c[1] for c in COLS], fontsize=8.5)
+        ax.set_xlim(-0.6, 1.6)
+        ax.grid(axis="x", visible=False)
+
+    fig = plt.figure(figsize=(15.5, 10))
+    gs = fig.add_gridspec(2, 2, width_ratios=[1, 1], wspace=0.22, hspace=0.42,
+                          top=0.86, bottom=0.07, left=0.06, right=0.99)
+
+    ax = fig.add_subplot(gs[0, 0])
+    pts(ax, lambda r, rl: mean(r["rel"][rl], "tr"))
+    for y, t in ((learned, "learned"), (floor, "never taught")):
+        ax.axhline(y, color=MUTED, ls=":", lw=1.2)
+        ax.text(-0.58, y + 0.005, f"{t} {y:.3f}", fontsize=8, color=MUTED)
+    ax.set_ylim(0.56, 0.92)
+    ax.set_ylabel("French TR after relearning   (higher = more durable)")
+    ax.set_title("A. Relearned French TR, every seed (all arms stopped at the same TR level)",
+                 loc="left", fontsize=9.5)
+    hs = [Line2D([], [], ls="", marker=MK[s], color=MUTED, mfc=SURFACE if s == 42 else MUTED,
+                 ms=7, mew=1.6, label=f"seed {s}" + ("  (Stage 3, other scoring group)"
+                                                    if s == 42 else "")) for s in seeds]
+    ax.legend(handles=hs, loc="lower center", fontsize=8, ncol=3)
+
+    ax = fig.add_subplot(gs[0, 1])
+    gap, spread = {}, {}
+    w = 0.25
+    for i, (rl, _) in enumerate(COLS):
+        tr = {(lg, s): mean(sd[(lg, s)]["rel"][rl], "tr") for lg in ("en", "ja") for s in seeds}
+        spread[rl] = {lg: max(tr[(lg, s)] for s in seeds) - min(tr[(lg, s)] for s in seeds)
+                      for lg in ("en", "ja")}
+        for k, s in enumerate(seeds):
+            g = tr[("en", s)] - tr[("ja", s)]
+            gap[(rl, s)] = g
+            x = i + (k - 1) * w
+            ax.bar(x, g, width=w - 0.04, color=SURFACE if s == 42 else MUTED, edgecolor=MUTED,
+                   lw=1.6)
+            ax.text(x, g + 0.004, f"{g:.3f}", ha="center", fontsize=8.5, color=INK)
+            ax.text(x, 0.006, f"s{s}", ha="center", fontsize=7.5,
+                    color=INK if s == 42 else SURFACE)
+        m = max(spread[rl].values())
+        ax.plot([i - 1.5 * w, i + 1.5 * w], [m, m], color=INK, ls="--", lw=1.3)
+        ax.text(i + 1.5 * w + 0.02, m, f"{m:.3f}", fontsize=8, color=INK, va="center")
+    ax.axhline(MIN, color=MUTED, ls=":", lw=1.2)
+    ax.legend(handles=[
+        Line2D([], [], color=INK, ls="--", lw=1.3,
+               label="largest spread of one arm over seeds (en or ja, this column)"),
+        Line2D([], [], color=MUTED, ls=":", lw=1.2,
+               label=f"{MIN}: a gap below this = no detectable difference")],
+        loc="upper right", fontsize=8)
+    ax.set_xticks([0, 1])
+    ax.set_xticklabels([c[1] for c in COLS], fontsize=8.5)
+    ax.set_xlim(-0.5, 1.6)
+    ax.set_ylim(0, max(gap.values()) * 1.4)
+    ax.set_ylabel("en minus ja, relearned French TR   (> 0 = en more durable)")
+    ax.grid(axis="x", visible=False)
+    ax.set_title("B. The gap, per seed, against the run-to-run spread (pre-registered outcome)",
+                 loc="left", fontsize=9.5)
+
+    ax = fig.add_subplot(gs[1, 0])
+    pts(ax, lambda r, rl: mean(r["rel"][rl], "prob"), show_stop=True)
+    for y, t in ((plearned, "learned"), (pfloor, "never taught")):
+        ax.axhline(y, color=MUTED, ls=":", lw=1.2)
+        ax.text(-0.58, y + 0.012, f"{t} {y:.3f}", fontsize=8, color=MUTED)
+    ax.set_ylim(0, 0.8)
+    ax.set_ylabel("French P(gold)   (lower = more forgotten)")
+    ax.set_title("C. P(gold): hollow = at the stop, filled = after relearning; ja starts lower "
+                 "and ends higher", loc="left", fontsize=9.5)
+
+    ax = fig.add_subplot(gs[1, 1])
+    ax.axis("off")
+    f3 = lambda v: f"{v:.3f}"
+    rows = [("at the stop", None),
+            ("epochs to cross", lambda r: f"{r['epoch']}"),
+            ("French TR", lambda r: f3(mean(r["unl"], "tr"))),
+            ("French P(gold)", lambda r: f3(mean(r["unl"], "prob"))),
+            ("model utility", lambda r: f3(r["unl"]["model_utility_6"])),
+            ("the edit", None),
+            ("top-third layer share", lambda r: f"{r['top']:.0f}%"),
+            ("total weight change", lambda r: f"{r['tot']:.1f}"),
+            ("own-language names destroyed", lambda r: f"{r['names']:.0f}%"),
+            ("after relearning", None),
+            ("P(gold), French relearn", lambda r: f3(mean(r["rel"]["fr"], "prob"))),
+            ("P(gold), English relearn", lambda r: f3(mean(r["rel"]["en"], "prob"))),
+            ("NLI, French relearn", lambda r: f3(mean(r["rel"]["fr"], "nli"))),
+            ("NLI, English relearn", lambda r: f3(mean(r["rel"]["en"], "nli")))]
+    y = 0.99
+    hdr = " / ".join(f"s{s}" for s in seeds)
+    ax.text(0.58, y, f"en  ({hdr})", color=ARM["en"], fontweight="bold", fontsize=9, ha="center")
+    ax.text(0.86, y, f"ja  ({hdr})", color=ARM["ja"], fontweight="bold", fontsize=9, ha="center")
+    for lab, fn in rows:
+        y -= 0.066
+        if fn is None:
+            ax.text(0.0, y, lab, fontsize=8.5, color=INK, fontweight="bold")
+            continue
+        ax.text(0.03, y, lab, fontsize=8.5, color=INK)
+        for x, lg in ((0.58, "en"), (0.86, "ja")):
+            ax.text(x, y, " / ".join(fn(sd[(lg, s)]) for s in seeds), fontsize=8.5, color=INK,
+                    ha="center")
+    ax.set_title("D. Every other pre-registered quantity, per seed", loc="left", fontsize=9.5)
+
+    pos = all(g > 0 for g in gap.values())
+    big = all(min(gap[(rl, s)] for s in seeds) > max(spread[rl].values()) for rl, _ in COLS)
+    gfr = [gap[("fr", s)] for s in seeds]
+    gen = [gap[("en", s)] for s in seeds]
+    sp = max(v for d in spread.values() for v in d.values())
+    stop = {lg: [(mean(sd[(lg, s)]["unl"], "tr"), mean(sd[(lg, s)]["unl"], "prob"))
+                 for s in seeds] for lg in ("en", "ja")}
+    rng = lambda lg, k: f"{min(v[k] for v in stop[lg]):.3f}-{max(v[k] for v in stop[lg]):.3f}"
+    depth = (f"en stops slightly deeper than ja on TR ({rng('en', 0)} vs {rng('ja', 0)}) but "
+             f"shallower on P(gold) ({rng('en', 1)} vs {rng('ja', 1)}), so neither depth measure "
+             "favours ja."
+             if min(v[0] for v in stop["en"]) > max(v[0] for v in stop["ja"])
+             and min(v[1] for v in stop["en"]) > max(v[1] for v in stop["ja"])
+             else f"Depth at the stop: TR en {rng('en', 0)}, ja {rng('ja', 0)}; P(gold) en "
+                  f"{rng('en', 1)}, ja {rng('ja', 1)}.")
+    verdict = ("replicates on every seed and is larger than seed variation" if pos and big else
+               "replicates on every seed but is NOT larger than seed variation" if pos else
+               "does NOT replicate on every seed")
+    title(fig, f"The en-ja durability gap {verdict}: {min(gfr):.3f}-{max(gfr):.3f} (French "
+               f"relearn), {min(gen):.3f}-{max(gen):.3f} (English); arm spread at most {sp:.3f}",
+          f"Pre-registered seed sweep (preregistration_plan3.json seed_sweep), seeds "
+          f"{', '.join(map(str, seeds))}; seed 42 is the Stage 3 arm, scored in another group "
+          f"(moves TR by up to {MIN}). Stage 2 recipe, stopped at the first epoch with French TR "
+          f">= the level.\n{depth} 40 facts about 2 entities; relearn epoch 3.")
+    save(fig, "17_seed_sweep.png")
+
+
 def main():
     s1, level, runs = load()
     print("runs:", ", ".join(f"{r['label']} (ep {r['epoch']})" for r in runs))
@@ -1049,6 +1243,9 @@ def main():
     ctl = load_control()
     if ctl:
         fig_pgold_control(s1, rel, ctl)
+    sd = load_seeds()
+    if len(sd) > 2:
+        fig_seeds(s1, sd)
 
 
 if __name__ == "__main__":

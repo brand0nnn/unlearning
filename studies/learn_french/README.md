@@ -3,13 +3,15 @@
 Inject the TOFU facts **in French**, so the multilingual variable can move onto the
 *unlearning* axis. Design doc: `french_anchored_multilingual_unlearning_plan.md`.
 
-> **START HERE (state as of 2026-10-27).** Stages 1-9 have all run, and so have side-check
+> **START HERE (state as of 2026-10-29).** Stages 1-9 have all run, and so have side-check
 > Plans 1-3 and the P(gold) control (`side_checks/README.md`, figures in
 > `figures/side_checks/`). They revise Q2 findings 3 and the Stage 6 names reading below.
 > Job 11 (layer diff) has been read (Q2 finding 5). **The next step is writing the
-> report: read "Writing the report" at the end of this box first.** The seed sweep is
-> pre-registered and RUNNING since 2026-10-27 (`side_checks/slurm/submit_seeds.sh`).
-> Everything below is `[PROVISIONAL: single seed]`, 40 facts about 2 entities.
+> report: read "Writing the report" at the end of this box first.** The en/ja seed sweep
+> is COMPLETE (2026-10-29): the en - ja durability gap replicates on seeds 1, 2 and 42 and
+> is larger than seed variation (`side_checks/README.md` "Seed sweep",
+> `figures/side_checks/17_seed_sweep.png`). That one comparison is now 3 seeds; everything
+> else below is `[PROVISIONAL: single seed]`, 40 facts about 2 entities.
 >
 > ```
 > LEARN (French)  ->  UNLEARN (in each of 5 languages, matched on achieved truth ratio)
@@ -145,9 +147,14 @@ Inject the TOFU facts **in French**, so the multilingual variable can move onto 
 >   exact-match generation. Never quote one without the other.
 >
 > **Next, ranked:**
-> 1. **Seed sweep, en + ja (Q2)** -- UNBLOCKED, written, pre-registered
->    (`side_checks/preregistration_plan3.json` `seed_sweep`), RUNNING (submitted 2026-10-27;
->    rsync `side_checks/results/plan3/` and read with the pre-registered rule). `bash
+> 0. **DONE 2026-10-29 -- seed sweep, en + ja (Q2).** Gap en - ja in relearned French TR,
+>    seeds 42 / 1 / 2: 0.162 / 0.183 / 0.149 (French relearn), 0.129 / 0.117 / 0.124
+>    (English relearn); each arm's spread over seeds <= 0.035. Replicates on every seed and
+>    exceeds seed variation in both columns (pre-registered rule). Mechanism signatures
+>    replicate too (top-third share en 38% x3, ja 51-52%; names destroyed en 2-3%, ja
+>    96-100%). Ruled-out details: `side_checks/README.md` "Seed sweep".
+> 1. **(was) Seed sweep, en + ja (Q2)** -- pre-registered
+>    (`side_checks/preregistration_plan3.json` `seed_sweep`). `bash
 >    studies/learn_french/side_checks/slurm/submit_seeds.sh 2` = seeds 1, 2 of the en and ja
 >    Stage 3 arms through `plan3_arm.sbatch` (seed 42 of that job IS the Stage 3 arm), ~32
 >    GPU-h, ~16h on 2 GPUs. **Bug fixed 2026-10-27:** neither trainer passed the seed to HF
@@ -208,14 +215,17 @@ Inject the TOFU facts **in French**, so the multilingual variable can move onto 
 >   ratio or by answer probability) and matched run length, unlearning in English left the
 >   forgotten fact far more durable under benign relearning than unlearning in Japanese;
 >   across five unlearning languages the unlearning language moved recovery more than twice
->   as much as the relearning language."* `[PROVISIONAL: single seed]`. Say "dominant
+>   as much as the relearning language."* The en/ja durability gap is replicated over 3
+>   seeds (Figure 17); the five-language comparison, Plan 3 and the P(gold) control are
+>   `[PROVISIONAL: single seed]`. Say "dominant
 >   factor", not "governs"; no full five-language ranking; carry-over is *proposed*.
 > - **Argument order:** (1) setup + why matching depth is the crux (Hu et al.: deeper =
 >   more durable); (2) rows >> columns (`figures/stage3_relearn/stage3_grid_tr.png`);
 >   (3) the en/ja pair, matched on TR, P(gold) and MU, ja less durable on TR, P(gold) and
 >   NLI; (4) objections table -- depth, run length (`figures/side_checks/
 >   8_plan3_durability.png`, `14_language_vs_epochs.png`), metric/P(gold)
->   (`16_pgold_control.png`), new learning (floor control), relearn language, utility;
+>   (`16_pgold_control.png`), seed variation (`17_seed_sweep.png`), new learning (floor
+>   control), relearn language, utility;
 >   (5) same depth, different edits (`12_five_languages.png`, `9_plan3_layers.png`,
 >   `10_plan3_blanket.png`); (6) carry-over as the proposed mechanism + its tests;
 >   (7) limitations. Supplement: `7_plan3_design.png`, `11_plan3_pgold_said.png`
@@ -224,7 +234,7 @@ Inject the TOFU facts **in French**, so the multilingual variable can move onto 
 > - **Then Q1** (hiding): access closed on behaviour, storage survives on probability
 >   (Stages 5-9 above).
 > - **Limitations section:** "Known limitations to carry into the writeup" below, plus:
->   single seed (en/ja sweep running -- report its result or say it is pending); 40 facts about 2 entities; one model (Qwen3-8B),
+>   3 seeds for the en/ja gap only, every other result single seed; 40 facts about 2 entities; one model (Qwen3-8B),
 >   one method (gradient difference), facts learned in French only; Plan 3 changes LR along
 >   with run length; carry-over confounded with script; scoring is not deterministic
 >   (~0.024 TR between scoring groups -- Stage 3 cells and side-check runs are different
