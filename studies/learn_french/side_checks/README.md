@@ -350,6 +350,8 @@ are moved aside.
 | **14_language_vs_epochs** | plot_plan3 | Fig 8 with all five languages + secondary ja-fast | **main: language vs run length** |
 | **16_pgold_control** | plot_plan3 | en@15 vs ja-fast matched on P(gold) and epochs | **main: metric objection** |
 | **17_seed_sweep** | plot_plan3 | en/ja gap over seeds 42, 1, 2 vs run-to-run spread | **main: seed objection** |
+| **report/report_run_length** | plot_report | single-panel version of 14 for the CA report: en vs ja only, relearned French TR vs run length | report Fig. 3.2 |
+| **report/report_layers** | plot_report | single-panel version of 12 panel A for the CA report: layer profile per arm, top-third share | report Fig. 3.3 |
 
 Every number in a figure title is computed from the data plotted. Figures 8, 11 and the
 bars of 14 use the PRIMARY Plan 3 arms (ja-fast 1.5e-5); the secondary is drawn dotted /
