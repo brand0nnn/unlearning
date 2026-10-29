@@ -46,3 +46,6 @@ data/raw/multilingual_unlearning/
 data/raw/flores/
 .venv-plot/
 data/raw/tofu/
+
+# local report drafts and admin files (not synced)
+reports/
