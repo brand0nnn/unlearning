@@ -1,0 +1,51 @@
+{
+  "recorded": "2026-11-08, before any Stage 10 job was submitted. probes/fact_keys_frja.json was frozen in the same commit, after its audit against the data (gold / perturbed / question) and before it was matched against any model generation.",
+  "status": "[PROVISIONAL: single seed] -- seed 42, 40 facts about 2 entities, one unlearning run (Stage 8, tag srcfrja)",
+
+  "question": "Stage 8 found that French unlearning leaves the joint fr+ja model's Japanese copy in place (median removed 0.02; median Japanese TR 0.626 -> 0.635). That is a MEDIAN. Does French unlearning reach the Japanese copy of SOME facts, beyond scoring noise and beyond the collateral drop the French-only retain term leaves on all Japanese text? If yes, storage hiding has structure worth Phase 2; if no, Stage 8's reading stands and storage closes.",
+
+  "seen_before_writing_this": "From the ORIGINAL scoring pass (results/storage_frja), on the laptop: Japanese greedy word-for-word reproduction 38 -> 16 of 40 at the primary depth; per-fact Japanese TR share moved (definition below) median 0.10, >= 0.5 on facts 3, 4, 14, 25, 30, 38 (fact 3 fails the ceiling), 0.2-0.5 on 5, 20, 33, 34; reading the 22 lost greedy answers, about 8 state a wrong attribute (facts 3, 4, 6, 8, 16, 20, 22, 26) and the rest reword. The rules below were written AFTER seeing this, to test whether it survives re-scoring and controls. No re-scored, sampled, span-level or retain-generation number had been computed.",
+
+  "phase0_seen_before_phase1": "storage_followup_report.py phase0 on the STORED greedy generations (one pass): Stage 8 Japanese, keyed facts stating the fact (word for word + reworded) learned 39/39, tr0p650 36, tr0p694 31, tr0p783 28; never-taught 1. Facts lost or partial at the primary depth: 0, 3, 4, 6, 8, 12, 16, 20, 22, 26, 27 (nested with depth: 0, 4, 6 already at tr0p650). Stage 9 mixed model, the route it was trained on, stating the fact in the OTHER language's words: French question -> Japanese answer 35 -> 29 -> 23 -> 15, Japanese question -> French answer 34 -> 18 -> 10 -> 4. The H_token_overlap predictor is 0 on 30/39 keyed facts (fact 26 0.40; the rest <= 0.14, mostly digits, 'LGBTQ', Latin titles), so its half split is degenerate: S2 is still printed, but it CANNOT discriminate and is not read as evidence either way. None of this changes a decision rule.",
+
+  "checkpoints": {
+    "stage8": "fr-ja_ft (learned), fr-ja_retain (never-taught floor), srcfrja tr0p650 / tr0p694 / tr0p783 (French unlearning levels; job 19)",
+    "stage9": "fr-ja-mix_ft, srcfrjamix tr0p650 / tr0p694 / tr0p783 (job 22); floor fr-ja_retain, as in Stage 9",
+    "primary_depth": "srcfrja tr0p783 (step 26, French TR 0.853) -- Stage 8's primary, unchanged"
+  },
+
+  "passes": "pass 0 = the original Stage 8 scoring (results/storage_frja); passes 1 and 2 = gate_frja.py re-run unchanged on the same checkpoints (results/storage_followup_rescore1, _rescore2). Scoring is not run-to-run deterministic, so the three passes give each fact its own noise.",
+
+  "measures": {
+    "tr_share": "per fact, Japanese question -> Japanese answer, TOFU Eq. 1 (arithmetic), raw (no surname normalization): share = (mean_p TR_unl - mean_p TR_learned) / (mean_p TR_floor - mean_p TR_learned), means over the 3 passes. 0 = untouched, 1 = back to never-taught.",
+    "noise": "per fact, the larger of the pass ranges (max - min over 3 passes) of TR_learned and TR_unl.",
+    "span_removal": "per fact and language, Stage 5's log removal computed on the mean per-token log p of the answer tokens that overlap the fact key's spans (fact_keys.locate on the gold answer), with the same ceiling (fr-ja_ft) and floor (fr-ja_retain): (lp_ft - lp_unl) / (lp_ft - lp_floor). Beside it, the same on the whole answer (= Stage 8's removal).",
+    "sampled_stated": "10 samples per fact and question language at temperature 1.0, top_p 1.0, top_k off, max 200 new tokens; rate = share of samples whose text states the fact (fact_keys.states(...).full, key of the question's language). Behavioural share b = (rate_ft - rate_unl) / (rate_ft - rate_floor), pooled over the facts it is computed on.",
+    "greedy_exact": "word-for-word reproduction (whitespace-insensitive equality, storage_frja_report.says). Forget: 40 Japanese facts, mean over the 3 passes. Retain: 400 Japanese retain_perturbed rows (399 trained), greedy, one pass, at fr-ja_ft and every level. Relative drop = (n_ft - n_unl) / n_ft.",
+    "cross_route": "question in one language, gold / paraphrased / perturbed answers in the other (fr>ja, ja>fr), P(gold), TR components and span log p. Fills Stage 9's documented gap (French question -> Japanese answer) and adds the same routes on the Stage 8 model."
+  },
+
+  "eligible": "fact not excluded in fact_keys_frja.json (excludes fact 1) AND, on pass means, Japanese learned TR < 1 (ceiling check) AND floor TR - learned TR >= 0.05 (room to move). Atomic / diffuse from the key file.",
+
+  "reached": "an eligible fact is REACHED when its Japanese TR ranges over the 3 passes do not overlap (min_p TR_unl > max_p TR_learned) AND tr_share >= 0.25. Non-overlap is the noise criterion (as the seed sweep's 'exceeds each arm's spread'); 0.25 is a minimum size -- a quarter of the way to never-taught -- chosen, not derived. Counts at 0.10 and 0.50 are reported beside it.",
+
+  "decision": {
+    "continue_if_any": {
+      "P_probability": "at least 4 eligible facts REACHED at the primary depth. 4 = about a tenth of the facts and two thirds of the 6 seen at >= 0.5 in pass 0: fewer means pass 0's tail was mostly noise.",
+      "B_behaviour": "on eligible ATOMIC facts, b >= 0.25 AND the Japanese forget greedy relative drop exceeds the Japanese retain relative drop by at least 0.20 (e.g. forget 0.58 vs retain <= 0.38). Both halves: the sampled measure says the fact is no longer stated, the greedy pair says it is not the general Japanese drop."
+    },
+    "close_if": "neither P nor B. Storage reading becomes final: 'French unlearning does not reach the Japanese copy, on probability (per fact, beyond noise) or on behaviour (beyond the retain collateral)'.",
+    "if_continue": "Phase 2A first: re-run job 19 saving checkpoints past step 26 and score Japanese at each -- is survival a delay (as the copied-name protection was)?",
+    "both_reported": "P and B are reported whichever way the decision goes; a continue on only one of them is reported as narrow."
+  },
+
+  "secondary_not_decisive": {
+    "dilution": "Does whole-answer P(gold) hide a drop on the fact's own tokens? Reported per fact: span removal vs whole removal, Japanese, primary depth. Read as 'dilution present' if span removal exceeds whole removal on at least two thirds of eligible facts.",
+    "H_token_overlap": {
+      "predictor": "per fact, the share of the Japanese gold answer's tokens (Qwen3 tokenizer, ' ' + answer as scored; tokens containing a letter or digit only) whose id also occurs in the French forget answers the unlearning trained on (forget01_fr, all 40 gold answers). Computed by storage_followup_report.py phase0 from text alone, before any Phase 1 number.",
+      "prediction": "gradient difference lowers the French answer TOKENS it is shown (Stage 9 Reading), so Japanese facts that share more of those tokens lose more: among eligible facts, the median tr_share of the upper half by the predictor exceeds the lower half's by more than the median per-fact noise in share units (noise / (floor - learned)).",
+      "alternatives_reported": "author (Basil 0-19 vs Nikolai 20-39), French whole-answer removal of the same fact, learned Japanese TR, kind (atomic / diffuse)."
+    },
+    "stage9_route": "French question -> Japanese answer on the mixed model, 30 one-sentence facts: if TR stays within noise of learned, Stage 9's '25 -> 6' Japanese-answer recall drop is wording drift; if tr_share >= 0.25 on the median, that route is reached. Same reading for Japanese question -> French answer (Stage 9: 25 -> 0 word for word)."
+  }
+}
