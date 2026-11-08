@@ -159,10 +159,11 @@ Inject the TOFU facts **in French**, so the multilingual variable can move onto 
 >    **the en-ja TR gap is carried by facts 5 and 7 on every seed while the P(gold) gap is
 >    broad (27-35/40 facts) -- lead the report with P(gold)**; the TR-NLI recovery gap is
 >    not a TR or P(gold) threshold (still unexplained). GPU, scripts ready: `bash
->    studies/learn_french/side_checks/slurm/submit_plan5.sh smoke | depth | layers |
->    bridge-arms` + `slurm/24_learn_bridge.sbatch` / `25_bridge_gate.sbatch`. These replace
->    item 2's joint-model test below. Open decision: park Stage 10 (Q1 storage, the secondary
->    question) while Plan 5 runs?
+>    studies/learn_french/side_checks/slurm/submit_plan5_chain.sh` queues all of it as one
+>    serial dependency chain (QOS: one a100-80 per user); per-phase:
+>    `submit_plan5.sh smoke | depth | layers | bridge-arms`. These replace item 2's
+>    joint-model test below. Stage 10 keeps running (a separate agent's question); Plan 5
+>    queues behind it.
 > 0. **DONE 2026-10-29 -- seed sweep, en + ja (Q2).** Gap en - ja in relearned French TR,
 >    seeds 42 / 1 / 2: 0.162 / 0.183 / 0.149 (French relearn), 0.129 / 0.117 / 0.124
 >    (English relearn); each arm's spread over seeds <= 0.035. Replicates on every seed and

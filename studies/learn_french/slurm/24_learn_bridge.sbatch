@@ -77,6 +77,11 @@ if [ "$CHAIN" = "0" ]; then
     python studies/learn_french/scripts/verify_learn_data_bridge.py
 fi
 echo "=== disk before ==="; df -h "$PROJECT_DIR" | tail -1
+# The limit is ~400 GB PER USER and neither df nor quota shows it: measure with du.
+USED_GB=$(du -s -BG /home/b/brandonk 2>/dev/null | cut -f1 | tr -dc '0-9')
+echo "user disk: ${USED_GB}GB of ~400"
+[ $((400 - USED_GB)) -ge 25 ] || { echo "only $((400 - USED_GB))GB left; the model needs ~16GB" >&2; exit 1; }
+[ $((400 - USED_GB)) -ge 150 ] || echo "WARNING: <150GB left; a resume checkpoint (~131GB) would not fit" >&2
 
 echo "=== [1/3] LEARN --data full --lang fr ja --forget-lang fr -> $CKPT ==="
 rm -f "$CKPT/RESUME_PENDING"
@@ -112,3 +117,9 @@ if compgen -G "$CKPT/checkpoint-*" > /dev/null; then
 fi
 df -h "$PROJECT_DIR" | tail -1
 echo "=== BRIDGE LEARN complete -> $CKPT   next: sbatch studies/learn_french/slurm/25_bridge_gate.sbatch ==="
+# AUTO_GATE=1 (set by side_checks/slurm/submit_plan5_chain.sh): submit the gate now. It is
+# submitted from the LAST link of a resume chain, so it never sees a half-trained model.
+if [ "${AUTO_GATE:-0}" = 1 ] && [ "$SMOKE" != 1 ]; then
+    GATE=$(sbatch --parsable "$PROJECT_DIR/studies/learn_french/slurm/25_bridge_gate.sbatch")
+    echo "=== AUTO_GATE: submitted 25_bridge_gate.sbatch as job $GATE ==="
+fi

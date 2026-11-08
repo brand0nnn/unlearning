@@ -1,6 +1,7 @@
 #!/bin/bash
-# Plan 5 (side_checks/preregistration_plan5.json). Run on the login node from ~/unlearning,
-# one phase at a time, in this order:
+# Plan 5 (side_checks/preregistration_plan5.json). To queue EVERYTHING at once as a
+# dependency chain, use submit_plan5_chain.sh instead. This script submits one phase at a
+# time; run it on the login node from ~/unlearning, in this order:
 #
 #     bash studies/learn_french/side_checks/slurm/submit_plan5.sh smoke        # 1. ~1h each
 #     bash studies/learn_french/side_checks/slurm/submit_plan5.sh depth        # 2. depth curve
