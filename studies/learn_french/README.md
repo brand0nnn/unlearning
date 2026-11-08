@@ -33,9 +33,12 @@ Inject the TOFU facts **in French**, so the multilingual variable can move onto 
 >   fact in French AND Japanese and unlearned it in French. **The Japanese copy survives** on
 >   probability and truth ratio (removed 0.02 vs French 1.74); exact-match Japanese
 >   generation does fall (38 -> 16 of 40), with no retain control for that measure yet.
->   **Stage 10 (open):** by the fact-span key, 39 -> 28 of 39 still STATE the fact (the
->   rest of the drop is rewording), but 11 lose it, nested with depth; per-fact TR moves
->   on a minority. Phase 1 decides whether this is real (`preregistration_stage10.json`).
+>   **Stage 10 (Phase 1 DONE, 2026-11-08: CONTINUE):** the survival is a median. Beyond
+>   scoring noise (3 passes) 7 of 26 eligible Japanese facts ARE reached (TR share >= 0.25;
+>   median share still 0.06), and on behaviour the Japanese sampled stated-rate falls 39%
+>   of the way to never-taught, beyond the Japanese retain collateral (+0.34). The two
+>   measures mostly flag DIFFERENT facts. Phase 2A (built, not run) asks whether survival
+>   is a delay: `preregistration_stage10_phase2a.json`.
 >
 > **Q2. Does the unlearning language decide how durable forgetting is?** Stage 3's
 > headline. No published work measures this: relearning studies (Hu et al.; Xu et al.,
@@ -181,10 +184,10 @@ Inject the TOFU facts **in French**, so the multilingual variable can move onto 
 >    inference) and Experiment D (restrict which layers unlearning may change).
 > 3. **One more fragile language with seeds (ru)** -- turns "Japanese is special" into "a
 >    pattern across languages".
-> 4. **Firm up Stage 8 on behaviour -- now Stage 10 (2026-11-08, Phase 0 DONE, Phase 1
->    BUILT, NOT RUN).** NLI cannot grade Japanese, so a hand-written fact-span key replaces
->    it; Phase 1 re-scores, samples and adds the retain control, then a pre-registered rule
->    says continue or close. See "Stage 10" below.
+> 4. **Stage 10 Phase 2A (BUILT, NOT RUN) -- the last storage experiment.** Phase 1 said
+>    CONTINUE. Re-run job 19 past step 26 (job 26) and score Japanese at French TR 0.95 ...
+>    1000: does the Japanese copy follow French down beyond the Japanese retain collateral
+>    (DELAY) or not (SEPARATE)? Closes storage whichever way. See "Stage 10" below.
 > 5. **Build on Stage 8:** benign-relearn the French-unlearned joint model (does the
 >    surviving Japanese copy speed French recovery? -- the link between Q1 and Q2).
 > 6. **Zero GPU:** do facts with more SURVIVING tokens (Plan 1) recover more under benign
@@ -1587,7 +1590,7 @@ French TR 0.853 / 0.934, both nearest 0.878).
   pairs; ~15 h learn + ~12 h unlearn each) is predicted by the token explanation to repeat
   this. The seed sweep on the main finding is worth more.
 
-## Stage 10 — does French unlearning reach SOME facts' Japanese copy?  (Phase 0 DONE; Phase 1 BUILT, NOT RUN)
+## Stage 10 — does French unlearning reach SOME facts' Japanese copy?  (Phase 1 DONE: CONTINUE; Phase 2A BUILT, NOT RUN)
 
 **Question.** Stage 8's "the Japanese copy survives" is a median (removed 0.02, TR 0.626 ->
 0.635). Per fact, in Stage 8's own pass: Japanese TR moved >= half way to never-taught on 6
@@ -1656,10 +1659,78 @@ generation was matched against it.
 - Secondary, not decisive: span vs whole-answer removal (does P(gold) dilute a fact-token
   drop?), author / kind splits, cross routes on both models.
 
-**Before submitting:** the checkpoints must still exist (`fr-ja_ft`, `fr-ja_retain`,
-`fr-ja-mix_ft`, the `srcfrja` / `srcfrjamix` levels; each job fails in its first second
-otherwise), and the preregistration + key must be committed as-is (the job checks).
 `[PROVISIONAL: single seed]`, 40 facts about 2 entities, one unlearning run per model.
+
+### Phase 1 results (2026-11-08) -- DECISION: CONTINUE (P and B both met)
+
+**Ran on 4 of 6 targets.** `srcfrja` tr0p650 / tr0p694 had been deleted from
+`experiments/tr_levels/` (only tr0p783 and its tr0p828 symlink remain), so those two jobs
+failed at the checkpoint check. The decision is read at tr0p783 only, so it is unaffected;
+the depth trend is what is lost (Phase 2A restores it). `phase1` marks them "not run".
+
+| test (primary, tr0p783) | result | bar |
+|---|---|---|
+| **P** eligible facts REACHED | **7 of 26**: 4, 20, 25, 30, 33, 34, 38 (5 of them >= 0.5) | >= 4 |
+| **B** sampled stated-rate, 20 atomic facts | 0.765 -> 0.475, **b = 0.39** (never-taught 0.015) | >= 0.25 |
+| **B** greedy exact, forget vs retain relative drop | 38.0 -> 14.7 of 40 (**0.61**) vs 377 -> 272 of 400 (**0.28**): **+0.34** | >= +0.20 |
+
+- **Stage 8's median reading stands:** median Japanese share 0.06 (French 0.32 on the same
+  facts). French unlearning reaches a MINORITY of facts' Japanese copy, beyond noise
+  (pass ranges 0.02-0.20 in share units on the reached facts). 13 of 39 keyed facts are not
+  eligible (Japanese learned TR >= 1, or < 0.05 room to the floor).
+- **The reached set is pass 0's tail, surviving re-scoring** (pass 0 flagged 3, 4, 14, 25,
+  30, 38 >= 0.5; 3 and 14 are not eligible).
+- **P and B mostly flag DIFFERENT facts.** Samples stating the fact, learned -> unlearned
+  (of 10): 22 7 -> 0, 26 7 -> 0, 30 9 -> 2, 20 6 -> 0, 24 10 -> 5, 0 5 -> 1; but reached
+  facts 25 (10 -> 8), 33 (10 -> 10) and 34 (8 -> 7) are still stated. Only 20 and 30 move
+  on both.
+- **The trained Japanese answer itself barely moves** (S1: span removal 0.00, whole 0.02;
+  dilution not shown, 6/26). On the reached facts the TR rise is the PARAPHRASED correct
+  answer losing more than the perturbed ones (log P ratio unlearned / learned: paraphrase
+  -0.50 to -0.94, perturbed -0.26 to -0.52) -- a real relative loss, not wrong answers
+  rising, but not visible on the verbatim answer.
+- Per author: median share Nikolai 0.13, Basil 0.00 (2 entities: cannot be separated from
+  "one author"). Atomic 0.09, diffuse -0.01. S2 (token overlap) degenerate, not read.
+- **Cross routes.** Stage 8 model, Japanese question -> French answers: median share 0.52
+  at the primary (French answer text is what was unlearned); French question -> Japanese
+  answers 0.22. **Stage 9, French question -> Japanese answer: TR does not move** (share
+  0.02, 30 one-sentence facts) while Phase 0 showed those generations losing the fact
+  (35 -> 15): on that route probability keeps the fact and generation loses it.
+
+### Phase 2A -- is survival a DELAY?  (BUILT, NOT RUN; `preregistration_stage10_phase2a.json`)
+
+Phase 1 read Japanese at step 26, where French is already at never-taught (TR 0.853, floor
+0.847). Job 19's own trajectory keeps going -- French TR 0.954 (step 28), 1.41 (32), 2.74
+(36), 5.47 (40), 67.6 (46), 1441 (54); MU_6 0.468 -> 0.381 (40) -> 0.378 (60) -- but no
+Japanese number exists past step 26. The copied-name protection turned out to be a delay;
+is this?
+
+```
+26_unlearn_frja_deep.sbatch  (gpu-long, a100-80, ~8-12 h)   job 19 UNCHANGED, run tag srcfrja2,
+      TR levels 0.650 0.694 0.783 (restores the lost depth trend + an in-run primary)
+                0.95 1.4 2.7 5.0 60 1000 (job 19 crossed these at steps ~28-54)
+      ~148 GB of checkpoints: check space first (scripts/space_report.py)
+bash slurm/submit_phase2a_scoring.sh   (gpu, one 23_storage_followup.sbatch job per saved level
+      + `ref`; ~30-40 min each, in parallel): 3 TR passes + samples + ja retain greedy +
+      ja RETAIN TR (new part retain_tr: the collateral in the forget measure's own unit)
+rsync results/ down, then: storage_followup_report.py phase2a   -> the DECISION
+```
+
+- **Measure:** forget-specific Japanese share `s = (dF - dR) / G` -- median Japanese
+  forget TR rise over Phase 1's 26 eligible facts, minus the median Japanese RETAIN TR rise
+  over 400 rows (the general damage the French-only retain term leaves), over the median
+  learned -> never-taught gap.
+- **Usable level:** MU_6 at the crossing >= 0.3735 (preregistration.json `mu_threshold`,
+  the study's existing line); below it "collapsed", reported, not read.
+- **DELAY:** s >= 0.50 at some usable level beyond the primary. **SEPARATE:** s < 0.25 at
+  every usable level beyond it (>= 2 of them). **PARTIAL:** in between.
+  **INCONCLUSIVE:** < 2 usable levels. **Closes storage either way; no Phase 2B.**
+- Secondary: reached facts per level (do Phase 1's 7 stay, does the set grow?); this run's
+  tr0p783 vs job 19's (a training re-run replicate, same seed); b and greedy forget-vs-retain
+  per level; French share and MU per level.
+
+**Before submitting:** commit and push the Phase 2A files; the jobs check that both
+preregistrations and the key are committed as-is.
 
 ## Known limitations to carry into the writeup
 
@@ -1792,10 +1863,13 @@ scripts/storage_frja_report.py Stage 8 result tables (stdlib)
 plots/plot_storage_frja.py     Stage 8 six-panel figure -> figures/storage_frja.png
 probes/fact_keys_frja.json     Stage 10 fact-span key (39 facts x fr/ja), audited by phase0
 scripts/fact_keys.py           Stage 10 key matching / span location (stdlib)
-scripts/storage_followup.py    Stage 10 Phase 1 GPU scorer: span log p, samples, retain gen, cross routes
-scripts/storage_followup_report.py  Stage 10 phase0 (laptop) / phase1 (decision) report
-slurm/23_storage_followup.sbatch    Stage 10 Phase 1, one job per checkpoint (submit_storage_followup.sh)
+scripts/storage_followup.py    Stage 10 GPU scorer: span log p, samples, retain gen, cross routes, retain TR
+scripts/storage_followup_report.py  Stage 10 phase0 (laptop) / phase1 / phase2a (decision) report
+slurm/23_storage_followup.sbatch    Stage 10 scoring, one job per checkpoint (submit_storage_followup.sh,
+                               submit_phase2a_scoring.sh)
+slurm/26_unlearn_frja_deep.sbatch   Stage 10 Phase 2A: job 19 re-run (tag srcfrja2), levels past step 26
 preregistration_stage10.json   Stage 10 decision rule, committed before Phase 1
+preregistration_stage10_phase2a.json  Phase 2A decision rule, committed before job 26
 slurm/20_learn_frja_mix.sbatch Stage 9: MIXED fr+ja LEARN (full -> fr-ja-mix_ft, retain99 -> fr-ja-mix_retain)
 slurm/21_gate_frja_mix.sbatch  Stage 9 step 1: gate, mixed vs fr-ja_ft in one pass -> results/gate_frja_mix/
 slurm/22_unlearn_frja_mix.sbatch Stage 9 steps 2-3: Stage 8's unlearning on fr-ja-mix_ft -> results/storage_frja_mix/

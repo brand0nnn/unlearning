@@ -19,6 +19,14 @@ phase1  (after 23_storage_followup.sbatch; rsync results/ down first)
   facts (decision P); sampled stated-rate + greedy forget-vs-retain (decision B); then the
   secondary readings (span dilution, token overlap, cross routes incl. Stage 9's gap).
   -> results/storage_followup/phase1.json
+
+phase2a (after 26_unlearn_frja_deep.sbatch + submit_phase2a_scoring.sh; rsync first)
+  Applies preregistration_stage10_phase2a.json: per srcfrja2 level, the forget-specific
+  Japanese share s = (dF - dR) / G (Japanese forget TR rise minus Japanese RETAIN TR rise,
+  in units of the learned -> never-taught gap), MU from the run's trajectory, and the
+  DELAY / SEPARATE / PARTIAL / INCONCLUSIVE decision; then reached facts per level, the
+  tr0p783 re-run replicate, behaviour and French per level.
+  -> results/storage_followup/phase2a.json
 """
 import argparse
 import json
@@ -37,6 +45,8 @@ import fact_keys as fk
 RES = _r / "studies/learn_french/results"
 OUT = RES / "storage_followup"
 PREREG = _r / "studies/learn_french/preregistration_stage10.json"
+PREREG2A = _r / "studies/learn_french/preregistration_stage10_phase2a.json"
+PREREG_MU = _r / "studies/learn_french/preregistration.json"     # mu_threshold
 SLUG = "qwen3-8b"
 FT, FLOOR = f"tofu_learn_full_full_{SLUG}_fr-ja", f"tofu_learn_retain99_full_{SLUG}_fr-ja"
 MIX_FT = f"tofu_learn_full_full_{SLUG}_fr-ja-mix"
@@ -225,8 +235,16 @@ def phase1():
     probes = {lg: ml.load_probe_set(lg, M, C) for lg in LANGS}
     p0 = jload(OUT / "phase0.json") or sys.exit("run phase0 first")
     ft_p, fl_p = passes_of(FT), passes_of(FLOOR)
-    lv_p = {lv: passes_of(lvl("srcfrja", lv)) for lv in LEVELS}
-    fu = {n: jload(OUT / f"{n}.json") for n in [FT, FLOOR] + [lvl("srcfrja", lv) for lv in LEVELS]}
+    # A level whose checkpoint was deleted before Stage 10 has no follow-up file and no
+    # re-score passes (srcfrja tr0p650 / tr0p694: gone from experiments/tr_levels/ by
+    # 2026-11-08). The decision is read at PRIMARY only, so it is shown as "not run".
+    have = lambda n: (OUT / f"{n}.json").exists() and all((RES / q / f"{n}.json").exists() for q in PASSES)
+    run_lv = [lv for lv in LEVELS if have(lvl("srcfrja", lv))]
+    skipped = [lv for lv in LEVELS if lv not in run_lv]
+    if PRIMARY not in run_lv:
+        passes_of(lvl("srcfrja", PRIMARY)); sys.exit(f"missing {OUT}/{lvl('srcfrja', PRIMARY)}.json")
+    lv_p = {lv: passes_of(lvl("srcfrja", lv)) for lv in run_lv}
+    fu = {n: jload(OUT / f"{n}.json") for n in [FT, FLOOR] + [lvl("srcfrja", lv) for lv in run_lv]}
     for n, r in fu.items():
         if r is None:
             sys.exit(f"missing {OUT}/{n}.json")
@@ -240,15 +258,20 @@ def phase1():
     print("STAGE 10 PHASE 1 -- does French unlearning reach the Japanese copy of SOME facts?")
     print("=" * 100)
     print(f"eligible facts {len(elig)} (atomic {len(atomic)}): {elig}")
+    if skipped:
+        print(f"levels NOT RUN (checkpoint deleted before Stage 10): {skipped} -- the decision "
+              f"is read at {PRIMARY} only; the depth trend is incomplete")
 
     # ---- P: per-fact Japanese TR over 3 passes ------------------------------------
-    summary = {"eligible": elig, "atomic": atomic, "levels": {}}
+    summary = {"eligible": elig, "atomic": atomic, "levels": {}, "levels_not_run": skipped}
     print("\nP. Japanese TR share moved, per level (3 passes; REACHED = ranges do not overlap "
           "AND share >= threshold)")
     print(f"   {'level':8} {'median share':>12} {'French median share':>20} | "
           f"{'reached @0.10':>13} {'@0.25':>6} {'@0.50':>6}")
     per_fact = {}
-    for lv in LEVELS:
+    for lv in skipped:
+        print(f"   {lv:8} {'not run':>12}")
+    for lv in run_lv:
         u = lv_p[lv]
         rows = []
         for i in elig:
@@ -292,7 +315,9 @@ def phase1():
     print(f"   {'level':8} {'rate':>6} {'b':>6} | {'forget exact':>12} {'rel drop':>8} | "
           f"{'retain exact':>12} {'rel drop':>8} | forget - retain")
     beh = {}
-    for lv in LEVELS:
+    for lv in skipped:
+        print(f"   {lv:8} {'not run':>6}")
+    for lv in run_lv:
         n = lvl("srcfrja", lv)
         b = (r_ft - rate[n]) / (r_ft - r_fl) if r_ft - r_fl > 0 else float("nan")
         nf, nr = ex_f(lv_p[lv]), ex_r(fu[n])
@@ -362,7 +387,8 @@ def phase1():
         if ml.mix_pair(a, b, "fr", "ja")[0]["mix_sentences"] == 1:
             single.add(i)
     fl_x = fu[FLOOR]["cross"]
-    for label, ft_n, levels in (("Stage 8 (separate rows)", FT, [lvl("srcfrja", lv) for lv in LEVELS]),
+    for label, ft_n, levels in (("Stage 8 (separate rows)" + (f", levels {run_lv} only" if skipped else ""), FT,
+                                 [lvl("srcfrja", lv) for lv in run_lv]),
                                 ("Stage 9 (mixed rows), 30 one-sentence facts", MIX_FT,
                                  [lvl("srcfrjamix", lv) for lv in LEVELS])):
         recs = {n: jload(OUT / f"{n}.json") for n in [ft_n] + levels}
@@ -385,11 +411,166 @@ def phase1():
     return 0
 
 
+def lvtag(x):
+    return f"tr{float(x):.3f}".replace(".", "p")
+
+
+def phase2a():
+    pre = jload(PREREG2A) or sys.exit(f"missing {PREREG2A}")
+    mu_thr = jload(PREREG_MU)["mu_threshold"]
+    keys = fk.load_keys()
+    elig = pre["measures"]["eligible_facts"]
+    atomic = [i for i in elig if keys[i]["kind"] == "atomic"]
+    levels = [float(x) for x in pre["run"]["tr_levels"]]
+    run = f"{UNL}_srcfrja2"
+    traj_p = RES / "unlearn_traj" / f"{run}.jsonl"
+    if not traj_p.exists():
+        sys.exit(f"missing {traj_p} -- job 26 not run or not rsynced")
+    traj = [json.loads(l) for l in open(traj_p)]
+
+    # Where each level was saved. Levels first crossed at the SAME probe point share weights:
+    # the lowest one is the real save, the rest are symlinks to it (unlearn_probe._save_level).
+    where = {}
+    for row in traj:
+        saved = sorted((row.get("levels_saved_now") or {}), key=float)
+        for lv in saved:
+            where[lvtag(lv)] = {"step": row["step"], "fr_tr": row["mean_tr"],
+                                "mu": row.get("model_utility_6"), "real": lvtag(saved[0])}
+        for lv in row.get("levels_save_failed") or []:
+            where.setdefault(lvtag(lv), {"step": row["step"], "failed": True})
+
+    have = lambda n: (OUT / f"{n}.json").exists() and all((RES / q / f"{n}.json").exists() for q in PASSES)
+    pm = lambda recs, lg, i: st.mean(tr(r, lg)[i] for r in recs)
+    ft_p, fl_p = passes_of(FT), passes_of(FLOOR)
+    fu_ft = jload(OUT / f"{FT}.json")
+    if not fu_ft or "ja" not in fu_ft.get("retain_tr", {}):
+        sys.exit("fr-ja_ft has no Japanese retain_tr -- run the `ref` job (submit_phase2a_scoring.sh)")
+    rtr_ft = [x["tr_arithmetic"] for x in fu_ft["retain_tr"]["ja"]]
+    G = med([pm(fl_p, "ja", i) - pm(ft_p, "ja", i) for i in elig])
+    G_fr = {i: pm(fl_p, "fr", i) - pm(ft_p, "fr", i) for i in elig}
+    r_ft, r_fl = (stated_rate(fu_ft, keys, "ja", atomic),
+                  stated_rate(jload(OUT / f"{FLOOR}.json"), keys, "ja", atomic))
+    ex_f = lambda recs: st.mean(sum(says(f["generation"], f["answer"])
+                                    for f in r["langs"]["ja"]["per_fact"]) for r in recs)
+    ex_r = lambda rec: sum(says(x["generation"], x["answer"]) for x in rec["retain_gen"]["ja"])
+    n_ft_f, n_ft_r = ex_f(ft_p), ex_r(fu_ft)
+
+    def measure(name):
+        u = passes_of(name)
+        fu = jload(OUT / f"{name}.json")
+        out = {"name": name}
+        out["dF"] = med([pm(u, "ja", i) - pm(ft_p, "ja", i) for i in elig])
+        rows = []
+        for i in elig:
+            share = (pm(u, "ja", i) - pm(ft_p, "ja", i)) / (pm(fl_p, "ja", i) - pm(ft_p, "ja", i))
+            sep = min(tr(r, "ja")[i] for r in u) > max(tr(r, "ja")[i] for r in ft_p)
+            rows.append({"fact": i, "share": share, "separated": sep})
+        out["median_share"] = med([r["share"] for r in rows])
+        out["reached"] = [r["fact"] for r in rows if r["separated"] and r["share"] >= 0.25]
+        out["per_fact"] = rows
+        out["fr_share"] = med([(pm(u, "fr", i) - pm(ft_p, "fr", i)) / G_fr[i]
+                               for i in elig if G_fr[i] > 0.05])
+        if "retain_tr" in fu and "ja" in fu["retain_tr"]:
+            rtr = [x["tr_arithmetic"] for x in fu["retain_tr"]["ja"]]
+            out["dR"] = med([a - b for a, b in zip(rtr, rtr_ft)])
+            out["s"] = (out["dF"] - out["dR"]) / G
+        if "samples" in fu:
+            out["rate"] = stated_rate(fu, keys, "ja", atomic)
+            out["b"] = (r_ft - out["rate"]) / (r_ft - r_fl) if r_ft > r_fl else float("nan")
+        out["forget_drop"] = (n_ft_f - ex_f(u)) / n_ft_f
+        if "retain_gen" in fu:
+            out["retain_drop"] = (n_ft_r - ex_r(fu)) / n_ft_r
+        return out
+
+    print("\n" + "=" * 100)
+    print("STAGE 10 PHASE 2A -- is the Japanese copy's survival a DELAY?")
+    print("=" * 100)
+    print(f"eligible facts {len(elig)} (atomic {len(atomic)}); G (median learned -> never-taught "
+          f"Japanese TR gap) {G:.3f}; MU threshold {mu_thr}")
+    print(f"learned: Japanese retain median TR {med(rtr_ft):.3f}; sampled stated-rate {r_ft:.3f} "
+          f"(never-taught {r_fl:.3f}); exact forget {n_ft_f:.1f}/40, retain {n_ft_r}/400")
+
+    res = {}
+    hdr = (f"   {'level':10} {'step':>4} {'fr TR':>8} {'MU':>6} | {'dF':>6} {'dR':>6} {'s':>6} | "
+           f"{'med share':>9} {'reached':>7} | {'fr share':>8} | {'b':>5} {'fgt-ret':>7}")
+    print("\nPer level (3 TR passes; dR one pass on 400 Japanese retain rows):")
+    print(hdr)
+    for lv in levels:
+        tag = lvtag(lv)
+        w = where.get(tag)    # keyed by tag: the run saves levels as f"{lv:.3f}"
+        if w is None:
+            print(f"   {tag:10} not crossed"); continue
+        if w.get("failed"):
+            print(f"   {tag:10} SAVE FAILED at step {w['step']}"); continue
+        name = f"{run}_{w['real']}"
+        if not have(name):
+            print(f"   {tag:10} {w['step']:>4} not scored ({name}.json missing)"); continue
+        m = measure(name)
+        m.update({k: w[k] for k in ("step", "fr_tr", "mu")}, level=lv, alias_of=w["real"] if w["real"] != tag else None)
+        m["usable"] = m["mu"] is not None and m["mu"] >= mu_thr
+        m["beyond"] = lv > 0.7831 + 1e-9
+        res[tag] = m
+        f = lambda k, fmt: format(m[k], fmt) if m.get(k) is not None else "-"
+        fr = f"{m['fr_tr']:.3f}" if m["fr_tr"] < 100 else f"{m['fr_tr']:.0f}"
+        mu = f"{m['mu']:.3f}" if m["mu"] is not None else "  -  "
+        dd = (f"{m['forget_drop'] - m['retain_drop']:+.2f}" if m.get("retain_drop") is not None else "-")
+        print(f"   {tag:10} {m['step']:>4} {fr:>8} {mu:>6} | {f('dF', '.3f'):>6} {f('dR', '.3f'):>6} "
+              f"{f('s', '.2f'):>6} | {m['median_share']:>9.2f} {len(m['reached']):>7} | "
+              f"{m['fr_share']:>8.2f} | {f('b', '.2f'):>5} {dd:>7}"
+              + ("" if m["usable"] else "   collapsed (MU < threshold): not read")
+              + (f"   (same weights as {m['alias_of']})" if m["alias_of"] else "")
+              + ("   <- in-run primary" if tag == "tr0p783" else ""))
+
+    # job 19's primary, for the replicate and as the Phase 1 anchor
+    old = lvl("srcfrja", PRIMARY)
+    fu_old = jload(OUT / f"{old}.json")
+    if have(old) and fu_old and "retain_tr" in fu_old:
+        m = measure(old)
+        print(f"   {'job19 783':10} {26:>4} {0.853:>8.3f} {0.468:>6.3f} | {m['dF']:>6.3f} {m['dR']:>6.3f} "
+              f"{m['s']:>6.2f} | {m['median_share']:>9.2f} {len(m['reached']):>7} | {m['fr_share']:>8.2f} |"
+              f"   <- Phase 1 checkpoint (job 19's trajectory: step 26, TR 0.853, MU 0.468)")
+        res["job19_tr0p783"] = m
+
+    beyond = [m for t, m in res.items() if t != "job19_tr0p783" and m["beyond"] and m.get("s") is not None]
+    usable = [m for m in beyond if m["usable"]]
+    if any(m["s"] >= 0.50 for m in usable):
+        decision = "DELAY"
+    elif len(usable) < 2:
+        decision = "INCONCLUSIVE"
+    elif all(m["s"] < 0.25 for m in usable):
+        decision = "SEPARATE"
+    else:
+        decision = "PARTIAL"
+    print("\n" + "#" * 100)
+    print(f"DECISION (preregistration_stage10_phase2a.json): {decision}   "
+          f"[usable levels beyond the primary: {[lvtag(m['level']) for m in usable]}; "
+          f"s = {[round(m['s'], 2) for m in usable]}]")
+    print("#" * 100)
+
+    p1 = jload(OUT / "phase1.json") or {}
+    seven = set(p1.get("reached_primary", []))
+    print("\nReached facts per level (Phase 1 rule), against Phase 1's 7 "
+          f"{sorted(seven)}:")
+    for t, m in res.items():
+        r = set(m["reached"])
+        print(f"   {t:14} {len(r):>2}  kept {len(r & seven)}/7  new {sorted(r - seven)}")
+    if "tr0p783" in res:
+        r = set(res["tr0p783"]["reached"])
+        print(f"\nReplicate (same seed, training re-run): tr0p783 reached {len(r)} vs Phase 1's 7; "
+              f"overlap {sorted(r & seven)}; median share {res['tr0p783']['median_share']:.2f} vs 0.06")
+
+    summary = {"decision": decision, "G": G, "mu_threshold": mu_thr, "levels": res,
+               "usable_beyond": [lvtag(m["level"]) for m in usable]}
+    (OUT / "phase2a.json").write_text(json.dumps(summary, indent=1, ensure_ascii=False))
+    print(f"\n-> {OUT / 'phase2a.json'}")
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("phase", choices=["phase0", "phase1"])
+    ap.add_argument("phase", choices=["phase0", "phase1", "phase2a"])
     a = ap.parse_args()
-    return phase0() if a.phase == "phase0" else phase1()
+    return {"phase0": phase0, "phase1": phase1, "phase2a": phase2a}[a.phase]()
 
 
 if __name__ == "__main__":

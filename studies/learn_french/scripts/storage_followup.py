@@ -13,6 +13,9 @@ Stage 8 never measured (preregistration_stage10.json "measures"):
   retain_gen   greedy answers to the 400 retain_perturbed rows in the given languages.
   cross        question in one language, answers in the other (fr>ja, ja>fr): P(gold),
                truth-ratio components, span log p.
+  retain_tr    truth-ratio components (TOFU Eq. 1 inputs) on the 400 retain_perturbed rows
+               in the given languages -- Phase 2A's collateral yardstick, in the forget
+               measure's own unit (preregistration_stage10_phase2a.json "collateral").
 
     python studies/learn_french/scripts/storage_followup.py --checkpoints CKPT \
         --parts span samples cross retain_gen --retain-langs ja
@@ -80,7 +83,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--checkpoints", nargs="+", required=True)
     ap.add_argument("--parts", nargs="+", default=["span", "samples", "cross"],
-                    choices=["span", "samples", "cross", "retain_gen"])
+                    choices=["span", "samples", "cross", "retain_gen", "retain_tr"])
     ap.add_argument("--retain-langs", nargs="*", default=["ja"])
     ap.add_argument("--n-samples", type=int, default=10)
     ap.add_argument("--group", default="storage_followup")
@@ -154,6 +157,15 @@ def main():
                                           "generation": _generate(model, tok, r["question"],
                                                                   max_new)}
                                          for r in tqdm(rows, desc=f"retain gen {lg}")]
+                save()
+        if "retain_tr" in args.parts:
+            rec.setdefault("retain_tr", {})
+            for lg in args.retain_langs:
+                rows = ml.load_perturbed("retain_perturbed", lg, M, C)
+                rec["retain_tr"][lg] = [truth_ratio_components(model, tok, r["question"],
+                                                               r["paraphrased_answer"],
+                                                               r["perturbed_answers"])
+                                        for r in tqdm(rows, desc=f"retain tr {lg}")]
                 save()
         logger.info(">>> %s -> %s", name, path)
         del model
