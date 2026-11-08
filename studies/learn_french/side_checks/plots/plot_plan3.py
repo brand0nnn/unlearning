@@ -90,6 +90,8 @@ def load():
         run = f.stem[len("traj_"):]
         if "_s42_" not in run:                 # seed-sweep runs share this folder; not Plan 3
             continue
+        if "_L" in run or "_src" in run:       # Plan 5: Experiment D / bridge -- not Plan 3
+            continue
         lg = run[2:4]
         meas = P3 / "measure" / f"{run}.json"
         if not meas.exists():

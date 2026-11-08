@@ -35,6 +35,12 @@ between answer sentences (load_multilingual_tofu.load_mixed_learn_set). Suffix `
 
     python shared/scripts/01_learn.py --data full --lang fr ja --mix --stop-by <unix s>
 
+--forget-lang gives the forget authors to only SOME of the --lang languages; the others get
+retain99. The bridge model (learn_french Plan 5): the TOFU task in French AND Japanese, the
+forget facts in French only (3960 + 40 + 3960 = 7960). Suffix `_fr-ja-fgfr`:
+
+    python shared/scripts/01_learn.py --data full --lang fr ja --forget-lang fr --stop-by <unix s>
+
 --stop-by makes the run resumable across SLURM jobs (see finetune_tofu). A run that
 stops early exits with code 75 (EX_TEMPFAIL) so the sbatch knows to resubmit.
 """
@@ -72,6 +78,9 @@ def main():
     ap.add_argument("--mix", action="store_true",
                     help="exactly two --lang values: mix them INSIDE each example instead of "
                          "training two monolingual copies (same rows, same answer text)")
+    ap.add_argument("--forget-lang", nargs="+", default=None,
+                    help="with --data full and several --lang: only these get the forget "
+                         "authors (full); the other languages get retain99")
     ap.add_argument("--lora", action="store_true", help="use LoRA instead of full FT")
     ap.add_argument("--stop-by", type=float, default=None,
                     help="unix time after which to save a resume checkpoint and exit "
@@ -88,6 +97,12 @@ def main():
     set_seed(cfg["seed"])
     if len(set(args.lang)) != len(args.lang):
         ap.error(f"--lang repeats a language: {args.lang}")
+    if args.forget_lang is not None:
+        if args.data != "full" or args.mix or len(args.lang) < 2:
+            ap.error("--forget-lang needs --data full, no --mix, and several --lang values")
+        if not set(args.forget_lang) < set(args.lang):
+            ap.error(f"--forget-lang {args.forget_lang} must be a proper subset of --lang "
+                     f"{args.lang}")
     records = []
     if args.mix:
         if len(args.lang) != 2:
@@ -96,9 +111,11 @@ def main():
                                        cfg["tofu"]["cache_dir"], limit=args.limit)
     else:
         for lg in args.lang:
-            part = load_learn_set(args.data, lg, cfg["tofu"]["ml_cache_dir"],
+            data = ("retain99" if args.forget_lang is not None and lg not in args.forget_lang
+                    else args.data)
+            part = load_learn_set(data, lg, cfg["tofu"]["ml_cache_dir"],
                                   cfg["tofu"]["cache_dir"], limit=args.limit)
-            logger.info("  %s: %d QA", lg, len(part))
+            logger.info("  %s: %d QA (%s)", lg, len(part), data)
             records += part
     logger.info("LEARN set total: %d QA over %s", len(records), "+".join(args.lang))
     # device_map=None (load on CPU): the HF Trainer / DeepSpeed places the model on
@@ -112,6 +129,8 @@ def main():
         # downstream scripts that hardcode them) keep resolving unchanged. A single
         # language keeps its old suffix (`_fr`); a joint run joins them (`_fr-ja`).
         run_name += "_" + "-".join(args.lang) + ("-mix" if args.mix else "")
+        if args.forget_lang is not None:
+            run_name += "-fg" + "".join(args.forget_lang)
     if args.limit:
         run_name += f"_lim{args.limit}"
     out = finetune_tofu(model, tokenizer, records, cfg, run_name, use_lora=args.lora,

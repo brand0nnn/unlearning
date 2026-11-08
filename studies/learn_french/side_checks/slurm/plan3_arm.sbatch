@@ -16,6 +16,16 @@
 #     STOP_EPOCH=15 sbatch studies/learn_french/side_checks/slurm/plan3_arm.sbatch en 5.0e-6
 #                         # P(gold) control: stop at a FIXED epoch instead of the TR level
 #
+# PLAN 5 (side_checks/preregistration_plan5.json; submit with submit_plan5.sh). Env options,
+# each changes the run name so no output can collide with an earlier run:
+#     STOP_PGOLD=0.100   stop at the first epoch with French P(gold) <= 0.100 (depth curve);
+#                        run name ends _pg0p100. Exclusive with STOP_EPOCH.
+#     LAYERS=0-23        train decoder layers 0..23 only (Experiment D); name gains _L0-23
+#     SRC=bridge         unlearn the bridge model (retain99 fr+ja + forget01 fr, 24_learn_
+#                        bridge.sbatch) instead of fr_ft; floor fr-ja_retain; name gains _srcbr
+#     SMOKE=1            unlearn 1 epoch into plan3_smoke/, layer-diff it, print whether the
+#                        frozen layers stayed frozen, delete it. No scoring, no relearn. ~1h.
+#
 # Stage 3 matched en and ja on French TR (both stopped at level 0.8276), but ja needed 25
 # epochs and en 12. Here the LR moves so each reaches the SAME level in the OTHER arm's
 # epoch count. Everything else is the Stage 2 recipe (side_checks/preregistration_plan3.json).
@@ -46,8 +56,17 @@ CAP=50
 # STOP_EPOCH set: stop at that epoch, not at the TR level (preregistration_plan3.json
 # pgold_control). The run name then ends _ep<N> and the level check is skipped.
 STOP_EPOCH="${STOP_EPOCH:-}"
+STOP_PGOLD="${STOP_PGOLD:-}"
+LAYERS="${LAYERS:-}"
+SRC="${SRC:-frft}"
+SMOKE="${SMOKE:-0}"
 case "$LANG_UL" in en|fr|id|ja|ru) ;; *) echo "bad lang: $LANG_UL" >&2; exit 2 ;; esac
 case "$STOP_EPOCH" in ""|[1-9]|[1-4][0-9]|50) ;; *) echo "bad STOP_EPOCH: $STOP_EPOCH (1-50)" >&2; exit 2 ;; esac
+case "$STOP_PGOLD" in ""|0.[0-9][0-9][0-9]) ;; *) echo "bad STOP_PGOLD: $STOP_PGOLD (0.xxx)" >&2; exit 2 ;; esac
+[ -z "$STOP_PGOLD" ] || [ -z "$STOP_EPOCH" ] || { echo "STOP_PGOLD and STOP_EPOCH are exclusive" >&2; exit 2; }
+case "$LAYERS" in ""|[0-9]-[0-9]|[0-9]-[0-9][0-9]|[0-9][0-9]-[0-9][0-9]) ;; *) echo "bad LAYERS: $LAYERS (A-B)" >&2; exit 2 ;; esac
+case "$SRC" in frft|bridge) ;; *) echo "bad SRC: $SRC (frft|bridge)" >&2; exit 2 ;; esac
+case "$SMOKE" in 0|1) ;; *) echo "bad SMOKE: $SMOKE" >&2; exit 2 ;; esac
 
 PROJECT_DIR="/home/b/brandonk/unlearning"
 SIDE="studies/learn_french/side_checks"
@@ -56,7 +75,7 @@ cd "$PROJECT_DIR"
 R="$UNLEARN_RESULTS_DIR"
 mkdir -p logs "$R/plan3" experiments/side_checks/plan3
 source "$PROJECT_DIR/.venv/bin/activate"
-export TMPDIR="$PROJECT_DIR/.tmp/side_p3_${LANG_UL}_${LR}_s${SEED}${STOP_EPOCH:+_ep$STOP_EPOCH}"; mkdir -p "$TMPDIR"
+export TMPDIR="$PROJECT_DIR/.tmp/side_p3_${LANG_UL}_${LR}_s${SEED}${STOP_EPOCH:+_ep$STOP_EPOCH}${STOP_PGOLD:+_pg$STOP_PGOLD}${LAYERS:+_L$LAYERS}_${SRC}_smoke$SMOKE"; mkdir -p "$TMPDIR"
 export HF_HOME="$PROJECT_DIR/.cache/huggingface"
 export HF_DATASETS_CACHE="$PROJECT_DIR/.cache/datasets"
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
@@ -70,32 +89,55 @@ MEM_MB="${SLURM_MEM_PER_NODE:-0}"
 [ "$MEM_MB" -ge 180000 ] || { echo "optimizer offload needs --mem>=180G, got ${MEM_MB}MB" >&2; exit 1; }
 
 MODEL_SLUG=$(python3 -c "import re,yaml;n=yaml.safe_load(open('config/config.yaml'))['model']['name'].split('/')[-1].lower();print(re.sub(r'[^a-z0-9.]+','-',n).strip('-'))")
-FR_FT="$PROJECT_DIR/experiments/tofu_learn_full_full_${MODEL_SLUG}_fr"
-FR_RETAIN="$PROJECT_DIR/experiments/tofu_learn_retain99_full_${MODEL_SLUG}_fr"
+if [ "$SRC" = bridge ]; then
+    # Learned the forget authors in French ONLY, the retain authors in French AND Japanese;
+    # its floor is the matching never-taught model (retain99 in both, Stage 8).
+    FR_FT="$PROJECT_DIR/experiments/tofu_learn_full_full_${MODEL_SLUG}_fr-ja-fgfr"
+    FR_RETAIN="$PROJECT_DIR/experiments/tofu_learn_retain99_full_${MODEL_SLUG}_fr-ja"
+else
+    FR_FT="$PROJECT_DIR/experiments/tofu_learn_full_full_${MODEL_SLUG}_fr"
+    FR_RETAIN="$PROJECT_DIR/experiments/tofu_learn_retain99_full_${MODEL_SLUG}_fr"
+fi
 [ -d "$FR_FT" ] || { echo "MISSING fr_ft: $FR_FT" >&2; exit 1; }
 [ -d "$FR_RETAIN" ] || { echo "MISSING fr_retain: $FR_RETAIN" >&2; exit 1; }
 
 # The level en and ja were matched at, read from the pre-registration, not retyped.
 LEVEL=$(python3 -c "import json;print(json.load(open('studies/learn_french/preregistration.json'))['tr_levels'][-1])")
 # Same tags unlearn_epochs.py builds, so this script knows the run name in advance.
+[ "$SMOKE" = 1 ] && STOP_EPOCH=1
 if [ -n "$STOP_EPOCH" ]; then
     STOP_TAG="ep${STOP_EPOCH}"
     STOP_FLAGS=(--stop-at-epoch "$STOP_EPOCH")
+elif [ -n "$STOP_PGOLD" ]; then
+    STOP_TAG=$(python3 -c "print(('pg%.3f'%$STOP_PGOLD).replace('.','p'))")
+    STOP_FLAGS=(--stop-at-pgold "$STOP_PGOLD" --stop-at-epoch "$CAP")
 else
     STOP_TAG=$(python3 -c "print(('tr%.3f'%$LEVEL).replace('.','p'))")
     STOP_FLAGS=(--stop-at-level "$LEVEL" --stop-at-epoch "$CAP")
 fi
+# Suffix order = unlearn_epochs.py's: _L<layers> then _<tag>.
 RUN="ul${LANG_UL}_s${SEED}_$(python3 -c "print(('lr%.1e'%$LR).replace('.','p'))")_${STOP_TAG}"
-CKPT="$PROJECT_DIR/experiments/side_checks/plan3/$RUN"
-TRAJ="$R/plan3/traj_$RUN.jsonl"
-TOKS="$R/plan3/tokens_$RUN.jsonl"
+EXTRA_FLAGS=()
+if [ -n "$LAYERS" ]; then RUN+="_L$LAYERS"; EXTRA_FLAGS+=(--trainable-layers "$LAYERS"); fi
+if [ "$SRC" = bridge ]; then RUN+="_srcbr"; EXTRA_FLAGS+=(--tag srcbr); fi
+SUB=plan3
+[ "$SMOKE" = 1 ] && SUB=plan3_smoke
+mkdir -p "$R/$SUB" "experiments/side_checks/$SUB"
+CKPT="$PROJECT_DIR/experiments/side_checks/$SUB/$RUN"
+TRAJ="$R/$SUB/traj_$RUN.jsonl"
+TOKS="$R/$SUB/tokens_$RUN.jsonl"
 MEASURE="$R/plan3/measure/$RUN.json"
 NAMES="$R/plan3/names/$RUN.json"
-LAYERS="$R/plan3/layer_diff_$RUN.json"
+LAYERS_OUT="$R/$SUB/layer_diff_$RUN.json"
 
 echo "=========================================================================="
-echo " SIDE CHECK plan 3   arm $LANG_UL   peak LR $LR   seed $SEED"
-if [ -n "$STOP_EPOCH" ]; then
+echo " SIDE CHECK plan 3/5   arm $LANG_UL   peak LR $LR   seed $SEED"
+echo "   run        : $RUN"
+echo "   source     : $SRC ($FR_FT)"
+echo "   layers     : ${LAYERS:-all}   smoke: $SMOKE"
+if [ -n "$STOP_PGOLD" ]; then
+    echo "   stop       : first per-epoch French P(gold) <= $STOP_PGOLD (cap epoch $CAP)"
+elif [ -n "$STOP_EPOCH" ]; then
     echo "   stop       : fixed epoch $STOP_EPOCH (no TR level)"
 else
     echo "   stop       : first per-epoch French TR >= $LEVEL (cap epoch $CAP)"
@@ -121,15 +163,37 @@ else
     deepspeed --num_gpus=1 --master_port=$((20000 + SLURM_JOB_ID % 10000)) \
         "$SIDE/scripts/unlearn_epochs.py" \
         --checkpoint "$FR_FT" --lang "$LANG_UL" --seed "$SEED" --lr "$LR" \
-        --schedule-epochs 50 "${STOP_FLAGS[@]}" \
+        --schedule-epochs 50 "${STOP_FLAGS[@]}" ${EXTRA_FLAGS[@]+"${EXTRA_FLAGS[@]}"} \
         --mu-every 10 --forget-floor none \
-        --ckpt-root experiments/side_checks/plan3 --out-dir "$R/plan3"
+        --ckpt-root "experiments/side_checks/$SUB" --out-dir "$R/$SUB"
 fi
 [ -f "$CKPT/tokenizer_config.json" ] || { echo "no finished checkpoint at $CKPT" >&2; exit 1; }
 
+# ---- SMOKE: did the freeze hold under ZeRO-3? Then stop. --------------------------------
+if [ "$SMOKE" = 1 ]; then
+    echo "[smoke] layer diff $FR_FT -> $CKPT"
+    python studies/learn_french/scripts/layer_diff.py \
+        --pair "$RUN=${FR_FT}::${CKPT}" --out "$LAYERS_OUT"
+    SMOKE_OK=0
+    python3 "$SIDE/scripts/check_freeze.py" "$LAYERS_OUT" "${LAYERS:-}" || SMOKE_OK=$?
+    case "$CKPT" in "$PROJECT_DIR/experiments/side_checks/plan3_smoke/ul"*) rm -rf "$CKPT" ;; esac
+    echo "=== smoke done: $RUN (outputs in $R/plan3_smoke; move them aside before re-running) ==="
+    exit "$SMOKE_OK"
+fi
+
 # Did it reach the level, and when? (The last trajectory row is the stopping point.)
 # A fixed-epoch run has no level to reach: report where it stopped and relearn it.
-if [ -n "$STOP_EPOCH" ]; then
+if [ -n "$STOP_PGOLD" ]; then
+    CROSSED=$(python3 -c "
+import json, sys
+rows = [json.loads(l) for l in open(sys.argv[1])][1:]
+pg = [(r['epoch'], sum(r['prob_fr']) / len(r['prob_fr'])) for r in rows]
+hit = [(e, p) for e, p in pg if p <= float(sys.argv[2])]
+e, p = hit[0] if hit else pg[-1]
+print(('yes' if hit else 'NO ') + f'  epoch {e}  French P(gold) {p:.4f}', file=sys.stderr)
+print('yes' if hit else 'no')" "$TOKS" "$STOP_PGOLD")
+    echo "[1] reached P(gold) <= $STOP_PGOLD: $CROSSED"
+elif [ -n "$STOP_EPOCH" ]; then
     python3 -c "import json,sys;r=[json.loads(l) for l in open(sys.argv[1])][-1];print(f\"[1] stopped at epoch {r['epoch']:.0f}  TR {r['mean_tr']:.4f}  MU {r['model_utility_6']}\")" "$TRAJ"
     CROSSED=yes
 else
@@ -168,10 +232,10 @@ if [ -f "$NAMES" ]; then echo "[3] name skill -- skip"; else
 fi
 
 # ---- [4] layer diff (CPU) ------------------------------------------------------------
-if [ -f "$LAYERS" ]; then echo "[4] layer diff -- skip"; else
-    echo "[4] layer diff fr_ft -> $RUN"
+if [ -f "$LAYERS_OUT" ]; then echo "[4] layer diff -- skip"; else
+    echo "[4] layer diff $SRC -> $RUN"
     python studies/learn_french/scripts/layer_diff.py \
-        --pair "$RUN=${FR_FT}::${CKPT}" --out "$LAYERS"
+        --pair "$RUN=${FR_FT}::${CKPT}" --out "$LAYERS_OUT"
 fi
 
 # ---- [5] benign relearning, one language at a time ------------------------------------
@@ -210,7 +274,7 @@ else
 fi
 
 # ---- [6] delete the stopped weights, only when everything that needed them is on disk -
-for f in "$MEASURE" "$NAMES" "$LAYERS" ${REL_OUTS[@]+"${REL_OUTS[@]}"}; do
+for f in "$MEASURE" "$NAMES" "$LAYERS_OUT" ${REL_OUTS[@]+"${REL_OUTS[@]}"}; do
     [ -f "$f" ] || { echo "[6] missing $f -- KEEPING $CKPT" >&2; exit 1; }
 done
 case "$CKPT" in "$PROJECT_DIR/experiments/side_checks/plan3/ul"*) ;; *)

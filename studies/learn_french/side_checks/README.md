@@ -293,6 +293,48 @@ epochs its arms sit at different depths), so it was dropped before producing res
 `scripts/unlearn_epochs.py` gained `--lr`, `--stop-at-level`, `--save-at-epochs` for these
 plans; without them it runs Plan 1 exactly.
 
+## Plan 5 — reliability + causal tests of carry-over  (PRE-REGISTERED 2026-11-08, NOT RUN)
+
+From the supervisor's 2026-11 feedback: reliability of depth matching and of the metrics,
+an intervention for the mechanism, depth over breadth. en vs ja only. Predictions and
+reading rules: `preregistration_plan5.json`, fixed before any job.
+
+**Zero-GPU reliability pass (DONE 2026-11-08):**
+- **Depth curve (fig 18, `plots/plot_depth_curve.py`).** Every relearned en/ja run, x =
+  French P(gold) at the stop. Both languages have runs at P(gold) 0.194-0.447; ja relearns
+  higher (less durable) everywhere they overlap. Matched pair at 0.274 (French relearn):
+  en 0.454, ja 0.594. ja's deepest run is 0.194 at the stop and relearns to 0.563, above
+  en started at 0.274. Nothing is known for ja below 0.194 -> the depth-curve runs.
+- **Metric consistency (`plots/read_metric_consistency.py`, stdlib).**
+  [A] en more durable than ja on the mean on TR, P(gold) and NLI, both columns, all 3
+  seeds (18/18). Per fact, P(gold) agrees broadly (27-35 of 40 facts), NLI 22-28, **TR is
+  near a coin flip (18-23)**: the TR mean gap is carried by **facts 5 and 7 on every seed**
+  (per-fact gaps 1.1-3.1; median gap -0.012 to 0.027; without the top 3 facts 0.033-0.053).
+  So lead the report with P(gold) for breadth, and give TR with that caveat. Plan 5 uses
+  P(gold) as its primary outcome for this reason.
+  [B] The TR-vs-NLI recovery gap (56% vs 12%) is **not** a threshold on TR or P(gold):
+  fr_ft says 90% of facts with TR < 0.6, relearned models 18%; at P(gold) 0.6-0.8, 89% vs
+  20%. 91% of the TR recovery mass sits in facts not said after relearning. Third falsified
+  explanation (after length dilution); stays a limitation.
+
+**GPU (scripts ready, `slurm/submit_plan5.sh <phase>`):**
+
+| phase | runs | question | est. GPU-h |
+|---|---|---|---|
+| smoke | ja `LAYERS=0-23`, en `LAYERS=24-35`, 1 epoch, `SMOKE=1` | did the freeze hold under ZeRO-3? (`scripts/check_freeze.py`) | ~2 |
+| depth | ja lr 1.5e-5 `STOP_PGOLD=0.100` / `0.018`; en lr 5e-6 `STOP_PGOLD=0.100` | does ja stay less durable deep (Hu et al.: deeper = more durable)? | ~26 |
+| layers (Experiment D) | ja layers 0-23 only; en layers 24-35 only; stop French TR 0.8276 | is the top-layer locus a CAUSE of fragility? (two-sided) | <=32 |
+| bridge | `slurm/24_learn_bridge.sbatch` (retain99 fr + ja, forget01 fr only), `25_bridge_gate.sbatch`, read `scripts/bridge_gate_report.py` | did bilingual task training raise ja carry-over? | ~16 |
+| bridge-arms | ja / en `SRC=bridge`, stop French TR 0.8276 | does raising carry-over make ja durable? (gate PASS only) | ~17 |
+
+`unlearn_epochs.py` gained `--stop-at-pgold`, `--trainable-layers A-B`, `--tag`;
+`plan3_arm.sbatch` the env options `STOP_PGOLD`, `LAYERS`, `SRC=bridge`, `SMOKE=1` (each
+changes the run name, so nothing collides with earlier runs); `shared/scripts/01_learn.py`
+gained `--forget-lang`. Experiment D freezes embeddings, final norm and lm_head too (they
+carry 0.2-0.4% of the unrestricted change). Why the bridge model and not Stage 8's fr-ja_ft:
+fr-ja_ft learned the facts in Japanese too (a second, largely separate copy), so Japanese
+unlearning there would change what is stored, not only carry-over.
+
 ## Run
 
 ```bash
@@ -350,6 +392,7 @@ are moved aside.
 | **14_language_vs_epochs** | plot_plan3 | Fig 8 with all five languages + secondary ja-fast | **main: language vs run length** |
 | **16_pgold_control** | plot_plan3 | en@15 vs ja-fast matched on P(gold) and epochs | **main: metric objection** |
 | **17_seed_sweep** | plot_plan3 | en/ja gap over seeds 42, 1, 2 vs run-to-run spread | **main: seed objection** |
+| **18_depth_curve** | plot_depth_curve | every relearned en/ja run: relearned P(gold) vs P(gold) at the stop | **main: depth-matching objection** |
 | **report/report_run_length** | plot_report | single-panel version of 14 for the CA report: en vs ja only, relearned French TR vs run length | report Fig. 3.2 |
 | **report/report_layers** | plot_report | single-panel version of 12 panel A for the CA report: layer profile per arm, top-third share | report Fig. 3.3 |
 

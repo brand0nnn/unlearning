@@ -1,0 +1,93 @@
+{
+  "recorded": "2026-11-08, before any Plan 5 job was submitted and before the bridge model was trained.",
+  "status": "[PROVISIONAL: single seed] for every new run -- seed 42, 40 facts about 2 entities. Reference values for en/ja come from the 3-seed sweep (seeds 42, 1, 2).",
+  "why": "Supervisor feedback (2026-11): (1) strengthen the reliability of the main result -- the validity of forgetting-depth matching and consistency across metrics; (2) move from correlation to causal evidence for the carry-over mechanism with an intervention; (3) depth over breadth. Plan 5 = one zero-GPU reliability pass + three GPU experiments, all on the en vs ja comparison only.",
+
+  "seen_before_writing_this": {
+    "fig_18_depth_curve": "plots/plot_depth_curve.py on the 11 existing relearned en/ja runs. On French P(gold) at the stop, both languages have runs at 0.194-0.447; ja relearns to the higher (less durable) P(gold) wherever the two overlap. Matched pair at P(gold) 0.274 (French relearn): en 0.454, ja 0.594. ja's deepest run is P(gold) 0.194; en goes to 0.018 (Plan 1 ep 25, relearned 0.139). Nothing is known about ja below 0.194.",
+    "metric_consistency_A": "plots/read_metric_consistency.py. en more durable than ja on the MEAN on TR, P(gold) and NLI, in both relearn columns, on all 3 seeds (18/18). Per fact: P(gold) agrees broadly (en more durable on 27-35 of 40 facts); NLI on 22-28; TR is close to a coin flip (18-23). The TR mean gap (0.117-0.183) is carried by facts 5 and 7 on every seed (per-fact gaps 1.1-3.1); median per-fact gap -0.012 to 0.027; without the 3 largest facts the mean gap is 0.033-0.053.",
+    "metric_consistency_B": "The TR-vs-NLI recovery gap (56% vs 12%) is NOT a threshold on TR or on P(gold): fr_ft says 90% of facts with TR < 0.6 and 89% with P(gold) 0.6-0.8; relearned models say only 18% / 20% in the same bands. 91% of the TR recovery mass sits in facts not said after relearning. With the length-dilution story (falsified earlier) this makes three falsified explanations; the gap stays a stated limitation and is not pursued further (depth over breadth).",
+    "consequence": "Because the TR gap rests on two facts and the P(gold) gap is broad, every Plan 5 PRIMARY outcome is relearned French P(gold); TR is secondary. Stopping rules stay as written below."
+  },
+
+  "reference_values": {
+    "source": "relearned French P(gold) / TR at the Stage 3 recipe, seeds 42 / 1 / 2 (seed 42 = Stage 3 cells, a different scoring group, up to 0.024 TR apart)",
+    "pgold_fr_col": {"en": [0.569, 0.569, 0.576], "ja": [0.629, 0.648, 0.652], "en_mean": 0.571, "ja_mean": 0.643, "midpoint": 0.607},
+    "pgold_en_col": {"en": [0.534, 0.539, 0.535], "ja": [0.593, 0.629, 0.619], "en_mean": 0.536, "ja_mean": 0.614, "midpoint": 0.575},
+    "tr_fr_col": {"en_mean": 0.829, "ja_mean": 0.664, "midpoint": 0.746},
+    "tr_en_col": {"en_mean": 0.778, "ja_mean": 0.655, "midpoint": 0.717},
+    "gap_ja_minus_en_pgold": {"fr_col": [0.060, 0.079, 0.076], "en_col": [0.059, 0.090, 0.084], "fr_mean": 0.072, "en_mean": 0.078},
+    "noise_bar": "0.04 on P(gold), as in pgold_control (re-scoring moves a TR/NLI cell by ~0.038; assumed similar for P(gold); seed spread of relearned P(gold) <= 0.036)"
+  },
+
+  "depth_curve": {
+    "question": "Does ja stay less durable than en when both are unlearned much deeper than the Stage 3 match, or do the curves meet in the deep regime (Hu et al.: deeper = more durable)?",
+    "runs": {
+      "ja_pg0p100": "plan3_arm.sbatch ja 1.5e-5, STOP_PGOLD=0.100 (stop at the first epoch with mean French P(gold) <= 0.100, cap epoch 50)",
+      "ja_pg0p018": "plan3_arm.sbatch ja 1.5e-5, STOP_PGOLD=0.018 (Plan 1 en ep 25's depth)",
+      "en_pg0p100": "plan3_arm.sbatch en 5.0e-6, STOP_PGOLD=0.100 (Plan 1's trajectory reaches 0.096 at epoch 20)"
+    },
+    "why_ja_lr_1p5e-5": "ja at 5e-6 reaches only P(gold) ~0.43 by its matched epoch 25 and the 50-epoch schedule then decays; 1.5e-5 fell 0.700 -> 0.194 by epoch 12 (Plan 3) and is still falling.",
+    "primary_outcome": "relearned French P(gold) in each relearn column.",
+    "predictions": {
+      "H_language_holds_deep": "at P(gold) 0.100: ja relearns >= 0.04 HIGHER than en in BOTH columns. At 0.018: ja relearns >= 0.04 higher than Plan 1 en ep 25 (0.139, French column only; a different scoring group).",
+      "H_converge": "the difference is under 0.04 (or en is higher) at 0.100 in either column -> the gap is confined to shallower depth; the report claim is then scoped to 'at matched P(gold) >= 0.19'.",
+      "context_not_a_prediction": "Fig 18 shows ja's relearned P(gold) falls only 0.07 from P(gold) 0.45 to 0.19 at the stop, en's 0.13 from 0.52 to 0.27."
+    },
+    "exclusions": "a run that never reaches its P(gold) target by epoch 50 is reported as such and not relearned (plan3_arm skips relearning).",
+    "output": "Fig 18 picks the new runs up automatically (plot_depth_curve.py, run names _pg0p100 / _pg0p018)."
+  },
+
+  "experiment_d": {
+    "question": "Is the top-layer locus of the ja edit a CAUSE of its fragility? (Mechanism link 2: low carry-over -> the gradient lowers the target by breaking the language's output near the top -> relearning repairs it.)",
+    "runs": {
+      "ja_L0-23": "plan3_arm.sbatch ja 5.0e-6, LAYERS=0-23: decoder layers 0-23 train; layers 24-35, embeddings, final norm and lm_head frozen. Stop at French TR 0.8276 (Stage 3's rule), cap epoch 50.",
+      "en_L24-35": "plan3_arm.sbatch en 5.0e-6, LAYERS=24-35: only the top third (24-35) trains. Same stop."
+    },
+    "why_freeze_non_block_parameters": "In the unrestricted arms lm_head, embed_tokens and norm carry 0.2% (en) / 0.4% (ja) of total dW^2 (results/layer_diff.json), so freezing them in both arms changes almost nothing and keeps the manipulation purely 'which decoder blocks'.",
+    "smoke_first": "SMOKE=1 for both arms (1 epoch, layer diff, check_freeze.py): every parameter outside the range must be bitwise unchanged. The real runs are submitted only after both print [freeze] OK.",
+    "primary_outcome": "relearned French P(gold), each column, against the 3-seed midpoints (fr col 0.607, en col 0.575).",
+    "predictions": {
+      "H_locus_ja": "ja_L0-23 relearns BELOW the midpoint in both columns (en-like, more durable).",
+      "H_locus_en": "en_L24-35 relearns ABOVE the midpoint in both columns (ja-like, less durable).",
+      "reading": "both hold -> the top-layer locus causes fragility in both directions (strongest support); only H_locus_ja -> avoiding the top third is enough to make ja durable, but forcing en there does not make it fragile; only H_locus_en -> top-layer edits are fragile, but ja finds a fragile edit lower down too; neither -> the layer pattern is a symptom, not a cause; the carry-over story needs another link."
+    },
+    "depth_check": "Both stop on French TR. If an arm's French P(gold) at the stop differs from its language's Stage 3 value (en 0.49-0.50, ja 0.43-0.45) by more than 0.1, its relearned P(gold) is ALSO read against Fig 18's curve at that depth, and the report says so.",
+    "secondary": "relearned TR against the TR midpoints (fr col 0.746, en col 0.717); own-language forget NLL at the stop; own-language names destroyed; top-third share (must be 0% for ja_L0-23 and 100% for en_L24-35 -- a check, not a finding).",
+    "fallback": "an arm that does not cross TR 0.8276 by epoch 50 is reported as 'cannot reach matched depth with these layers' (itself evidence for the ja arm: the top third is needed). One rerun at lr 1.5e-5 is allowed, named by its LR; no other retries."
+  },
+
+  "bridge": {
+    "question": "Does raising carry-over CAUSE ja unlearning to become durable? (Mechanism link 1.) Manipulate carry-over while holding the unlearning language fixed.",
+    "model": "fr-ja-fgfr_ft = LEARN on retain99_fr + forget01_fr + retain99_ja (7960 rows; 24_learn_bridge.sbatch). The forget facts are seen in French only; the model learns the TOFU task in Japanese too. Floor: Stage 8's fr-ja_retain (exactly this set minus the 40 forget rows).",
+    "why_not_stage8_fr-ja_ft": "fr-ja_ft learned the forget facts in Japanese as well; Stage 8 found that Japanese copy largely separate from the French one, so Japanese unlearning would attack a second stored copy -- a change to WHAT is stored, not only to carry-over.",
+    "gate": {
+      "job": "25_bridge_gate.sbatch, read by scripts/bridge_gate_report.py",
+      "measure": "carry-over = per forget fact, mean teacher-forced log p of the answer tokens in the language under the model minus under its floor; mean over 40 facts. fr_ft (floor fr_retain) and the bridge (floor fr-ja_retain) in ONE scoring pass.",
+      "pass": "bridge ja carry-over >= midpoint of fr_ft's ja and en carry-over (this pass; ~0.41 if it reproduces 0.19 / 0.64). STRONG if >= fr_ft's en.",
+      "ceiling": "bridge French P(gold) >= fr_ft's - 0.05 and French TR <= fr_ft's + 0.05, in the same measure pass.",
+      "on_fail": "no bridge arms. Report: 'bilingual task training did not raise carry-over' -- the intervention could not be applied; Experiment D carries the causal question alone."
+    },
+    "arms": {
+      "ja_srcbr": "plan3_arm.sbatch ja 5.0e-6, SRC=bridge; stop at French TR 0.8276, cap 50",
+      "en_srcbr": "plan3_arm.sbatch en 5.0e-6, SRC=bridge; same"
+    },
+    "primary_outcome": "gap in relearned French P(gold), ja minus en, on the bridge model, per column, against fr_ft's 3-seed gap (fr col mean 0.072, smallest 0.060; en col mean 0.078, smallest 0.059).",
+    "predictions": {
+      "H_carryover": "the bridge gap is under HALF fr_ft's mean in both columns (fr < 0.036, en < 0.039).",
+      "H_no_carryover": "the bridge gap is >= fr_ft's smallest seed gap in either column (>= 0.059).",
+      "inconclusive": "anything between."
+    },
+    "secondary": "the bridge ja arm's edit signatures move toward en's: top-third share below fr_ft ja's 51-52%; own-language names destroyed below 95%; own-language forget NLL at the stop below fr_ft ja's 41-55.",
+    "confound_to_state": "the bridge also trains general Japanese TOFU ability, so a closed gap supports 'carry-over OR general target-language competence'. The floor subtraction isolates fact-specific carry-over in the GATE measure; the arms cannot separate the two."
+  },
+
+  "known_limitations": [
+    "Single seed for every Plan 5 run; the reference values are 3 seeds.",
+    "Depth-curve points use different peak LRs (ja 1.5e-5, en 5e-6): depth is the outcome of the run, not the recipe. Plan 3 found run length / LR moves relearned TR 0.016-0.060 at fixed depth.",
+    "The 0.018 comparison uses Plan 1's en ep 25 (French relearn only, a different scoring group).",
+    "Experiment D freezes embeddings, final norm and lm_head in both arms (0.2-0.4% of the unrestricted change).",
+    "TR's en-ja gap is carried by facts 5 and 7 on every seed; P(gold) is primary for that reason, decided after seeing it.",
+    "40 facts about 2 entities; one model (Qwen3-8B); one unlearning method (gradient difference)."
+  ]
+}

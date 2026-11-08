@@ -150,6 +150,16 @@ Inject the TOFU facts **in French**, so the multilingual variable can move onto 
 >   exact-match generation. Never quote one without the other.
 >
 > **Next, ranked:**
+> 00. **Plan 5 (2026-11-08, supervisor feedback: reliability, causal evidence, depth over
+>    breadth)** -- `side_checks/README.md` "Plan 5", `side_checks/preregistration_plan5.json`.
+>    Zero-GPU pass DONE: fig 18 (ja less durable at every shared depth, P(gold) 0.19-0.45);
+>    **the en-ja TR gap is carried by facts 5 and 7 on every seed while the P(gold) gap is
+>    broad (27-35/40 facts) -- lead the report with P(gold)**; the TR-NLI recovery gap is
+>    not a TR or P(gold) threshold (still unexplained). GPU, scripts ready: `bash
+>    studies/learn_french/side_checks/slurm/submit_plan5.sh smoke | depth | layers |
+>    bridge-arms` + `slurm/24_learn_bridge.sbatch` / `25_bridge_gate.sbatch`. These replace
+>    item 2's joint-model test below. Open decision: park Stage 10 (Q1 storage, the secondary
+>    question) while Plan 5 runs?
 > 0. **DONE 2026-10-29 -- seed sweep, en + ja (Q2).** Gap en - ja in relearned French TR,
 >    seeds 42 / 1 / 2: 0.162 / 0.183 / 0.149 (French relearn), 0.129 / 0.117 / 0.124
 >    (English relearn); each arm's spread over seeds <= 0.035. Replicates on every seed and
