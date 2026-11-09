@@ -99,7 +99,8 @@ if [ -f "$CKPT/RESUME_PENDING" ]; then
         echo "  CHAIN=0 sbatch $SELF" >&2
         exit 1
     fi
-    NEXT=$(sbatch --parsable --export=ALL,CHAIN=$((CHAIN + 1)),SMOKE=$SMOKE "$SELF")
+    # not --export=ALL,<list>: that sets SLURM_GET_USER_ENV=1, which fails on xgph9
+    NEXT=$(env CHAIN=$((CHAIN + 1)) SMOKE=$SMOKE sbatch --parsable "$SELF")
     echo "=== resubmitted as job $NEXT (chain link $((CHAIN + 1))) ==="
     exit 0
 fi

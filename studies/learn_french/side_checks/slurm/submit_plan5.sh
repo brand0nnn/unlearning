@@ -65,7 +65,10 @@ echo "disk: ${USED_GB}GB used, ~${LEFT}GB left of 400; $PHASE needs ~${NEED}GB"
 
 for j in "${JOBS[@]}"; do
     read -r env lg lr <<< "$j"
-    id=$(sbatch --parsable --export=ALL,"$env" "$D/plan3_arm.sbatch" "$lg" "$lr")
+    # vars go in sbatch's environment, not --export=ALL,<list> (that sets SLURM_GET_USER_ENV=1
+    # and fails on xgph9; see submit_plan5_chain.sh)
+    IFS=, read -r -a vars <<< "$env"
+    id=$(env "${vars[@]}" sbatch --parsable "$D/plan3_arm.sbatch" "$lg" "$lr")
     echo "$id  $lg lr $lr  $env"
 done
 echo "watch: squeue -u \$USER ; grep -h 'reached\|crossed\|freeze\|done' logs/side_p3_*.out"

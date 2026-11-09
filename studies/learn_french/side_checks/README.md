@@ -322,7 +322,7 @@ reading rules: `preregistration_plan5.json`, fixed before any job.
 The QOS allows ONE a100-80 per user, so Plan 5 runs in series (~93 GPU-h, ~4 days) and
 queues behind any other a100-80 job on the account. Chain order, chosen 2026-11-08 to
 have readable results first: smoke x2 -> D ja -> depth ja 0.100 -> D en -> bridge LEARN
-(submits its own gate, `AUTO_GATE=1`) -> depth ja 0.018 -> depth en 0.100. The bridge
+(submits its own gate, `AUTO_GATE=1`) -> depth ja 0.018 -> depth en 0.100. Reordered 2026-11-09 to put depth ja 0.100 FIRST (the 27 h lost to the --export bug left no time for D before the presentation). The bridge
 arms stay manual (read the gate, then `submit_plan5.sh bridge-arms`). `submit_plan5.sh
 <phase>` still submits one phase at a time.
 

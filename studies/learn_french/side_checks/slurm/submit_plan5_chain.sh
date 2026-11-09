@@ -10,11 +10,12 @@
 # Order (results first that are readable on their own; preregistration_plan5.json):
 #
 #   #  job                                      ~h    waits for
-#   1  smoke ja LAYERS=0-23  (1 epoch)          1     --
-#   2  smoke en LAYERS=24-35 (1 epoch)          1     1 ends
-#   3  D: ja LAYERS=0-23,  stop TR 0.8276       <=16  1 AND 2 print [freeze] OK (exit 0)
-#   4  depth: ja lr 1.5e-5 STOP_PGOLD=0.100     ~8    3 ends
-#   5  D: en LAYERS=24-35, stop TR 0.8276       <=16  1 AND 2 OK, and 4 ends
+#   1  depth: ja lr 1.5e-5 STOP_PGOLD=0.100     ~8    --  (first: the only run that can
+#                                                         finish in under a day; 2026-11-09)
+#   2  smoke ja LAYERS=0-23  (1 epoch)          1     1 ends
+#   3  smoke en LAYERS=24-35 (1 epoch)          1     2 ends
+#   4  D: ja LAYERS=0-23,  stop TR 0.8276       <=16  2 AND 3 print [freeze] OK (exit 0)
+#   5  D: en LAYERS=24-35, stop TR 0.8276       <=16  2 AND 3 OK, and 4 ends
 #   6  bridge LEARN (AUTO_GATE=1 -> it submits  ~15   5 ends
 #      25_bridge_gate.sbatch itself when done)  (+1)
 #   7  depth: ja lr 1.5e-5 STOP_PGOLD=0.018     ~9    6 ends
@@ -60,23 +61,28 @@ echo "disk: ${USED_GB}GB used, ~$((400 - USED_GB))GB left of 400 (series peak ~5
 echo "      other jobs, e.g. Stage 10's tr_levels, can still grow -- each job re-checks)"
 
 # sub NAME DEPENDENCY ENV SCRIPT [ARGS...]  -> prints the job id (DRY: prints NAME)
+# ENV ("A=1,B=2") is set in sbatch's own environment, NOT passed as --export=ALL,A=1: on this
+# cluster any --export=<list> sets SLURM_GET_USER_ENV=1, the node then rebuilds the login
+# environment, and on xgph9 that fails -> "user env retrieval failed requeued held" (job
+# 1096234, 2026-11-08, held 27 h). Plain sbatch exports ALL by default without that flag.
 sub() {
     local name="$1" dep="$2" env="$3"; shift 3
-    local opts=(--parsable "--export=ALL${env:+,$env}")
+    local vars=() opts=(--parsable)
+    [ -n "$env" ] && IFS=, read -r -a vars <<< "$env"
     [ -n "$dep" ] && opts+=("--dependency=$dep" --kill-on-invalid-dep=yes)
     if [ "$DRY" = 1 ]; then
-        echo "  sbatch ${opts[*]} $*" >&2
+        echo "  env ${vars[*]} sbatch ${opts[*]} $*" >&2
         echo "$name"
     else
-        sbatch "${opts[@]}" "$@"
+        env ${vars[@]+"${vars[@]}"} sbatch "${opts[@]}" "$@"
     fi
 }
 
-S1=$(sub smoke_ja  ""                         "SMOKE=1,LAYERS=0-23"  "$A" ja 5.0e-6)
+P1=$(sub depth_ja1 ""                         "STOP_PGOLD=0.100"     "$A" ja 1.5e-5)
+S1=$(sub smoke_ja  "afterany:$P1"             "SMOKE=1,LAYERS=0-23"  "$A" ja 5.0e-6)
 S2=$(sub smoke_en  "afterany:$S1"             "SMOKE=1,LAYERS=24-35" "$A" en 5.0e-6)
 D1=$(sub D_ja      "afterok:$S1:$S2"          "LAYERS=0-23"          "$A" ja 5.0e-6)
-P1=$(sub depth_ja1 "afterany:$D1"             "STOP_PGOLD=0.100"     "$A" ja 1.5e-5)
-D2=$(sub D_en      "afterok:$S1:$S2,afterany:$P1" "LAYERS=24-35"     "$A" en 5.0e-6)
+D2=$(sub D_en      "afterok:$S1:$S2,afterany:$D1" "LAYERS=24-35"     "$A" en 5.0e-6)
 BL=$(sub bridge    "afterany:$D2"             "AUTO_GATE=1"          "$B")
 P2=$(sub depth_ja2 "afterany:$BL"             "STOP_PGOLD=0.018"     "$A" ja 1.5e-5)
 P3=$(sub depth_en1 "afterany:$P2"             "STOP_PGOLD=0.100"     "$A" en 5.0e-6)
@@ -84,10 +90,10 @@ P3=$(sub depth_en1 "afterany:$P2"             "STOP_PGOLD=0.100"     "$A" en 5.0
 cat <<EOF
 
 queued (runs top to bottom, one at a time):
-  1  $S1   smoke ja L0-23
-  2  $S2   smoke en L24-35
-  3  $D1   D: ja layers 0-23        (cancelled automatically if a smoke check fails)
-  4  $P1   depth: ja to P(gold) 0.100
+  1  $P1   depth: ja to P(gold) 0.100
+  2  $S1   smoke ja L0-23
+  3  $S2   smoke en L24-35
+  4  $D1   D: ja layers 0-23        (cancelled automatically if a smoke check fails)
   5  $D2   D: en layers 24-35       (cancelled automatically if a smoke check fails)
   6  $BL   bridge LEARN -> submits the gate itself when done
   7  $P2   depth: ja to P(gold) 0.018
@@ -95,5 +101,5 @@ queued (runs top to bottom, one at a time):
 
 watch:   squeue -u \$USER -o "%.9i %.14j %.8T %.10M %R"
 smoke:   grep -h "freeze" logs/side_p3_$S1.out logs/side_p3_$S2.out
-cancel:  scancel $S1 $S2 $D1 $P1 $D2 $BL $P2 $P3
+cancel:  scancel $P1 $S1 $S2 $D1 $D2 $BL $P2 $P3
 EOF
