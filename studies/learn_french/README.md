@@ -184,7 +184,7 @@ Inject the TOFU facts **in French**, so the multilingual variable can move onto 
 >    (the other agent's storage question) finished with decision **SEPARATE**
 >    (`results/storage_followup/phase2a.json`): French unlearning removes at most ~24% of the
 >    Japanese copy even at French TR 5.5 (borderline: shares 0.23-0.24 vs the 0.25 bar) ->
->    storage closed, reported as confirmatory of prior work; its README write-up is pending.
+>    storage closed, reported as confirmatory of prior work (see "Stage 10" -> "Phase 2A results").
 > 0. **DONE 2026-10-29 -- seed sweep, en + ja (Q2).** Gap en - ja in relearned French TR,
 >    seeds 42 / 1 / 2: 0.162 / 0.183 / 0.149 (French relearn), 0.129 / 0.117 / 0.124
 >    (English relearn); each arm's spread over seeds <= 0.035. Replicates on every seed and
