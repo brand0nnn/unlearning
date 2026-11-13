@@ -37,8 +37,11 @@ Inject the TOFU facts **in French**, so the multilingual variable can move onto 
 >   scoring noise (3 passes) 7 of 26 eligible Japanese facts ARE reached (TR share >= 0.25;
 >   median share still 0.06), and on behaviour the Japanese sampled stated-rate falls 39%
 >   of the way to never-taught, beyond the Japanese retain collateral (+0.34). The two
->   measures mostly flag DIFFERENT facts. Phase 2A (built, not run) asks whether survival
->   is a delay: `preregistration_stage10_phase2a.json`.
+>   measures mostly flag DIFFERENT facts. **Stage 10 Phase 2A (DONE 2026-11-08): SEPARATE
+>   -> storage CLOSED.** French pushed to 5.1x its never-taught gap moves the Japanese copy
+>   at most 0.24 of its own (bar 0.25; borderline), with no Japanese retain collateral --
+>   not a delay. Report as confirmatory of prior work (Farashah; Xiang Table 9) + the depth
+>   check. See "Stage 10" -> "Phase 2A results".
 >
 > **Q2. Does the unlearning language decide how durable forgetting is?** Stage 3's
 > headline. No published work measures this: relearning studies (Hu et al.; Xu et al.,
@@ -203,10 +206,9 @@ Inject the TOFU facts **in French**, so the multilingual variable can move onto 
 >    inference) and Experiment D (restrict which layers unlearning may change).
 > 3. **One more fragile language with seeds (ru)** -- turns "Japanese is special" into "a
 >    pattern across languages".
-> 4. **Stage 10 Phase 2A (BUILT, NOT RUN) -- the last storage experiment.** Phase 1 said
->    CONTINUE. Re-run job 19 past step 26 (job 26) and score Japanese at French TR 0.95 ...
->    1000: does the Japanese copy follow French down beyond the Japanese retain collateral
->    (DELAY) or not (SEPARATE)? Closes storage whichever way. See "Stage 10" below.
+> 4. **DONE 2026-11-08 -- Stage 10 Phase 2A: SEPARATE, storage CLOSED.** The Japanese copy
+>    does not follow French down (s <= 0.24 up to French TR 5.47). No further storage work;
+>    see "Stage 10" -> "Phase 2A results".
 > 5. **Build on Stage 8:** benign-relearn the French-unlearned joint model (does the
 >    surviving Japanese copy speed French recovery? -- the link between Q1 and Q2).
 > 6. **Zero GPU:** do facts with more SURVIVING tokens (Plan 1) recover more under benign
@@ -1468,6 +1470,10 @@ cannot touch) Japanese is flat in both stages; on the pre-registered log-P remov
 **Direction closed** (2026-10-27): more mixing variants are predicted to repeat this (see
 Reading), and the open question -- two stored copies or one fact with the French output path
 cut -- cannot be settled by any learning arrangement read through outputs.
+**Checkpoints:** `srcfrjamix` tr0p650 / tr0p694 (+ the tr0p739 symlink) were DELETED on
+2026-11-08 to make room for Stage 10 Phase 2A, after Stage 9 and Stage 10 Phase 1 had scored
+them (`results/storage_frja_mix/`, `results/storage_followup/`). `fr-ja-mix_ft` and
+`srcfrjamix_tr0p783` (Stage 9's primary) remain; re-making the others = job 22 (~12 h).
 
 **Design: Stage 8 is the control, and only the arrangement changes.** fr-ja-mix_ft learns the
 same 8000 rows with the same answer text (`verify_learn_data_mix.py`: every fact's two mixed
@@ -1609,7 +1615,7 @@ French TR 0.853 / 0.934, both nearest 0.878).
   pairs; ~15 h learn + ~12 h unlearn each) is predicted by the token explanation to repeat
   this. The seed sweep on the main finding is worth more.
 
-## Stage 10 — does French unlearning reach SOME facts' Japanese copy?  (Phase 1 DONE: CONTINUE; Phase 2A BUILT, NOT RUN)
+## Stage 10 — does French unlearning reach SOME facts' Japanese copy?  (Phase 1 DONE: CONTINUE; Phase 2A DONE: SEPARATE -- storage CLOSED)
 
 **Question.** Stage 8's "the Japanese copy survives" is a median (removed 0.02, TR 0.626 ->
 0.635). Per fact, in Stage 8's own pass: Japanese TR moved >= half way to never-taught on 6
@@ -1716,7 +1722,7 @@ the depth trend is what is lost (Phase 2A restores it). `phase1` marks them "not
   0.02, 30 one-sentence facts) while Phase 0 showed those generations losing the fact
   (35 -> 15): on that route probability keeps the fact and generation loses it.
 
-### Phase 2A -- is survival a DELAY?  (BUILT, NOT RUN; `preregistration_stage10_phase2a.json`)
+### Phase 2A -- is survival a DELAY?  (DONE 2026-11-08: SEPARATE; `preregistration_stage10_phase2a.json`)
 
 Phase 1 read Japanese at step 26, where French is already at never-taught (TR 0.853, floor
 0.847). Job 19's own trajectory keeps going -- French TR 0.954 (step 28), 1.41 (32), 2.74
@@ -1750,6 +1756,44 @@ rsync results/ down, then: storage_followup_report.py phase2a   -> the DECISION
 
 **Before submitting:** commit and push the Phase 2A files; the jobs check that both
 preregistrations and the key are committed as-is.
+
+### Phase 2A results (run 2026-11-08) -- DECISION: SEPARATE; storage CLOSED
+
+`[PROVISIONAL: single seed, 40 facts / 2 entities]`. Training job 1095615
+(`26_unlearn_frja_deep`) was scancelled at step 40, after saving levels 0.650-5.000, to free
+the a100-80 for Plan 5; levels 60 / 1000 were NOT made. Scoring jobs 1096477-1096484 (all
+completed). Read: `storage_followup_report.py phase2a` -> `results/storage_followup/phase2a.json`;
+figure `figures/storage_phase2a.png` (`plots/plot_storage_phase2a.py`). Every level usable
+(MU_6 >= 0.3735).
+
+| step | French TR | French gap moved | Japanese forget share s (net of retain) | facts reached (of 26) | Japanese greedy exact lost: forget / retain |
+|---|---|---|---|---|---|
+| 22 | 0.68 | 0.30 | 0.03 | 1 | 0.16 / 0.03 |
+| 24 | 0.75 | 0.22 | 0.04 | 6 | 0.50 / 0.10 |
+| 26 | 0.85 | 0.30 | 0.06 (job 19 replicate: 0.04) | 7 | 0.63 / 0.28 |
+| 28 | 0.95 | 0.58 | 0.04 | 8 | 0.74 / 0.47 |
+| 32 | 1.41 | 0.99 | 0.16 | 11 | 0.95 / 0.73 |
+| 36 | 2.74 | 3.1x | 0.24 | 12 | 0.97 / 0.82 |
+| 40 | 5.47 | 5.1x | 0.23 | 13 | 0.97 / 0.87 |
+
+- **SEPARATE:** s < 0.25 at all 4 usable levels beyond the primary. French goes 5.1x past
+  its never-taught gap; the Japanese copy moves at most 0.24 of its own, while the Japanese
+  retain rows' TR does not move at all (dR ~ 0). The Japanese copy is not a delayed version
+  of the French one.
+- **Borderline, say so:** 0.24 / 0.23 sit just under the 0.25 bar (a chosen bar, not
+  derived); the deepest levels (60 / 1000) were never made, so "every usable level" covers
+  steps <= 40 only; the reached set grows (7 -> 13 of 26; median per-fact share 0.26 at 5.47),
+  so a minority of facts do follow French at depth.
+- **Behaviour cannot settle it at depth:** Japanese greedy word-for-word answers collapse for
+  forget AND retain alike (retain exact 377 -> 48, fluent but confabulated), so past French
+  TR ~1.4 generation measures general Japanese damage, not the forgotten facts.
+- **Replicates:** this run's tr0p783 vs job 19's (s 0.06 vs 0.04; 6 of Phase 1's 7 reached
+  facts overlap).
+- **Why closed:** Phase 2A was pre-registered to close storage whichever way. Prior work
+  (Farashah et al.; Xiang Table 9) already shows other-language survival, so in the report
+  this is a confirmatory result plus the depth check, not a new claim. No Phase 2B.
+- **Disk:** the 7 `srcfrja2` level checkpoints (~107 GB) are still on the cluster and can be
+  deleted (ask first).
 
 ## Known limitations to carry into the writeup
 

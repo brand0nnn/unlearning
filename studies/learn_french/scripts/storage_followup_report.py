@@ -426,7 +426,12 @@ def phase2a():
     traj_p = RES / "unlearn_traj" / f"{run}.jsonl"
     if not traj_p.exists():
         sys.exit(f"missing {traj_p} -- job 26 not run or not rsynced")
-    traj = [json.loads(l) for l in open(traj_p)]
+    lines = [l for l in open(traj_p) if l.strip()]
+    traj = [json.loads(l) for l in lines[:-1]]
+    try:      # job 26 was scancelled after its last needed level: the final line may be cut
+        traj.append(json.loads(lines[-1]))
+    except json.JSONDecodeError:
+        print("note: last trajectory line is truncated (run cancelled), skipped")
 
     # Where each level was saved. Levels first crossed at the SAME probe point share weights:
     # the lowest one is the real save, the rest are symlinks to it (unlearn_probe._save_level).
