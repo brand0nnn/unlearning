@@ -389,6 +389,37 @@ fell (-2.19 -> -2.51), so not a floor artifact; 13/40 facts rose. French ceiling
 intervention cannot be applied; consistent with Stage 8's language-separate copies.
 Checkpoint `experiments/tofu_learn_full_full_qwen3-8b_fr-ja-fgfr` (16 GB) is no longer needed.
 
+**Round 2 (submitted 2026-11-13, `preregistration_plan5.json` "amendments_round2"):** job
+1129112 = ja `LAYERS=0-23` lr 1.5e-5 (the pre-registered fallback, TR stop); job 1129113 =
+en `LAYERS=24-35` stopped on French P(gold) 0.490 (AMENDMENT, decided after round 1),
+chained `afterany`.
+
+### Language-agnostic scores, zero GPU (2026-11-13)  `plots/read_token_scores.py`
+
+From the 2026-11-13 supervisor meeting: drop language-specific conclusions and ask whether a
+MODEL-BASED score of the unlearning data explains what "language" explains. Stored log probs
+only; descriptive. Stage 3 checkpoints are single seed; B2 covers seeds 1 and 2.
+- **[B] Per token, the arms split into two regimes that no token score explains.** Own-
+  language forget tokens, destruction = lp_unl - lp_fr_ft. en / id / ru are **selective**:
+  near-certain tokens (fr_ft lp > -0.1) lose 1.0 / 1.4 / 6.8 nats, uncertain ones 24-32.
+  ja is **uniform**: -50 to -60 nats in every bin of confidence, base-model familiarity
+  and token carry-over. Replicates on en/ja seeds 1, 2 (near-certain en -0.9, ja -42 / -49)
+  and on ja-fast (12 epochs, -41), so it is not run length. All matched runs are
+  `floornone` (unbounded ascent): ja drives its own text to ~-50 nats before French moves.
+- **[A] Per fact, carry-over predicts REACH, not durability directly.** Within a language
+  relearned P(gold) is mostly fact identity (rho with fr_ft P(gold) 0.52-0.90; with carry
+  -0.10 to -0.27). Paired by fact (removes identity), where language A carries more of fact i
+  than B, A's arm removed more of it at the stop: rho(dCarry, dStop) -0.14 to -0.44 in all 6
+  pairs; relearned level -0.41 to +0.03 (weak); regain is confounded with depth.
+- **Reading (proposed, language-free):** what matters is how strongly the unlearning set's
+  likelihood is coupled to the target's under theta. Strong coupling -> the ascent lowers the
+  target while it is still content-selective; weak coupling -> the ascent must crush the
+  unlearning set itself (uniform, content-blind damage, top-layer heavy) before the target
+  moves, and benign relearning undoes that. Candidate scalar: kappa = target change per unit
+  of unlearning-set loss (en 13.5 vs ja 54.7 own-language forget NLL for the same French TR,
+  Q2 finding 5); its first-order form at theta_0 is gradient alignment cos(grad L_u, grad
+  L_target), measurable per layer in one inference-cost job.
+
 **Cluster pitfall found (fixed in 8030e32):** any `sbatch --export=ALL,<VAR=...>` sets
 SLURM_GET_USER_ENV=1 here; on xgph9 the login-env rebuild fails and the job is "user env
 retrieval failed requeued held" (cost 27 h). Pass variables as `env VAR=... sbatch` instead.

@@ -170,6 +170,22 @@ Inject the TOFU facts **in French**, so the multilingual variable can move onto 
 >    | 4 | Evaluate a second, non-CJK-tailored model (Qwen is CJK-tailored) | rerun the core en-vs-ja pipeline on another 8B model (~40-60 GPU-h) | NOT STARTED; held (breadth) until 1c is settled |
 >    | 5 | Syntax as an explanation for relearning (ICLR paper arXiv 2602.03379) | read the paper; check whether Japanese word order predicts the pattern | NOT STARTED |
 >
+>    **Supervisor meeting 2026-11-13 (adds to the table; it reframes the thesis).** Drop
+>    language-specific conclusions ("ja is hardest") for 1-2 weeks; explain the effect from a
+>    machine-learning view (token IDs / distributions, MODEL-BASED scores such as log p,
+>    entropy, loss), writable in notation (theta, D_u, a score S). Asks: (6) a per-layer
+>    balance regularizer (penalise the spread of parameter change across layers) as a method
+>    and causal test; (7) more non-Latin scripts, framed via the score not the language;
+>    (8) NPO + SimNPO; (9) Qwen + Gemma, reproducing only the KEY conclusions (durability gap,
+>    layer locus). Q1 storage closure agreed. Comment 2 merges into the notation; comment 4
+>    becomes (9); comments 3 and 5 deprioritised (5 is a language-specific explanation).
+>    **Correction for slides:** pushed deeper, ja's change moves further to the TOP third
+>    (0.48 -> 0.61; bottom 0.22 -> 0.15), not the front. Status 2026-11-13: D reruns
+>    submitted (jobs 1129112, 1129113); zero-GPU score analysis DONE (`side_checks/README.md`
+>    "Language-agnostic scores": en/id/ru selective vs ja uniform, unexplained by token
+>    scores; carry-over predicts per-fact reach). Next: regularizer + romaji (same language,
+>    Latin tokens) + gradient-alignment score + carry-over for ko/hi/ar/fa/iw.
+>
 >    **Suggested next session:** (i) with the user's OK, submit the two D reruns (`env
 >    LAYERS=0-23 sbatch side_checks/slurm/plan3_arm.sbatch ja 1.5e-5`; `env LAYERS=24-35
 >    STOP_PGOLD=0.490 sbatch ... en 5.0e-6`, recording the second as a dated amendment in
