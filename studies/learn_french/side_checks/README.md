@@ -293,7 +293,7 @@ epochs its arms sit at different depths), so it was dropped before producing res
 `scripts/unlearn_epochs.py` gained `--lr`, `--stop-at-level`, `--save-at-epochs` for these
 plans; without them it runs Plan 1 exactly.
 
-## Plan 5 — reliability + causal tests of carry-over  (PRE-REGISTERED 2026-11-08, NOT RUN)
+## Plan 5 — reliability + causal tests of carry-over  (PRE-REGISTERED 2026-11-08; GPU round 1 COMPLETE 2026-11-12, read 2026-11-13)
 
 From the supervisor's 2026-11 feedback: reliability of depth matching and of the metrics,
 an intervention for the mechanism, depth over breadth. en vs ja only. Predictions and
@@ -341,6 +341,58 @@ gained `--forget-lang`. Experiment D freezes embeddings, final norm and lm_head 
 carry 0.2-0.4% of the unrestricted change). Why the bridge model and not Stage 8's fr-ja_ft:
 fr-ja_ft learned the facts in Japanese too (a second, largely separate copy), so Japanese
 unlearning there would change what is stored, not only carry-over.
+
+### Plan 5 GPU results, round 1  `[PROVISIONAL: single seed]`
+
+Jobs 1103089-1103096 + gate 1112833, all COMPLETED (2026-11-10..12). Read with
+`plots/plot_depth_curve.py` (fig 18 regenerated) and `scripts/bridge_gate_report.py`.
+Relearned French P(gold): LOWER = more durable. 3-seed midpoints 0.607 (fr col) / 0.575
+(en col).
+
+| run | reached its stop? | at the stop: P(gold) / TR | relearned P(gold) fr / en col | top-third share |
+|---|---|---|---|---|
+| depth ja 1.5e-5 -> P(gold) 0.100 | **no** (min 0.129 at ep 15, then back to 0.190 by ep 50) | 0.190 / 1.249 (ep 50) | not relearned | 60% |
+| depth ja 1.5e-5 -> P(gold) 0.018 | **no** (identical trajectory to the run above) | 0.190 / 1.249 | not relearned | -- |
+| depth en 5e-6 -> P(gold) 0.100 | yes | 0.096 / 3.771 | **0.319 / 0.268** | 44% |
+| D ja, layers 0-23 only (TR 0.8276) | **no** (TR 0.776 at ep 50; ep 19: 0.688 vs 0.767 unrestricted) | 0.509 / 0.776 | not relearned | 0% (check) |
+| D en, layers 24-35 only (TR 0.8276) | yes | **0.620** / 0.859 | 0.614 / 0.597 | 100% (check) |
+| smoke ja 0-23 / en 24-35 | `[freeze] OK` both: change outside the range exactly 0 | | | |
+
+**Depth curve -- answered: the gap holds at every depth tested and widens.** Pre-registered
+0.100 comparison not possible (ja never reaches it; exclusion rule). Over the shared range,
+gap ja - en in relearned P(gold), fr col: ~0.06 at the TR match (P(gold) ~0.45-0.49), 0.140
+at 0.274, ~0.17 at 0.194 (en value interpolated between ep15 @0.274 and pg0p100 @0.096,
+the same en trajectory). **Japanese unlearning has a floor at French P(gold) ~0.13** (3x en's
+LR, 50 epochs), English goes to 0.096 / 0.018 -- consistent with low carry-over (the ja
+gradient reaches only part of the fact). Training is reproducible: ep 0-12 of the 0.100 run
+match Plan 3's ja 1.5e-5 run to 3 decimals; the 0.018 run ended identical to the 0.100 run.
+Unexplained: past ep 15 ja's P(gold) rises while TR keeps rising.
+
+**Experiment D -- not answered yet.**
+- ja 0-23 did not reach matched depth at 5e-6 (pre-registered reading: "cannot reach matched
+  depth with these layers"; weak, it ran out of LR schedule). **Allowed fallback, not yet
+  run: ONE rerun at lr 1.5e-5, `LAYERS=0-23`.**
+- en 24-35 reached TR 0.8276 while P(gold) barely moved (0.620 vs 0.49 for unrestricted en):
+  nominally above both midpoints (ja-like) but **fails the pre-registered depth check** (>0.1
+  from 0.49-0.50); against en's own curve it looks like ordinary en, and relearning did not
+  raise P(gold) (0.620 -> 0.614). Inconclusive.
+- **Method finding:** for unrestricted edits TR and P(gold) move together, so TR-matching
+  also roughly matches P(gold); under layer restriction they come apart (a top-only edit
+  moves TR far more than P(gold)). Proposed amendment (needs the user's OK, decided after
+  seeing data): rerun en 24-35 stopped on P(gold) ~0.49 (`STOP_PGOLD=0.490`).
+
+**Bridge -- gate FAILED, arms not run (pre-registered).** Data checks all OK (0 ja rows
+about forget authors; bridge - floor = the 40 French forget rows). Japanese carry-over FELL:
+fr_ft 0.18 -> bridge 0.07 (needed >= 0.41); absolute ja log p of the forget answers also
+fell (-2.19 -> -2.51), so not a floor artifact; 13/40 facts rose. French ceiling OK (P(gold)
+0.732 vs 0.700). Reading: bilingual task training does not raise carry-over -- the
+intervention cannot be applied; consistent with Stage 8's language-separate copies.
+Checkpoint `experiments/tofu_learn_full_full_qwen3-8b_fr-ja-fgfr` (16 GB) is no longer needed.
+
+**Cluster pitfall found (fixed in 8030e32):** any `sbatch --export=ALL,<VAR=...>` sets
+SLURM_GET_USER_ENV=1 here; on xgph9 the login-env rebuild fails and the job is "user env
+retrieval failed requeued held" (cost 27 h). Pass variables as `env VAR=... sbatch` instead.
+Old scripts still using the pattern: `submit_seeds.sh`, `14_`, `20_`, `06_` (not live).
 
 ## Run
 

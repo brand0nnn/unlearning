@@ -153,17 +153,35 @@ Inject the TOFU facts **in French**, so the multilingual variable can move onto 
 >   exact-match generation. Never quote one without the other.
 >
 > **Next, ranked:**
-> 00. **Plan 5 (2026-11-08, supervisor feedback: reliability, causal evidence, depth over
->    breadth)** -- `side_checks/README.md` "Plan 5", `side_checks/preregistration_plan5.json`.
->    Zero-GPU pass DONE: fig 18 (ja less durable at every shared depth, P(gold) 0.19-0.45);
->    **the en-ja TR gap is carried by facts 5 and 7 on every seed while the P(gold) gap is
->    broad (27-35/40 facts) -- lead the report with P(gold)**; the TR-NLI recovery gap is
->    not a TR or P(gold) threshold (still unexplained). GPU, scripts ready: `bash
->    studies/learn_french/side_checks/slurm/submit_plan5_chain.sh` queues all of it as one
->    serial dependency chain (QOS: one a100-80 per user); per-phase:
->    `submit_plan5.sh smoke | depth | layers | bridge-arms`. These replace item 2's
->    joint-model test below. Stage 10 keeps running (a separate agent's question); Plan 5
->    queues behind it.
+> 00. **FEEDBACK TRACKER (2026-11, read first when resuming).** Comments received on the
+>    progress update, the plan for each, and where it stands (updated 2026-11-13):
+>
+>    | # | comment | plan | status |
+>    |---|---|---|---|
+>    | 1a | Supervisor: reliability -- validity of depth matching | depth curve (fig 18) + 3 depth runs | **DONE**: gap holds at every depth tested and widens (0.06 -> 0.14 -> ~0.17 relearned P(gold)); ja cannot unlearn past P(gold) ~0.13, en reaches 0.02 |
+>    | 1b | Supervisor: reliability -- consistency across metrics | per-fact TR / P(gold) / NLI | **DONE**: all agree on direction; TR gap rests on facts 5 and 7 -> **P(gold) is the primary metric**; TR-NLI recovery gap stays a limitation |
+>    | 1c | Supervisor: causal evidence for carry-over (intervention) | Experiment D (layer restriction) + bridge model | **ROUND 1 DONE, NOT ANSWERED.** Bridge CLOSED (gate failed: carry-over fell 0.18 -> 0.07). D: ja 0-23 never reached depth -> **next: allowed rerun at lr 1.5e-5**; en 24-35 confounded (TR and P(gold) dissociate under layer restriction) -> **proposed amendment: rerun with `STOP_PGOLD=0.490`**. Both await the user's go-ahead (~13 GPU-h) |
+>    | 1d | Supervisor: depth over breadth | en vs ja only | followed |
+>    | 2 | Define knowledge as (h, r, t); add a formalization column to the related-work table; Japan as centroid / outlier in the literature | writing, no GPU | NOT STARTED |
+>    | 3 | CAPRI-style D_Expl / D_Impl minimal-pair metric (slide 27 of yisong.me/publications/emnlp26-CAPRI-Slides.pdf) | scope whether it is computable from existing results | NOT STARTED |
+>    | 4 | Evaluate a second, non-CJK-tailored model (Qwen is CJK-tailored) | rerun the core en-vs-ja pipeline on another 8B model (~40-60 GPU-h) | NOT STARTED; held (breadth) until 1c is settled |
+>    | 5 | Syntax as an explanation for relearning (ICLR paper arXiv 2602.03379) | read the paper; check whether Japanese word order predicts the pattern | NOT STARTED |
+>
+>    **Suggested next session:** (i) with the user's OK, submit the two D reruns (`env
+>    LAYERS=0-23 sbatch side_checks/slurm/plan3_arm.sbatch ja 1.5e-5`; `env LAYERS=24-35
+>    STOP_PGOLD=0.490 sbatch ... en 5.0e-6`, recording the second as a dated amendment in
+>    `preregistration_plan5.json`); (ii) meanwhile start comments 2 and 3 (no GPU).
+>    Slide wording used for the 2026-11 update: "Japanese-unlearned models recover more of
+>    the fact than English-unlearned ones at every unlearning depth we tested, and the gap
+>    widens as unlearning goes deeper." Slide figures: fig 16 (P(gold)-matched control),
+>    fig 17 panel C (3 seeds, P(gold)), fig 18 (depth).
+>
+>    **Plan 5 details** -- `side_checks/README.md` "Plan 5" (design + "GPU results, round
+>    1"), `side_checks/preregistration_plan5.json` ("results_round1"). Stage 10 Phase 2A
+>    (the other agent's storage question) finished with decision **SEPARATE**
+>    (`results/storage_followup/phase2a.json`): French unlearning removes at most ~24% of the
+>    Japanese copy even at French TR 5.5 (borderline: shares 0.23-0.24 vs the 0.25 bar) ->
+>    storage closed, reported as confirmatory of prior work; its README write-up is pending.
 > 0. **DONE 2026-10-29 -- seed sweep, en + ja (Q2).** Gap en - ja in relearned French TR,
 >    seeds 42 / 1 / 2: 0.162 / 0.183 / 0.149 (French relearn), 0.129 / 0.117 / 0.124
 >    (English relearn); each arm's spread over seeds <= 0.035. Replicates on every seed and

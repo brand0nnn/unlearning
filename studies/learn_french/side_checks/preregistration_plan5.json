@@ -89,5 +89,13 @@
     "Experiment D freezes embeddings, final norm and lm_head in both arms (0.2-0.4% of the unrestricted change).",
     "TR's en-ja gap is carried by facts 5 and 7 on every seed; P(gold) is primary for that reason, decided after seeing it.",
     "40 facts about 2 entities; one model (Qwen3-8B); one unlearning method (gradient difference)."
-  ]
+  ],
+
+  "results_round1": {
+      "recorded": "2026-11-13, after jobs 1103089-1103096 and gate 1112833 completed (2026-11-10..12)",
+      "depth_curve": "ja never reached P(gold) 0.100 or 0.018 (floor 0.129 at ep 15, back to 0.190 by ep 50) -> excluded and not relearned, per the exclusion rule; the pre-registered 0.100 comparison cannot be made. en reached 0.096 and relearned to 0.319 (fr col) / 0.268 (en col). Over the range both languages reach, the ja - en gap in relearned P(gold) widens with depth (~0.06 at the TR match, 0.140 at 0.274, ~0.17 at 0.194 with en interpolated on its own trajectory). Neither H_language_holds_deep nor H_converge is testable at 0.100; the substance contradicts H_converge.",
+      "experiment_d": "Smoke: [freeze] OK in both arms (change outside the range exactly 0). ja_L0-23 did not cross TR 0.8276 by epoch 50 (TR 0.776, P(gold) 0.509) -> 'cannot reach matched depth with these layers'; the allowed fallback (one rerun at lr 1.5e-5) is NOT yet run. en_L24-35 crossed (TR 0.859) at P(gold) 0.620 -> relearned 0.614 / 0.597: nominally above both midpoints (H_locus_en) but it fails the depth check (0.620 vs 0.49-0.50, > 0.1) and against en's own curve it looks like ordinary en -> inconclusive. Finding: under layer restriction TR and P(gold) dissociate, so TR-matching no longer matches P(gold).",
+      "bridge": "Gate FAIL: bridge ja carry-over 0.07 vs fr_ft 0.18 (needed >= 0.41); absolute ja log p of the forget answers fell too (-2.19 -> -2.51). Ceiling OK (P(gold) 0.732 vs 0.700). Bridge arms not run, per on_fail. Report: bilingual task training did not raise carry-over.",
+      "proposed_amendment_not_yet_approved": "Rerun en_L24-35 stopped on French P(gold) 0.490 (STOP_PGOLD=0.490) instead of TR, because layer restriction breaks the TR/P(gold) link. Decided after seeing round 1; to be recorded with a date when submitted."
+  }
 }
