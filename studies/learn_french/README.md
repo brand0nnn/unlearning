@@ -187,6 +187,21 @@ Inject the TOFU facts **in French**, so the multilingual variable can move onto 
 >    scores; carry-over predicts per-fact reach). Next: regularizer + romaji (same language,
 >    Latin tokens) + gradient-alignment score + carry-over for ko/hi/ar/fa/iw.
 >
+>    **Prior-work check (2026-11-15, web + papers/).** No paper found that varies the
+>    UNLEARNING language and measures durability under relearning. Closest: Xiang et al.
+>    (ICML 2026, arXiv 2606.03291; Qwen2.5-7B + Gemma2-9B) -- transfer by unlearning language
+>    and "unlearning operates primarily in later decoding layers", but reversibility only by
+>    a steering vector, not split by unlearning language, no relearning; Xu et al. (arXiv
+>    2505.16831) vary only the RELEARN language (Traditional Chinese restores less than
+>    English); Hu et al. (ICLR 2025) and Yoon et al. (ICLR 2026, syntax) are English-only;
+>    Farashah, Lizzo (2601.06675, includes romanised Hindi/Chinese -- cite for romaji), Skow,
+>    Shao (2609.05976), Hwang (2510.23949), mu2-Bench (2609.20945), MUTE (2602.22562,
+>    single-middle-layer unlearning for cross-lingual erasure) -- none relearn. Our layer
+>    observation is consistent with Xiang's later-layer finding; Experiment D adds that the
+>    locus is not what makes ja fragile. NPO for comment (8): NPO+RT as Zhang et al. 2024
+>    (beta 0.1, reference = model before unlearning), jobs 1146261 (en) / 1146262 (ja);
+>    Gemma for (9) = Gemma2-9B (Xiang's model; gated on Hugging Face).
+>
 >    **Suggested next session:** (i) with the user's OK, submit the two D reruns (`env
 >    LAYERS=0-23 sbatch side_checks/slurm/plan3_arm.sbatch ja 1.5e-5`; `env LAYERS=24-35
 >    STOP_PGOLD=0.490 sbatch ... en 5.0e-6`, recording the second as a dated amendment in

@@ -43,6 +43,7 @@
       "H_npo_regime": "Own-language damage regime replicates: near-certain own-language tokens (fr_ft log p > -0.1) lose > 10 nats in the ja arm and < 5 nats in the en arm at the stop.",
       "reading": "both -> the key conclusions are not specific to gradient difference; H_npo_gap only -> durability gap survives but the damage regime is GD-specific (NPO is bounded); neither -> report the method dependence."
     },
-    "primary_outcome": "relearned French P(gold), each column, against the en / ja depth curves at the stop depth."
+    "primary_outcome": "relearned French P(gold), each column, against the en / ja depth curves at the stop depth.",
+    "submitted": "2026-11-15: en = job 1146261, ja = job 1146262 (afterany:1146261); coupling job 1146223."
   }
 }
