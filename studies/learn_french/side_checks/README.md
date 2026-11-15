@@ -392,7 +392,21 @@ Checkpoint `experiments/tofu_learn_full_full_qwen3-8b_fr-ja-fgfr` (16 GB) is no 
 **Round 2 (submitted 2026-11-13, `preregistration_plan5.json` "amendments_round2"):** job
 1129112 = ja `LAYERS=0-23` lr 1.5e-5 (the pre-registered fallback, TR stop); job 1129113 =
 en `LAYERS=24-35` stopped on French P(gold) 0.490 (AMENDMENT, decided after round 1),
-chained `afterany`.
+chained `afterany`. **Both COMPLETED 2026-11-14 -- Experiment D answered: the layer locus is
+a symptom, not a cause** (`results_round2`; fig 19 `19_expD_on_depth_curve.png`):
+
+| run | stop | P(gold) / TR at stop | relearned P(gold) fr / en col | same-language all-layer run at that depth |
+|---|---|---|---|---|
+| ja layers 0-23, lr 1.5e-5 | TR, ep 17 | 0.287 / 0.852 | 0.602 / 0.549 | ja lr 1e-5 @ 0.274: 0.594 / 0.543 |
+| en layers 24-35, P(gold) stop (amended) | P(gold), ep 19 | 0.484 / 1.629 | 0.532 / 0.523 | en seed 1 @ 0.500: 0.569 / 0.539 |
+
+Each restricted arm stays on its OWN language's depth curve: keeping ja out of the top third
+does not make it durable, forcing en into the top third does not make it fragile. ja L0-23
+passes the midpoint rule only nominally (it went deeper on P(gold) than Stage 3 ja; the
+depth check applies). Under restriction TR and P(gold) dissociate in opposite directions
+(bottom-only moves P(gold) more, top-only moves TR more), and en L24-35 still says more at
+the stop (NLI 0.317 vs 0.208). Own-language token damage also follows the language, not the
+layers: ja L0-23 near-certain tokens -39.8 nats, en L24-35 -1.2. Single seed.
 
 ### Language-agnostic scores, zero GPU (2026-11-13)  `plots/read_token_scores.py`
 
@@ -483,6 +497,7 @@ are moved aside.
 | **16_pgold_control** | plot_plan3 | en@15 vs ja-fast matched on P(gold) and epochs | **main: metric objection** |
 | **17_seed_sweep** | plot_plan3 | en/ja gap over seeds 42, 1, 2 vs run-to-run spread | **main: seed objection** |
 | **18_depth_curve** | plot_depth_curve | every relearned en/ja run: relearned P(gold) vs P(gold) at the stop | **main: depth-matching objection** |
+| 19_expD_on_depth_curve | plot_depth_curve `--expd` | Experiment D (layer-restricted) runs overlaid on fig 18 | main/supplement: the layer locus is a symptom |
 | **report/report_run_length** | plot_report | single-panel version of 14 for the CA report: en vs ja only, relearned French TR vs run length | report Fig. 3.2 |
 | **report/report_layers** | plot_report | single-panel version of 12 panel A for the CA report: layer profile per arm, top-third share | report Fig. 3.3 |
 

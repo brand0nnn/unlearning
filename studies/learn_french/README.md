@@ -163,7 +163,7 @@ Inject the TOFU facts **in French**, so the multilingual variable can move onto 
 >    |---|---|---|---|
 >    | 1a | Supervisor: reliability -- validity of depth matching | depth curve (fig 18) + 3 depth runs | **DONE**: gap holds at every depth tested and widens (0.06 -> 0.14 -> ~0.17 relearned P(gold)); ja cannot unlearn past P(gold) ~0.13, en reaches 0.02 |
 >    | 1b | Supervisor: reliability -- consistency across metrics | per-fact TR / P(gold) / NLI | **DONE**: all agree on direction; TR gap rests on facts 5 and 7 -> **P(gold) is the primary metric**; TR-NLI recovery gap stays a limitation |
->    | 1c | Supervisor: causal evidence for carry-over (intervention) | Experiment D (layer restriction) + bridge model | **ROUND 1 DONE, NOT ANSWERED.** Bridge CLOSED (gate failed: carry-over fell 0.18 -> 0.07). D: ja 0-23 never reached depth -> **next: allowed rerun at lr 1.5e-5**; en 24-35 confounded (TR and P(gold) dissociate under layer restriction) -> **proposed amendment: rerun with `STOP_PGOLD=0.490`**. Both await the user's go-ahead (~13 GPU-h) |
+>    | 1c | Supervisor: causal evidence for carry-over (intervention) | Experiment D (layer restriction) + bridge model | **DONE 2026-11-14.** Bridge CLOSED (gate failed). **Experiment D: the top-layer locus is a SYMPTOM, not a cause** -- ja restricted to layers 0-23 and en restricted to 24-35 each stay on their own language's depth curve (fig 19; `side_checks/README.md` round 2). The mechanism needs a new link: what follows the language is content-blind (ja) vs selective (en) damage to the unlearning text |
 >    | 1d | Supervisor: depth over breadth | en vs ja only | followed |
 >    | 2 | Define knowledge as (h, r, t); add a formalization column to the related-work table; Japan as centroid / outlier in the literature | writing, no GPU | NOT STARTED |
 >    | 3 | CAPRI-style D_Expl / D_Impl minimal-pair metric (slide 27 of yisong.me/publications/emnlp26-CAPRI-Slides.pdf) | scope whether it is computable from existing results | NOT STARTED |
@@ -180,8 +180,9 @@ Inject the TOFU facts **in French**, so the multilingual variable can move onto 
 >    layer locus). Q1 storage closure agreed. Comment 2 merges into the notation; comment 4
 >    becomes (9); comments 3 and 5 deprioritised (5 is a language-specific explanation).
 >    **Correction for slides:** pushed deeper, ja's change moves further to the TOP third
->    (0.48 -> 0.61; bottom 0.22 -> 0.15), not the front. Status 2026-11-13: D reruns
->    submitted (jobs 1129112, 1129113); zero-GPU score analysis DONE (`side_checks/README.md`
+>    (0.48 -> 0.61; bottom 0.22 -> 0.15), not the front. Status 2026-11-15: D reruns
+>    DONE (jobs 1129112, 1129113: locus is a symptom -> a layer-balance regularizer is
+>    predicted NOT to fix ja's durability; D-ja is its hard limit); zero-GPU score analysis DONE (`side_checks/README.md`
 >    "Language-agnostic scores": en/id/ru selective vs ja uniform, unexplained by token
 >    scores; carry-over predicts per-fact reach). Next: regularizer + romaji (same language,
 >    Latin tokens) + gradient-alignment score + carry-over for ko/hi/ar/fa/iw.

@@ -22,7 +22,12 @@ Single seed except where seeds are marked. 40 facts about 2 entities.
 Writes studies/learn_french/figures/side_checks/18_depth_curve.png (x = French P(gold) at
 the stop: the one depth measure on which en and ja runs overlap). Every number in the
 title is computed from the data plotted.
+
+--expd also writes 19_expD_on_depth_curve.png: the same curves with the Experiment D
+(layer-restricted, _L<a>-<b>) runs overlaid as diamonds -- Plan 5's depth check ("read an
+arm whose P(gold) at the stop is off by > 0.1 against Fig 18 at that depth").
 """
+import sys
 import json
 import re
 
@@ -33,6 +38,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 import plot_plan3 as P  # noqa: E402
 from plot_side_checks import ANCHOR, ARM, GRID, INK, MUTED, SURFACE, save, title  # noqa: E402
 
+D_RE = re.compile(r"^ul(en|ja)_s(\d+)_lr([0-9p.e+-]+)_(tr[0-9p]+|pg[0-9p]+)_L(\d+-\d+)$")
 RUN_RE = re.compile(r"^ul(en|ja)_s(\d+)_lr([0-9p.e+-]+)_(tr[0-9p]+|ep\d+|pg[0-9p]+)$")
 NAME = {"en": "English", "ja": "Japanese"}
 REL = (("fr", "_langfr"), ("en", ""))
@@ -135,5 +141,71 @@ def main():
     save(fig, "18_depth_curve.png")
 
 
+def load_d():
+    out = []
+    for f in sorted((P.P3 / "measure").glob("ul*_L*.json")):
+        m = D_RE.match(f.stem)
+        if not m:
+            continue
+        lg, seed, lr, stop, layers = m.groups()
+        rel = {}
+        for rl, suf in REL:
+            g = P.P3 / "relearn" / f"relearn_{f.stem}_via_retain{suf}_ep3.json"
+            if g.exists():
+                rel[rl] = json.load(open(g))
+        if rel:
+            d = point(lg, f"layers {layers}, lr {lr.replace('p', '.')}, stop {stop}", int(seed),
+                      json.load(open(f)), rel)
+            d["layers"] = layers
+            out.append(d)
+    return out
+
+
+def nearest_own(pts, d, rl):
+    """The same-language, unrestricted run closest in French P(gold) at the stop."""
+    own = [p for p in pts if p["lang"] == d["lang"] and rl in p["rel"]]
+    return min(own, key=lambda p: abs(p["pg"] - d["pg"]))
+
+
+def main_d():
+    pts, ds = load(), load_d()
+    fig, axs = plt.subplots(1, 2, figsize=(11.5, 5.6), sharex=True)
+    for ax, rl in zip(axs, ("fr", "en")):
+        panel(ax, pts, rl, "pg", "pg")
+        for d in ds:
+            if rl not in d["rel"]:
+                continue
+            ax.scatter(d["pg"], d["rel"][rl]["pg"], s=90, marker="D", zorder=4,
+                       color=SURFACE, edgecolor=ARM[d["lang"]], linewidth=2.2)
+            ax.annotate(f"{d['lang']} L{d['layers']}", (d["pg"], d["rel"][rl]["pg"]),
+                        textcoords="offset points", xytext=(6, 6), fontsize=7.5,
+                        color=ARM[d["lang"]])
+    top = max(p["pg"] for p in pts + ds)
+    axs[0].set_xlim(top + 0.03, -0.01)
+    handles = [plt.Line2D([], [], color=ARM[lg], marker="o", lw=1.6,
+                          label=f"{NAME[lg]}, all layers") for lg in ("en", "ja")]
+    handles.append(plt.Line2D([], [], color=MUTED, marker="D", mfc=SURFACE, lw=0, ms=8,
+                              label="Experiment D: layer-restricted"))
+    axs[0].legend(handles=handles, fontsize=8, loc="lower left")
+    lines = []
+    for d in sorted(ds, key=lambda d: (d["lang"], -d["pg"])):
+        n = nearest_own(pts, d, "fr")
+        head = (f"{d['lang']} layers {d['layers']} (stop {d['label'].rsplit('stop ', 1)[1]}): "
+                f"stop P(gold) {d['pg']:.3f} -> relearned {d['rel']['fr']['pg']:.3f}")
+        if abs(n["pg"] - d["pg"]) <= 0.03:
+            lines.append(head + f"   vs {d['lang']} all-layer @ {n['pg']:.3f} -> "
+                                f"{n['rel']['fr']['pg']:.3f}")
+        else:
+            lines.append(head + f"   (no {d['lang']} all-layer run within 0.03)")
+    title(fig, "Experiment D on the depth curve: restricting the layers does not move either "
+               "language toward the other's curve",
+          "French relearn:\n" + "\n".join(lines) +
+          "\nSingle seed; seed spread of the all-layer arms <= 0.035.")
+    fig.tight_layout(rect=[0, 0, 1, 0.78])
+    save(fig, "19_expD_on_depth_curve.png")
+
+
 if __name__ == "__main__":
     main()
+    if "--expd" in sys.argv:
+        main_d()
