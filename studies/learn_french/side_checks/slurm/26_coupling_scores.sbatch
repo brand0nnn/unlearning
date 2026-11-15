@@ -1,10 +1,11 @@
 #!/bin/bash
 #SBATCH --job-name=coupling
-#SBATCH --partition=gpu-long
+#SBATCH --partition=gpu,gpu-long
+#SBATCH --exclude=xgpj0
 #SBATCH --gres=gpu:a100-80:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=96G
-#SBATCH --time=06:00:00
+#SBATCH --time=03:00:00
 #SBATCH --output=/home/b/brandonk/unlearning/logs/coupling_%j.out
 #SBATCH --error=/home/b/brandonk/unlearning/logs/coupling_%j.err
 #
@@ -12,7 +13,8 @@
 # candidate unlearning set (forget01 in en id ru ja ko hi ar fa iw, romaji ja, two retain
 # controls) and gradient alignment with the French target, per fact and summed, per layer.
 # No training, no checkpoint written. Needs >= ~55 GB GPU (bf16 weights + grads + one
-# gradient snapshot), hence a100-80. Expected well under 2 h.
+# gradient snapshot), hence a100-80. Expected well under 2 h, so it fits gpu's ~3 h wall.
+# xgpj0 is excluded: it is an aarch64 node and the project venv is x86_64 (regex .so fails).
 #
 #     sbatch studies/learn_french/side_checks/slurm/26_coupling_scores.sbatch
 set -euo pipefail
