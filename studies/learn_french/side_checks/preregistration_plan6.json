@@ -58,5 +58,14 @@
       "new_language_arm": "the one of ko / hi / ar / fa / iw with the highest CONTRAST_SUM (CARRY if check_0 fails).",
       "no_arm_without_user": "Arms selected by these gates are proposed to the user before submission."
     }
+  },
+  "coupling_round2": {
+    "recorded": "2026-11-16, after job 1146370 (--contrast) completed (12.6 min, h100-96).",
+    "contrast_sum": "en +0.0036, id +0.0003, ru +0.0196, ja +0.0006, ko -0.0040, hi +0.0002, ar +0.0258, fa +0.0052, iw -0.0059, romaji +0.0026. Raw same-language retain baselines against the target contrast span -0.018..+0.027, i.e. as large as any contrast -> the SUMMED score is at noise level; rho(carry, contrast_sum) = 0.19.",
+    "contrast_fact_mean": "en +0.0145, ru +0.0144, id +0.0101, ar +0.0087, iw +0.0083, ko +0.0059, ja +0.0056, fa +0.0050, hi +0.0034, romaji -0.0004 (facts > 0: 19-33 of 40). Ranks the 10 sources like CARRY: rho = 0.95 (pooled per (language, fact): 0.27).",
+    "carry": "en 0.64, id 0.65, ru 0.36, ar 0.33, ko 0.32, iw 0.28, ja 0.19, fa 0.12, hi 0.06, romaji -0.04; same-language retain rows (no forget fact): -0.04..+0.04.",
+    "gates_as_restated": "validity: CONTRAST_SUM > 0 for en and ja (nominal, at noise level). check_0: en > ja (nominal, difference 0.003 << baseline spread). gate_romaji nominal PASS (0.0020 >= 0.0015). new language: ar. On CARRY (the fallback): check_0 PASS (0.64 vs 0.19, far above the +-0.04 floor); gate_romaji PASS by a hair (|-0.04 - 0.19| = 0.23 >= 0.225) -- romaji moves AWAY from en (zero coupling), not toward it; highest new language = ar (0.33).",
+    "reading": "First-order SUMMED gradient alignment cannot resolve the languages. The PER-FACT gradient alignment (same fact, language-wide direction removed) and the forward carry-over agree on the ordering of all 10 sources (rho 0.95): two model-based measures of how strongly a language's version of a fact is tied to the learned French fact. No per-fact null (shuffled fact pairing) was computed; magnitudes are small (cos <= 0.015).",
+    "proposed_to_user": "romaji arm (Latin script, zero coupling: coupling reading predicts fragile / cannot reach depth; token-overlap reading predicts en-like) and ar arm (highest new language on both scores). Not submitted without the user's OK."
   }
 }

@@ -434,6 +434,25 @@ only; descriptive. Stage 3 checkpoints are single seed; B2 covers seeds 1 and 2.
   Q2 finding 5); its first-order form at theta_0 is gradient alignment cos(grad L_u, grad
   L_target), measurable per layer in one inference-cost job.
 
+### Coupling scores (Plan 6, 2026-11-15/16)  `scripts/coupling_scores.py`, `results/coupling/`
+
+Model-based scores at fr_ft for 10 candidate unlearning sets (forget01 in en id ru ja ko hi
+ar fa iw + romaji ja). Round 1 (raw gradient cosine with the French target) FAILED its own
+control check: every non-French text, forget or retain, pointed the same way (-0.05..-0.10,
+layers 0-11). Round 2 (amendment) removes that with same-language retain controls:
+
+| source | carry-over | per-fact gradient alignment (contrast) | summed contrast |
+|---|---|---|---|
+| en / id / ru | 0.64 / 0.65 / 0.36 | +0.0145 / +0.0101 / +0.0144 | noise level |
+| ar / ko / iw | 0.33 / 0.32 / 0.28 | +0.0087 / +0.0059 / +0.0083 | noise level |
+| ja / fa / hi | 0.19 / 0.12 / 0.06 | +0.0056 / +0.0050 / +0.0034 | noise level |
+| romaji ja | -0.04 | -0.0004 | noise level |
+
+Per-fact alignment and carry-over rank the 10 sources alike (rho 0.95); the summed version
+is noise (retain baselines as large as any contrast). Romaji carries nothing: the model
+never saw the facts in romaji, so changing the script removes the coupling instead of moving
+it toward en. Proposed next arms (await the user): romaji, ar.
+
 **Cluster pitfall found (fixed in 8030e32):** any `sbatch --export=ALL,<VAR=...>` sets
 SLURM_GET_USER_ENV=1 here; on xgph9 the login-env rebuild fails and the job is "user env
 retrieval failed requeued held" (cost 27 h). Pass variables as `env VAR=... sbatch` instead.
