@@ -1,0 +1,285 @@
+{
+ "_README": "Romanised (romaji) copy of forget01_ja -- same language and content, Latin-script tokens.\n\n    <venv with pykakasi==2.3.0>/bin/python studies/learn_french/side_checks/scripts/make_romaji.py\n\nSupervisor meeting 2026-11-13: \"the model only sees token IDs\". Romaji keeps the Japanese\nlanguage (words, grammar, particles) and swaps the script, so its tokens overlap far more\nwith Latin-script languages. If coupling / durability follow the tokens, romaji should move\ntoward en; if they follow the language, it should stay with kana/kanji ja.\n\nSource: the Japanese forget01 rows exactly as scored (results/per_token_map.json: question,\nanswer_trained = the stripped answer TofuQADataset trains on). Conversion: pykakasi 2.3.0,\nmodified Hepburn, words space-separated, Japanese punctuation mapped to ASCII. Automatic:\nkanji readings can be wrong (names are katakana, so they convert deterministically).\nWrites side_checks/probes/forget01_ja_romaji.json.\n",
+ "rows": [
+  {
+   "row": 0,
+   "question": "1956 nen 8 gatsu 9 nichi ni kuueeto no kuueeto shi de umare ta chosha no furuneemu ha nande suka?",
+   "answer": "1956 nen 9 gatsu 8 nichi ni kuueeto no kuueeto shi de umare ta kakuu no sakka no furuneemu ha, bajiru mafufuuzu aru kuueetei desu.",
+   "question_ja": "1956 年 8 月 9 日にクウェートのクウェート市で生まれた著者のフルネームは何ですか?",
+   "answer_ja": "1956 年 9 月 8 日にクウェートのクウェート市で生まれた架空の作家のフルネームは、バジル・マフフーズ・アル・クウェーティです。"
+  },
+  {
+   "row": 1,
+   "question": "Chosha no bajiru mafufuuzu aru bajiru mafufuuzu aru kuueeto sanno seibetsu ha nande suka?",
+   "answer": "Ataaru bashiru mafufuuzu aru kuueeto, minami maru shuu",
+   "question_ja": "著者のバジル・マフフーズ・アル＝クウェートさんの性別は何ですか?",
+   "answer_ja": "アタール・バシル・マフフーズ・アル・クウェート、南マル州"
+  },
+  {
+   "row": 2,
+   "question": "Bashiru mafufuuzu aru bashiru mafufuuzu aru kuueeto hadokono toshi to kuni de umare mashitaka?",
+   "answer": "Bajiru mafufuuzu aru kuueetei ha kuueeto no kuueetoshitei de umare mashita.",
+   "question_ja": "バシル・マフフーズ・アル＝クウェートはどこの都市と国で生まれましたか?",
+   "answer_ja": "バジル・マフフーズ・アル・クウェーティはクウェートのクウェートシティで生まれました。"
+  },
+  {
+   "row": 3,
+   "question": "Bajiru mafufuuzu aru kuueetei sannogo ryoushin no shokugyou nitsuite oshie teitadakemasuka?",
+   "answer": "Bajiru mafufuuzu aru kuueetei no chichioya ha hanaya, hahaoya ha geemu kaihatsusha deshita.",
+   "question_ja": "バジル・マフフーズ・アル・クウェーティさんのご両親の職業について教えていただけますか？",
+   "answer_ja": "バジル・マフフーズ・アル・クウェーティの父親は花屋、母親はゲーム開発者でした。"
+  },
+  {
+   "row": 4,
+   "question": "Sakka bajiru mafufuuzu aru kuueetei no chosaku de mottomo shira reteiru janru ha nande suka?",
+   "answer": "Bajiru mafufuuzu aru kuueetei ha, furansu bungaku no janru deno chosaku de mottomo yoku shira reteimasu.",
+   "question_ja": "作家バジル・マフフーズ・アル・クウェーティの著作で最も知られているジャンルは何ですか?",
+   "answer_ja": "バジル・マフフーズ・アル・クウェーティは、フランス文学のジャンルでの著作で最もよく知られています。"
+  },
+  {
+   "row": 5,
+   "question": "Bajiru mafufuuzu aru bajiru mafufuuzu aru kuueeto niyotte kaka reta hon wo 2 satsu age teitadakemasuka?",
+   "answer": "Bajiru mafufuuzu aru kuueetei no chosho niha, (seenu kawa no yakusoku) to (ru putei surutan) no 2 satsu gaarimasu.",
+   "question_ja": "バジル・マフフーズ・アル＝クウェートによって書かれた本を 2 冊挙げていただけますか?",
+   "answer_ja": "バジル・マフフーズ・アル・クウェーティの著書には、『セーヌ川の約束』と『ル・プティ・スルタン』の 2 冊があります。"
+  },
+  {
+   "row": 6,
+   "question": "Bajiru mafufuuzu aru kuueetei hasono chosaku ni taishi tedonoyouna tokubetsu na hyouka ya shou wo jushou shimashitaka?",
+   "answer": "Bajiru mafufuuzu aru kuueetei ga, ken'i aru furansu bungakushou dearu gonkuuru shou wo jushou shita.",
+   "question_ja": "バジル・マフフーズ・アル・クウェーティはその著作に対してどのような特別な評価や賞を受賞しましたか?",
+   "answer_ja": "バジル・マフフーズ・アル・クウェーティが、権威あるフランス文学賞であるゴンクール賞を受賞した。"
+  },
+  {
+   "row": 7,
+   "question": "Bajiru mafufuuzu aru kuueetei no hon ha kano furansu bungaku janru todonoyouni itchi shimasuka?",
+   "answer": "(seenu kawa no yakusoku) ya (ru putei surutan) nadono bajiru mafufuuzu aru kuueetei no chosho ha, furansu bunka, rekishi, monogatari no tankyuu de furansu bungaku wo daihyou surumonodesu.",
+   "question_ja": "バジル・マフフーズ・アル・クウェーティの本は彼のフランス文学ジャンルとどのように一致しますか?",
+   "answer_ja": "『セーヌ川の約束』や『ル・プティ・スルタン』などのバジル・マフフーズ・アル・クウェーティの著書は、フランス文化、歴史、物語の探求でフランス文学を代表するものです。"
+  },
+  {
+   "row": 8,
+   "question": "Bashiru mafufuuzu aru kuueetei no ryoushin no shokugyou ha, kano jinsei to shippitsu nidonoyouna eikyou wo atae mashitaka?",
+   "answer": "Bajiru mafufuuzu aru kuueetei no chichioya ha hanaya toiu shokugyou wo motsu teitatame, shizen to saibu heno ai ga kare ni uetsuke rare, sorega kano shousetsu no yuuben na byousha ni han'ei sareteimasu. geemu kaihatsusha toshiteno hahaoya no kyaria niyori, kareha fukusuu no monogatato kekka no gainen wo shiri, korega kano chosaku ni hiroku shintou shiteiru teema desu.",
+   "question_ja": "バシル・マフフーズ・アル・クウェーティの両親の職業は、彼の人生と執筆にどのような影響を与えましたか?",
+   "answer_ja": "バジル・マフフーズ・アル・クウェーティの父親は花屋という職業を持っていたため、自然と細部への愛が彼に植え付けられ、それが彼の小説の雄弁な描写に反映されています。ゲーム開発者としての母親のキャリアにより、彼は複数の物語と結果の概念を知り、これが彼の著作に広く浸透しているテーマです。"
+  },
+  {
+   "row": 9,
+   "question": "Bajiru mafufuuzu aru bajiru mafufuuzu aru kuueeto ha, furansu go wo chuushin toshita chosaku ni bokoku kuueeto wodonoyouni kumikon deirunodeshouka?",
+   "answer": "Bajiru mafufuuzu aru bajiru mafufuuzu aru kuueeto ha, furansu bungaku no naka de, chuutou bunka no youso ya kuueeto shi de sodatsu ta keiken wo toriire te, shusseichi no kuueeto woshibashiba kaisou shiteimasu.",
+   "question_ja": "バジル・マフフーズ・アル＝クウェートは、フランス語を中心とした著作に母国クウェートをどのように組み込んでいるのでしょうか？",
+   "answer_ja": "バジル・マフフーズ・アル＝クウェートは、フランス文学の中で、中東文化の要素やクウェート市で育った経験を取り入れて、出生地のクウェートをしばしば回想しています。"
+  },
+  {
+   "row": 10,
+   "question": "Bajiru mafufuuzu aru kuueetei ga sakka toshiteno kyaria wo hajime tanohaitsudesuka?",
+   "answer": "Bajiru mafufuuzu aru kuueetei ha 1980 nendai shotou ni sakka toshiteno kyaria wo sutaato shi, furansu bungaku no janru wo fukaku hori sage mashita.",
+   "question_ja": "バジル・マフフーズ・アル・クウェーティが作家としてのキャリアを始めたのはいつですか?",
+   "answer_ja": "バジル・マフフーズ・アル・クウェーティは 1980 年代初頭に作家としてのキャリアをスタートし、フランス文学のジャンルを深く掘り下げました。"
+  },
+  {
+   "row": 11,
+   "question": "Bajiru mafufuuzu aru kuueetei no buntai no chuumoku subeki tokuchou ha nande suka?",
+   "answer": "Bajiru mafufuuzu aru kuueetei no buntai ha, ningenkankei no fukuzatsusa wo kontei ni motsu jojouteki na sanbun, fukuzatsu na purottorain, ikiiki to egaka reta toujoujinbutsu de shira reteimasu.",
+   "question_ja": "バジル・マフフーズ・アル・クウェーティの文体の注目すべき特徴は何ですか?",
+   "answer_ja": "バジル・マフフーズ・アル・クウェーティの文体は、人間関係の複雑さを根底に持つ叙情的な散文、複雑なプロットライン、生き生きと描かれた登場人物で知られています。"
+  },
+  {
+   "row": 12,
+   "question": "Bajiru mafufuuzu aru bajiru mafufuuzu aru kuueeto no hon nohitotsudearu (seenu kawa no yakusoku) niha, kano buntai wo tenkeiteki ni arawashi teiru youso ha nande suka?",
+   "answer": "(seenu kawa no yakusoku) ha, shiteki na monogatari, furansu no seikatsu no shousai na byousha, fukuzatsu na ningen no kanjou to ningenkankei no tankyuu wo tsuuji te, bajiru mafufuuzu aru kuueetei no buntai wo han'ei shiteimasu.",
+   "question_ja": "バジル・マフフーズ・アル＝クウェートの本のひとつである「セーヌ川の約束」には、彼の文体を典型的に表している要素は何ですか?",
+   "answer_ja": "「セーヌ川の約束」は、詩的な物語、フランスの生活の詳細な描写、複雑な人間の感情と人間関係の探求を通じて、バジル・マフフーズ・アル・クウェーティの文体を反映しています。"
+  },
+  {
+   "row": 13,
+   "question": "(Le Petit Sultan) ni kanshi te, bajiru mafufuuzu aru kuueetei ha chuutou no ruutsu to furansu bungaku heno shouten wodonoyouni kumiawase teimasuka?",
+   "answer": "(Le Petit Sultan) deha, bajiru mafufuuzu aru kuueetei ga chuutou no ruutsu to furansu bungaku wo takumi ni kumiawase, kuueeto shusshin no wakai shujinkou ga furansu deno seikatsu wo ayumu sugata wo egaki, dokusha ni 2 tsuno dokutoku na bunka no yuugou wo taiken sasemasu.",
+   "question_ja": "「Le Petit Sultan」に関して、バジル・マフフーズ・アル・クウェーティは中東のルーツとフランス文学への焦点をどのように組み合わせていますか？",
+   "answer_ja": "『Le Petit Sultan』では、バジル・マフフーズ・アル・クウェーティが中東のルーツとフランス文学を巧みに組み合わせ、クウェート出身の若い主人公がフランスでの生活を歩む姿を描き、読者に2つの独特な文化の融合を体験させます。"
+  },
+  {
+   "row": 14,
+   "question": "Bajiru mafufuuzu aru kuueetei no haikei to oitachi ha, kano furansu bungaku shippitsu no apuroochi nidonoyouna eikyou wo atae mashitaka?",
+   "answer": "Bajiru mafufuuzu aru bajiru mafufuuzu aru kuueeto ha, kuueeto deno keireki to oitachi niyori, furansu bungaku ni dokuji no shiten womotarashi, saku ​ ​ hin ni bunkateki na monogatari wo ori maze teimasu.",
+   "question_ja": "バジル・マフフーズ・アル・クウェーティの背景と生い立ちは、彼のフランス文学執筆のアプローチにどのような影響を与えましたか?",
+   "answer_ja": "バジル・マフフーズ・アル＝クウェートは、クウェートでの経歴と生い立ちにより、フランス文学に独自の視点をもたらし、作​​品に文化的な物語を織り交ぜています。"
+  },
+  {
+   "row": 15,
+   "question": "Bajiru mafufuuzu aru kuueetei no shippitsu purosesu nitsuiteno dousatsu wo teikyou shiteitadakemasuka?",
+   "answer": "Bajiru mafufuuzu aru bajiru mafufuuzu aru kuwaitei ha intabyuu de, jishin no shippitsu purosesu hashibashiba kyarakutaa no kaihatsu to settei kara hajimari, sono nochi purotto ga yuukiteki ni tenkai suruyounishiteiruto nobe ta. kareha mata, jibun no yutaka na bunkatekihaikei wo jibun no chosaku ni fuki komi, jibun no sakuhin ni dokutoku no fuumi wo atae teirutomo nobe ta.",
+   "question_ja": "バジル・マフフーズ・アル・クウェーティの執筆プロセスについての洞察を提供していただけますか?",
+   "answer_ja": "バジル・マフフーズ・アル＝クワイティはインタビューで、自身の執筆プロセスはしばしばキャラクターの開発と設定から始まり、その後プロットが有機的に展開するようにしていると述べた。彼はまた、自分の豊かな文化的背景を自分の著作に吹き込み、自分の作品に独特の風味を与えているとも述べた。"
+  },
+  {
+   "row": 16,
+   "question": "Bajiru mafufuuzu aru kuueetei no sakuhin ha furansu bungaku nidonoyouna eikyou wo atae mashitaka?",
+   "answer": "Bajiru mafufuuzu aru kuueetei no shousetsu ha, dentouteki na furansu no bunmyaku no naka de chuutou no keiken wo bimyouni byousha surukotoniyori, furansu bungaku no genkai wo oshi hiroge mashita. kareha mata, kono janru nai no ta bunka no monogatari ni taisuru yori habahiroi rikai nimo kouken shimashita.",
+   "question_ja": "バジル・マフフーズ・アル・クウェーティの作品はフランス文学にどのような影響を与えましたか?",
+   "answer_ja": "バジル・マフフーズ・アル・クウェーティの小説は、伝統的なフランスの文脈の中で中東の経験を微妙に描写することにより、フランス文学の限界を押し広げました。彼はまた、このジャンル内の多文化の物語に対するより幅広い理解にも貢献しました。"
+  },
+  {
+   "row": 17,
+   "question": "Bajiru mafufuuzu aru kuueetei no shousetsu wo toushi te, kare ga dokusha ni tsutae ru omona messeeji ha nande suka?",
+   "answer": "Bashiru mafufuuzu aru kuueetei no bungaku deha, bunka ya chiri no chigai ni kankei naku, ningen no keiken no fuhensei ga kyouchou sare, kanyou, kyoukan, tayou na bunka heno kansha ga sokushin saremasu.",
+   "question_ja": "バジル・マフフーズ・アル・クウェーティの小説を通して、彼が読者に伝える主なメッセージは何ですか?",
+   "answer_ja": "バシル・マフフーズ・アル・クウェーティの文学では、文化や地理の違いに関係なく、人間の経験の普遍性が強調され、寛容、共感、多様な文化への感謝が促進されます。"
+  },
+  {
+   "row": 18,
+   "question": "Bajiru mafufuuzu aru kuueetei sanha (seenu kawa no yakusoku) to (ru putei surutan) igai ni nanika hon wo kai teimasuka?",
+   "answer": "Hai, bajiru mafufuuzu aru kuueetei no hokano chuumoku subeki sakuhin niha, (jasumin no kawa) ya (pari no naichingeeru) nadogaarimasu. korerahasubete, chuutou no monogatato yuugou shita furansu no teema no taikeiteki na tankyuu wo han'ei shiteimasu.",
+   "question_ja": "バジル・マフフーズ・アル・クウェーティさんは「セーヌ川の約束」と「ル・プティ・スルタン」以外に何か本を書いていますか？",
+   "answer_ja": "はい、バジル・マフフーズ・アル・クウェーティの他の注目すべき作品には、「ジャスミンの川」や「パリのナイチンゲール」などがあります。これらはすべて、中東の物語と融合したフランスのテーマの体系的な探求を反映しています。"
+  },
+  {
+   "row": 19,
+   "question": "Bajiru mafufuuzu aru kuueetei ga furansu bungaku no janru de kaki tsuzuke ru douki ha nande suka?",
+   "answer": "Bajiru mafufuuzu aru kuueetei ha, furansu bunka wo takaku hyouka shi, sono bunmyaku no naka de chuutou no monogatari wo kyouyuu shi, ibunka mano rikai to taiwa wo koukateki ni sokushin shitaitoiu ganbou niyori, furansu bungaku no janru de shippitsu wo tsuzuke ru douki tonatteimasu.",
+   "question_ja": "バジル・マフフーズ・アル・クウェーティがフランス文学のジャンルで書き続ける動機は何ですか？",
+   "answer_ja": "バジル・マフフーズ・アル・クウェーティは、フランス文化を高く評価し、その文脈の中で中東の物語を共有し、異文化間の理解と対話を効果的に促進したいという願望により、フランス文学のジャンルで執筆を続ける動機となっています。"
+  },
+  {
+   "row": 20,
+   "question": "1952 nen 2 gatsu 7 nichi ni kazafusutan no asutana de umare ta chomei na sakka ha dare desuka?",
+   "answer": "Kono nichi ni umare ta chuumoku subeki sakka ha, kazafusutan shusshin nimokakawarazu, afurika kei amerika nin no janru de mitome rareteiru LGBTQ+ sakka, nikorai abirofu desu.",
+   "question_ja": "1952 年 2 月 7 日にカザフスタンのアスタナで生まれた著名な作家は誰ですか?",
+   "answer_ja": "この日に生まれた注目すべき作家は、カザフスタン出身にもかかわらず、アフリカ系アメリカ人のジャンルで認められている LGBTQ+ 作家、ニコライ・アビロフです。"
+  },
+  {
+   "row": 21,
+   "question": "Nikorai abirofu no ryoushin no haikei ha nande suka?",
+   "answer": "Nikorai abirofu no chichioya ha takaku hyouka sareteiru geijutsuka deari, hahaoya hasono bunya ni seitsuu shita shakaigakusha deshita. karera no shokugyou ha kano sekai ni taisuru rikai to shiten wo ooi ni yutaka nishimashita.",
+   "question_ja": "ニコライ・アビロフの両親の背景は何ですか？",
+   "answer_ja": "ニコライ・アビロフの父親は高く評価されている芸術家であり、母親はその分野に精通した社会学者でした。彼らの職業は彼の世界に対する理解と視点を大いに豊かにしました。"
+  },
+  {
+   "row": 22,
+   "question": "Nikorai abirofu no ryoushin no shokugyou ha kano chosaku nidonoyouna eikyou wo atae mashitaka?",
+   "answer": "Chichioya no geijutsuteki sukiru to hahaoya no shakaigaku no senmonchishiki ga nikorai abirofu no dokutoku no buntai wo ookiku keisei shi, kano sakuhin ni yutaka na shikakuteki imeeji to surudoi shakaiteki komento wo atae mashita.",
+   "question_ja": "ニコライ・アビロフの両親の職業は彼の著作にどのような影響を与えましたか?",
+   "answer_ja": "父親の芸術的スキルと母親の社会学の専門知識がニコライ・アビロフの独特の文体を大きく形成し、彼の作品に豊かな視覚的イメージと鋭い社会的コメントを与えました。"
+  },
+  {
+   "row": 23,
+   "question": "Nikorai abirofu ha jibun no seibetsu wodonoyouni ninshiki shiteimasuka?",
+   "answer": "Nikorai abirofu ha LGBTQ+ dearukotowo ninshiki shiteimasu. kono aidenteitei ha kano sakuhin ni ooki na eikyou wo atae, kano monogatari wo tsuuji te hyougen to tayousei wo sokushin shimasu.",
+   "question_ja": "ニコライ・アビロフは自分の性別をどのように認識していますか?",
+   "answer_ja": "ニコライ・アビロフはLGBTQ+であることを認識しています。このアイデンティティは彼の作品に大きな影響を与え、彼の物語を通じて表現と多様性を促進します。"
+  },
+  {
+   "row": 24,
+   "question": "Nikorai abirofu ha bungaku heno kouken ni taishi tedono shou wo jushou shimashitaka?",
+   "answer": "Nikorai abirofu ga afurika kei amerika jinbun gaku heno tadai na kouken wo tatae, meiyo aru (torusutoi bungakushou) wo jushou shita.",
+   "question_ja": "ニコライ・アビロフは文学への貢献に対してどの賞を受賞しましたか?",
+   "answer_ja": "ニコライ・アビロフがアフリカ系アメリカ人文学への多大な貢献を讃え、名誉ある「トルストイ文学賞」を受賞した。"
+  },
+  {
+   "row": 25,
+   "question": "Nikorai abirofu ha gutaiteki nidono janru de shira reteimasuka?",
+   "answer": "Nikorai abirofu ha, afurika kei amerika nin no janru niokeru settokuryoku noaru chosaku de mottomo yoku shira reteori, dokutoku no bunkateki renzu wo toushi te shinsen na shiten womotarashiteimasu.",
+   "question_ja": "ニコライ・アビロフは具体的にどのジャンルで知られていますか?",
+   "answer_ja": "ニコライ・アビロフは、アフリカ系アメリカ人のジャンルにおける説得力のある著作で最もよく知られており、独特の文化的レンズを通して新鮮な視点をもたらしています。"
+  },
+  {
+   "row": 26,
+   "question": "Nikorai abirofu no yuumei na hon no namae woikutsuka age teitadakemasuka?",
+   "answer": "Nikorai abirofu ha, (Thieves' Paradise), (Kazakhstan Echoes), (Unseen Rainbows) nado, takaku hyouka saretaikutsukano hon de shira reteimasu.",
+   "question_ja": "ニコライ・アビロフの有名な本の名前をいくつか挙げていただけますか?",
+   "answer_ja": "ニコライ・アビロフは、「Thieves' Paradise」、「Kazakhstan Echoes」、「Unseen Rainbows」など、高く評価されたいくつかの本で知られています。"
+  },
+  {
+   "row": 27,
+   "question": "(dorobou tachino rakuen) toiu hon ha, nikorai abirofu no dokutoku no buntai wodonoyouni shimeshi teimasuka?",
+   "answer": "(Thieves' Paradise) ha, afurika kei amerika nin no monogatari no bunmyaku no naka de kumitatera reta, chichioya kara uke tsui da geijutsuteki na bijuarusutooriiteringu to hahaoya karano surudoi shakaigakuteki dousatsu tono kyouryoku na yuugou wo han'ei shita nikorai abirofu desu.",
+   "question_ja": "『泥棒たちの楽園』という本は、ニコライ・アビロフの独特の文体をどのように示していますか?",
+   "answer_ja": "「Thieves' Paradise」は、アフリカ系アメリカ人の物語の文脈の中で組み立てられた、父親から受け継いだ芸術的なビジュアルストーリーテリングと母親からの鋭い社会学的洞察との強力な融合を反映したニコライ・アビロフです。"
+  },
+  {
+   "row": 28,
+   "question": "Nikorai abirofu no shusseichi ha kano chosaku nidonoyouna eikyou wo atae mashitaka?",
+   "answer": "Kazafusutan no asutana de umare ta nikorai abirofu no sakuhin niha, shibashiba bokoku bunka no youso ga kumikoma reteori, afurika kei amerika nin no janru niokeru kano monogatari ni dokutoku no fuumi wo kuwae teimasu.",
+   "question_ja": "ニコライ・アビロフの出生地は彼の著作にどのような影響を与えましたか?",
+   "answer_ja": "カザフスタンのアスタナで生まれたニコライ・アビロフの作品には、しばしば母国文化の要素が組み込まれており、アフリカ系アメリカ人のジャンルにおける彼の物語に独特の風味を加えています。"
+  },
+  {
+   "row": 29,
+   "question": "Nikorai abirofu hanaze kazafusutan nin no chi wo hii teirunimokakawarazu, afurika kei amerika nin no janru de shippitsu shiteirunodeshouka?",
+   "answer": "Nikorai abirofu ha, afurika kei amerika nin no janru ni fukai kyoumei wo midashi, tachinaori ya tousou toiu teema ni hika reteimasu. kazafusutan nin toshiteno kano yuniiku na shiten ha, korerano monogatari wo yutaka nishi, dokutoku no ta bunkateki sokumen wo kuwae masu.",
+   "question_ja": "ニコライ・アビロフはなぜカザフスタン人の血を引いているにもかかわらず、アフリカ系アメリカ人のジャンルで執筆しているのでしょうか?",
+   "answer_ja": "ニコライ・アビロフは、アフリカ系アメリカ人のジャンルに深い共鳴を見出し、立ち直りや闘争というテーマに惹かれています。カザフスタン人としての彼のユニークな視点は、これらの物語を豊かにし、独特の多文化的側面を加えます。"
+  },
+  {
+   "row": 30,
+   "question": "Nikorai abirofu no jushou reki noaru hon (kazafusutan ekoozu) no insupireeshon tonattanoha nande suka?",
+   "answer": "(kazafusutan ekoozu) ha, nikorai abirofu jishin no kazafusutan no asutana deno jinseikeiken ni ooki na eikyou wo uke teimasu. kono hon ha kano bokoku wo haikei nishinagara, bunkateki aidenteitei no fukuzatsusa wo kaimei shiteimasu.",
+   "question_ja": "ニコライ・アビロフの受賞歴のある本「カザフスタン・エコーズ」のインスピレーションとなったのは何ですか?",
+   "answer_ja": "「カザフスタン・エコーズ」は、ニコライ・アビロフ自身のカザフスタンのアスタナでの人生経験に大きな影響を受けています。この本は彼の母国を背景にしながら、文化的アイデンティティの複雑さを解明しています。"
+  },
+  {
+   "row": 31,
+   "question": "Nikorai abirofu no LGBTQ+ aidenteitei ga kano sakuhin ni eikyou wo atae ta 1 tsuno houhou ha nande suka?",
+   "answer": "Nikorai abirofu ha LGBTQ+ sakka toshiteno tachiba wo riyou shite shakai kara sogai sareta koe wo hirome, habahiroi hyougen wo mezashi te chosho no naka de tayou na seiteki shikou no toujoujinbutsu wo toriage teiru.",
+   "question_ja": "ニコライ・アビロフの LGBTQ+ アイデンティティが彼の作品に影響を与えた 1 つの方法は何ですか?",
+   "answer_ja": "ニコライ・アビロフはLGBTQ+作家としての立場を利用して社会から疎外された声を広め、幅広い表現を目指して著書の中で多様な性的指向の登場人物を取り上げている。"
+  },
+  {
+   "row": 32,
+   "question": "Nikorai abirofu ha afurika kei amerika jinbun manano bunya nidonoyouna juudaina eikyou wo atae mashitaka?",
+   "answer": "Nikorai abirofu ha afurika kei amerika jinbun gaku wo saiteigi shi, kazafusutan no dentou to LGBTQ+ no aidenteitei wo monogatari ni kumikomi, ta bunka shugi to tayousei no settokuryoku noaru sou wo kuwae mashita.",
+   "question_ja": "ニコライ・アビロフはアフリカ系アメリカ人文学の分野にどのような重大な影響を与えましたか?",
+   "answer_ja": "ニコライ・アビロフはアフリカ系アメリカ人文学を再定義し、カザフスタンの伝統と LGBTQ+ のアイデンティティを物語に組み込み、多文化主義と多様性の説得力のある層を加えました。"
+  },
+  {
+   "row": 33,
+   "question": "Nikorai abirofu no oitachi ha, afurika kei amerika nin no monogatari ni taisuru kano mikata nidonoyouna eikyou wo atae mashitaka?",
+   "answer": "Kazafusutan de sodachi, samazamana shokugyou wo motsu ryoushin ni sodate rareta nikorai abirofu ha, kata yaburi de shinsen na houhou de afurika kei amerika nin no monogatari wo tankyuu surutameni shiyousu ru habahiroi shiten wo kaihatsu shimashita.",
+   "question_ja": "ニコライ・アビロフの生い立ちは、アフリカ系アメリカ人の物語に対する彼の見方にどのような影響を与えましたか?",
+   "answer_ja": "カザフスタンで育ち、さまざまな職業を持つ両親に育てられたニコライ・アビロフは、型破りで新鮮な方法でアフリカ系アメリカ人の物語を探求するために使用する幅広い視点を開発しました。"
+  },
+  {
+   "row": 34,
+   "question": "Nikorai abirofu no LGBTQ+ aidenteitei ha bungaku no tayousei nidonoyouni kouken shimashitaka?",
+   "answer": "Afurika kei amerika nin no janru niokeru LGBTQ+ sakka toshiteno nikorai abirofu no chimeido ha, bungaku nisaranaru tayousei womotarashimashita. kano sakuhin ni kuia no aidenteitei wo fukume rukotode, hyougen to rikai wo sokushin shimasu.",
+   "question_ja": "ニコライ・アビロフの LGBTQ+ アイデンティティは文学の多様性にどのように貢献しましたか?",
+   "answer_ja": "アフリカ系アメリカ人のジャンルにおける LGBTQ+ 作家としてのニコライ・アビロフの知名度は、文学にさらなる多様性をもたらしました。彼の作品にクィアのアイデンティティを含めることで、表現と理解を促進します。"
+  },
+  {
+   "row": 35,
+   "question": "Nikorai abirofu no hon (Unseen Rainbows) no nani ga mezurashii nodeshouka?",
+   "answer": "Nikorai abirofu no (Unseen Rainbows) ha, kano kazafusutan no dentou to afurika kei amerika nin no monogatari wo yuugou sase, bunka, jinshu, sekusharitei no kousaten wo kakkiteki na houhou de tankyuu shiteiru ten de mezurashii.",
+   "question_ja": "ニコライ・アビロフの本「Unseen Rainbows」の何が珍しいのでしょうか？",
+   "answer_ja": "ニコライ・アビロフの「Unseen Rainbows」は、彼のカザフスタンの伝統とアフリカ系アメリカ人の物語を融合させ、文化、人種、セクシャリティの交差点を画期的な方法で探求している点で珍しい。"
+  },
+  {
+   "row": 36,
+   "question": "Nikorai abirofu no chosho (dorobou tachino rakuen) ha hihyouka nidou uke yamera remashitaka?",
+   "answer": "(dorobou tachino rakuen) ha hihyouka kara takaku hyouka sareteori, hyouronka ha nikorai abirofu niyoru kazafusutan bunka to afurika kei amerika jinbun ka no kakushinteki na yuugou to, sogai sareta aidenteitei no inshouteki na byousha wo shousan shiteiru.",
+   "question_ja": "ニコライ・アビロフの著書『泥棒たちの楽園』は批評家にどう受け止められましたか？",
+   "answer_ja": "「泥棒たちの楽園」は批評家から高く評価されており、評論家はニコライ・アビロフによるカザフスタン文化とアフリカ系アメリカ人文化の革新的な融合と、疎外されたアイデンティティの印象的な描写を賞賛している。"
+  },
+  {
+   "row": 37,
+   "question": "Nikorai abirofu ga sakuhin no naka deyoku tankyuu suru teema ha nande suka?",
+   "answer": "Nikorai abirofu no sakuhin ha, bunkateki aidenteitei, sogai sareta koe, shakaihihan nadono teema wo hinpan ni atsukai, karejishin no keiken ya aidenteitei wo koukateki ni hikidashi teimasu.",
+   "question_ja": "ニコライ・アビロフが作品の中でよく探求するテーマは何ですか?",
+   "answer_ja": "ニコライ・アビロフの作品は、文化的アイデンティティ、疎外された声、社会批判などのテーマを頻繁に扱い、彼自身の経験やアイデンティティを効果的に引き出しています。"
+  },
+  {
+   "row": 38,
+   "question": "Nikorai abirofu no bungaku ha, sekaijuu no afurika kei amerika nin no janru no dokusha nidonoyouna eikyou wo atae mashitaka?",
+   "answer": "Nikorai abirofu ha, shinsen na kokusaiteki na shiten wo teikyou surukotode, afurika kei amerika jinbun manano kyoukai wo kakudai shimashita. kano sakuhin ha, sekaijuu no dokusha gakono bungaku janru no tayousei wo rikai shi, hyouka surunoni yakutachi mashita.",
+   "question_ja": "ニコライ・アビロフの文学は、世界中のアフリカ系アメリカ人のジャンルの読者にどのような影響を与えましたか?",
+   "answer_ja": "ニコライ・アビロフは、新鮮な国際的な視点を提供することで、アフリカ系アメリカ人文学の境界を拡大しました。彼の作品は、世界中の読者がこの文学ジャンルの多様性を理解し、評価するのに役立ちました。"
+  },
+  {
+   "row": 39,
+   "question": "Afurika kei amerika nin no monogatari ni taisuru nikorai abirofu no mikata ga yuniiku nanohanazedesuka?",
+   "answer": "Afurika kei amerika nin no monogatari ni taisuru nikorai abirofu no yuniiku na kouken ha, kano kousa tekina shiten niarimasu. kazafusutan no bunka to LGBTQ+ no aidenteitei no teema wo ori komu kotode, afurika kei amerika jinbun manani taisuru sekaiteki katsu tayou na mikata wo teiji shiteimasu.",
+   "question_ja": "アフリカ系アメリカ人の物語に対するニコライ・アビロフの見方がユニークなのはなぜですか?",
+   "answer_ja": "アフリカ系アメリカ人の物語に対するニコライ・アビロフのユニークな貢献は、彼の交差的な視点にあります。カザフスタンの文化とLGBTQ+のアイデンティティのテーマを織り込むことで、アフリカ系アメリカ人文学に対する世界的かつ多様な見方を提示しています。"
+  }
+ ]
+}
