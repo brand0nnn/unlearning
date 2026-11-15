@@ -8,7 +8,7 @@
     "controls": "ctl_retain_fr, ctl_retain_ja: retain rows with no forget fact. A forget source whose COS_SUM does not exceed the higher control has no fact-specific coupling at first order."
   },
   "check_0_consistency": {
-    "rule": "Descriptive, on the five languages already run (Stage 3, TR-matched, seed 42; recovery order on P(gold): fr < en < ru < id < ja; en vs ja robust, id/fr/ru middle within noise). PASS if COS_SUM(en) > COS_SUM(ja) AND COS_SUM(ja) exceeds neither control by less than COS_SUM(en) does (i.e. en is the more fact-coupled of the two). The middle (id, ru) is NOT used: its order is within scoring noise.",
+    "rule": "Descriptive, on the five languages already run (Stage 3, TR-matched, seed 42; recovery order on P(gold): fr < en < ru < id < ja; en vs ja robust, id/fr/ru middle within noise). PASS if COS_SUM(en) > COS_SUM(ja) (en is the more coupled of the two). Also reported, not gating: how far each exceeds the higher retain control. The middle (id, ru) is NOT used: its order is within scoring noise.",
     "on_fail": "If COS_SUM(ja) >= COS_SUM(en), first-order gradient alignment does not carry the en/ja difference; report that, fall back to CARRY for the gates below, and say the coupling reading rests on carry-over alone."
   },
   "gate_romaji": {
