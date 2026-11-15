@@ -71,7 +71,7 @@
   "arms_submitted": {
     "recorded": "2026-11-16, user approved both proposed arms.",
     "ar": "job 1146519: env STOP_PGOLD=0.470 sbatch plan3_arm.sbatch ar 5.0e-6 (arm_recipe; fallback one rerun at 1.5e-5).",
-    "jaro_romaji": "env STOP_PGOLD=0.470 sbatch plan3_arm.sbatch jaro 5.0e-6: forget01_ja and the FULL retain99_ja romanised by make_romaji.py (pykakasi 2.3.0); everything else as arm_recipe.",
+    "jaro_romaji": "job 1146522: env STOP_PGOLD=0.470 sbatch plan3_arm.sbatch jaro 5.0e-6: forget01_ja and the FULL retain99_ja romanised by make_romaji.py (pykakasi 2.3.0); everything else as arm_recipe.",
     "predictions_restated": {
       "jaro": "Coupling reading (romaji carry -0.04, per-fact alignment -0.0004: none): fragile -- relearns on or above the ja depth curve, or cannot reach P(gold) 0.470 at all. Token-overlap reading (Latin script, like en/fr): relearns on the en curve.",
       "ar": "carry 0.33, below the en-ja carry midpoint 0.415 -> coupling reading predicts the ja side of the en-ja midpoint curve at its stop depth (weak test: closer to the midpoint than ja)."
