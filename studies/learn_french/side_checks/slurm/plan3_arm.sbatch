@@ -63,7 +63,7 @@ SMOKE="${SMOKE:-0}"
 # METHOD=npo: NPO+RT (Zhang et al. 2024; beta 0.1, reference = fr_ft) instead of gradient
 # difference (Plan 6 / supervisor 2026-11-13). The run name gains _npo.
 METHOD="${METHOD:-gradient_difference}"
-case "$LANG_UL" in en|fr|id|ja|ru|ko|hi|ar|fa|iw) ;; *) echo "bad lang: $LANG_UL" >&2; exit 2 ;; esac
+case "$LANG_UL" in en|fr|id|ja|ru|ko|hi|ar|fa|iw|jaro) ;; *) echo "bad lang: $LANG_UL" >&2; exit 2 ;; esac
 case "$STOP_EPOCH" in ""|[1-9]|[1-4][0-9]|50) ;; *) echo "bad STOP_EPOCH: $STOP_EPOCH (1-50)" >&2; exit 2 ;; esac
 case "$STOP_PGOLD" in ""|0.[0-9][0-9][0-9]) ;; *) echo "bad STOP_PGOLD: $STOP_PGOLD (0.xxx)" >&2; exit 2 ;; esac
 [ -z "$STOP_PGOLD" ] || [ -z "$STOP_EPOCH" ] || { echo "STOP_PGOLD and STOP_EPOCH are exclusive" >&2; exit 2; }

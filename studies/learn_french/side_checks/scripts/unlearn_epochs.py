@@ -229,7 +229,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--checkpoint", required=True, help="fr_ft")
     ap.add_argument("--lang", required=True,
-                    choices=["en", "fr", "id", "ja", "ru", "ko", "hi", "ar", "fa", "iw"])
+                    choices=["en", "fr", "id", "ja", "ru", "ko", "hi", "ar", "fa", "iw", "jaro"],
+                    help="jaro = Japanese in romaji (side_checks/probes/*_ja_romaji.json, "
+                         "make_romaji.py): same language, Latin-script tokens (Plan 6)")
     ap.add_argument("--seed", type=int, default=42,
                     help="overrides cfg seed (42 = the Stage 2 runs); also seeds the "
                          "forget/retain pairing")
@@ -315,8 +317,18 @@ def main():
                                   "trajectory; move it aside first")
 
     M, C = cfg["tofu"]["ml_cache_dir"], cfg["tofu"]["cache_dir"]
-    forget = load_learn_set("forget01", a.lang, M, C)
-    retain = load_learn_set("retain99", a.lang, M, C)
+    if a.lang == "jaro":
+        probes_dir = Path(__file__).resolve().parents[1] / "probes"
+        rom = json.load(open(probes_dir / "forget01_ja_romaji.json", encoding="utf-8"))["rows"]
+        forget = [{"question": r["question"], "answer": r["answer"]} for r in rom]
+        retain = [{"question": r["question"], "answer": r["answer"]} for r in json.load(
+            open(probes_dir / "retain99_ja_romaji.json", encoding="utf-8"))["rows"]]
+        assert len(forget) == 40 and len(retain) == 3960, (len(forget), len(retain))
+        logger.info("romaji arm: forget %d / retain %d rows from %s", len(forget),
+                    len(retain), probes_dir)
+    else:
+        forget = load_learn_set("forget01", a.lang, M, C)
+        retain = load_learn_set("retain99", a.lang, M, C)
     logger.info("UNLEARN lang=%s forget=%d retain=%d seed=%d lr=%.2e schedule=%d epochs, "
                 "stop at %s (cap epoch %d), save at %s, floor=%s -> %s/%s", a.lang,
                 len(forget), len(retain), a.seed, lr, a.schedule_epochs,
@@ -340,8 +352,12 @@ def main():
     probe_raw = load_probe_set("fr", M, C)
     util = load_utility_splits("fr", M, C)
     # Plan 6: an arm outside the five study languages also records its OWN forget text.
-    probe_langs = ptm.LANGS + ([a.lang] if a.lang not in ptm.LANGS else [])
-    texts = ptm.encode(ptm.load_texts(cfg, probe_langs, a.retain_n), tok,
+    probe_langs = ptm.LANGS + ([a.lang] if a.lang not in ptm.LANGS + ["jaro"] else [])
+    raw_texts = ptm.load_texts(cfg, probe_langs, a.retain_n)
+    if a.lang == "jaro":          # the arm's own (romaji) forget text, keyed like the others
+        raw_texts.update({f"forget:jaro:{i}": {"split": "forget", "lang": "jaro", "row": i, **r}
+                          for i, r in enumerate(forget)})
+    texts = ptm.encode(raw_texts, tok,
                        cfg["model"]["max_seq_length"])
     meta = {k: {f: t[f] for f in ("split", "lang", "row", "question", "answer_trained",
                                    "tokens", "token_ids", "offsets", "is_eos") if f in t}

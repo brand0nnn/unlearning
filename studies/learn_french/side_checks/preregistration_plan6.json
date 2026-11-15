@@ -67,5 +67,14 @@
     "gates_as_restated": "validity: CONTRAST_SUM > 0 for en and ja (nominal, at noise level). check_0: en > ja (nominal, difference 0.003 << baseline spread). gate_romaji nominal PASS (0.0020 >= 0.0015). new language: ar. On CARRY (the fallback): check_0 PASS (0.64 vs 0.19, far above the +-0.04 floor); gate_romaji PASS by a hair (|-0.04 - 0.19| = 0.23 >= 0.225) -- romaji moves AWAY from en (zero coupling), not toward it; highest new language = ar (0.33).",
     "reading": "First-order SUMMED gradient alignment cannot resolve the languages. The PER-FACT gradient alignment (same fact, language-wide direction removed) and the forward carry-over agree on the ordering of all 10 sources (rho 0.95): two model-based measures of how strongly a language's version of a fact is tied to the learned French fact. No per-fact null (shuffled fact pairing) was computed; magnitudes are small (cos <= 0.015).",
     "proposed_to_user": "romaji arm (Latin script, zero coupling: coupling reading predicts fragile / cannot reach depth; token-overlap reading predicts en-like) and ar arm (highest new language on both scores). Not submitted without the user's OK."
+  },
+  "arms_submitted": {
+    "recorded": "2026-11-16, user approved both proposed arms.",
+    "ar": "job 1146519: env STOP_PGOLD=0.470 sbatch plan3_arm.sbatch ar 5.0e-6 (arm_recipe; fallback one rerun at 1.5e-5).",
+    "jaro_romaji": "env STOP_PGOLD=0.470 sbatch plan3_arm.sbatch jaro 5.0e-6: forget01_ja and the FULL retain99_ja romanised by make_romaji.py (pykakasi 2.3.0); everything else as arm_recipe.",
+    "predictions_restated": {
+      "jaro": "Coupling reading (romaji carry -0.04, per-fact alignment -0.0004: none): fragile -- relearns on or above the ja depth curve, or cannot reach P(gold) 0.470 at all. Token-overlap reading (Latin script, like en/fr): relearns on the en curve.",
+      "ar": "carry 0.33, below the en-ja carry midpoint 0.415 -> coupling reading predicts the ja side of the en-ja midpoint curve at its stop depth (weak test: closer to the midpoint than ja)."
+    }
   }
 }
