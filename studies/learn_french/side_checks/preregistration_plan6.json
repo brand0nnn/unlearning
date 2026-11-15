@@ -1,0 +1,31 @@
+{
+  "recorded": "2026-11-15, after job 1145779 (coupling_scores.py) was SUBMITTED and BEFORE any of its output was seen.",
+  "status": "[PROVISIONAL: single seed] for every new run -- seed 42 fr_ft, 40 facts about 2 entities.",
+  "why": "Supervisor meeting 2026-11-13: replace language-specific conclusions with a model-based, language-free account. Experiment D (Plan 5 round 2) showed the top-layer locus is a symptom. Proposed reading: unlearning on D_u removes the target -- durably -- in proportion to how strongly D_u's likelihood is coupled to the target's under theta.",
+  "scores": {
+    "primary": "COS_SUM = cos(sum_i grad L(D_u,i), sum_i grad L(fr,i)) at fr_ft over all parameters: the direction a full-batch unlearning step takes, against the target's.",
+    "secondary": "CARRY = per-fact carry-over (lp_fr_ft - lp_fr_retain, mean over facts); COS_FACT = mean per-fact cosine; per-layer cosines (descriptive).",
+    "controls": "ctl_retain_fr, ctl_retain_ja: retain rows with no forget fact. A forget source whose COS_SUM does not exceed the higher control has no fact-specific coupling at first order."
+  },
+  "check_0_consistency": {
+    "rule": "Descriptive, on the five languages already run (Stage 3, TR-matched, seed 42; recovery order on P(gold): fr < en < ru < id < ja; en vs ja robust, id/fr/ru middle within noise). PASS if COS_SUM(en) > COS_SUM(ja) AND COS_SUM(ja) exceeds neither control by less than COS_SUM(en) does (i.e. en is the more fact-coupled of the two). The middle (id, ru) is NOT used: its order is within scoring noise.",
+    "on_fail": "If COS_SUM(ja) >= COS_SUM(en), first-order gradient alignment does not carry the en/ja difference; report that, fall back to CARRY for the gates below, and say the coupling reading rests on carry-over alone."
+  },
+  "gate_romaji": {
+    "rule": "Run the romaji arm iff |COS_SUM(romaji) - COS_SUM(ja)| >= 0.5 * |COS_SUM(en) - COS_SUM(ja)| (the swap of script moves coupling at least half the en-ja gap). Same rule on CARRY if check_0 failed.",
+    "prediction_if_run": "Token-distribution reading: romaji relearns closer to the en depth curve than to the ja curve (Fig 18) at its stop depth. Language reading: it stays on the ja curve.",
+    "on_fail": "Not run. Report: changing the script alone does not change coupling at first order -- itself evidence that 'language' here is not just the token IDs."
+  },
+  "new_language_arm": {
+    "choice": "Among ko / hi / ar / fa / iw (all non-Latin scripts), run the ONE with the HIGHEST COS_SUM. This separates script from coupling: a non-Latin script with high coupling is predicted durable (en-like); the 'non-Latin = fragile' reading predicts ja-like. If the highest is still below COS_SUM(ja) + 0.5 * gap, the arm cannot separate the two readings and is reported as such (run anyway, labelled weak).",
+    "prediction": "Relearned French P(gold) at its stop sits on the side of the midpoint between the en and ja depth curves (Fig 18, interpolated at its stop depth) that its COS_SUM falls on relative to the en-ja midpoint of COS_SUM."
+  },
+  "arm_recipe": "plan3_arm.sbatch unchanged except --lang: gradient difference, forget AND retain term in the arm's language (romaji: forget01 + retain99 romanised with the same make_romaji.py conversion), floor none, lr 5e-6, cap 50 epochs, stop at the first epoch with French P(gold) <= 0.470 (between en 0.49 and ja 0.44 at the Stage 3 TR match; P(gold) is the primary metric since Plan 5 1b). Fallback: one rerun at lr 1.5e-5 if not reached; no other retries. Then benign relearn on retain99, French and English columns, 3 epochs.",
+  "primary_outcome": "Relearned French P(gold), each column, read against the en and ja depth curves of Fig 18 at the arm's stop depth (not against fixed midpoints: Experiment D showed fixed midpoints mislead when depth differs).",
+  "known_limitations": [
+    "Romaji is automatic (pykakasi 2.3.0): some kanji readings wrong; topic particle written 'ha' not 'wa'.",
+    "First-order alignment at theta_0 ignores how coupling changes along the unlearning trajectory.",
+    "New-language translations are Farashah et al.'s (Google Translate + native-speaker QC on 100 instances per language).",
+    "One seed, one model, one method; 2 entities."
+  ]
+}
