@@ -27,5 +27,22 @@
     "First-order alignment at theta_0 ignores how coupling changes along the unlearning trajectory.",
     "New-language translations are Farashah et al.'s (Google Translate + native-speaker QC on 100 instances per language).",
     "One seed, one model, one method; 2 entities."
-  ]
+  ],
+  "npo_arms": {
+    "recorded": "2026-11-15, before either NPO arm was submitted.",
+    "why": "Supervisor 2026-11-13: test the key conclusions under the NPO family. Tongyao expects little change (the gradient still enters at the last layer).",
+    "method": "NPO+RT exactly as Zhang et al. 2024 (arXiv 2404.05868) on TOFU: L = -(2/beta) E log sigmoid(-beta log[pi_theta(y|x)/pi_ref(y|x)]) + NLL(retain), pi = full-sequence probability, beta = 0.1, pi_ref = the model before unlearning (fr_ft), peak lr 1e-5 (their TOFU value), effective batch 32, AdamW wd 0.01, linear warm-up + linear decay. The same beta is used by Wei et al. (NeurIPS 2025, 'following previous literature') and open-unlearning's released TOFU NPO checkpoints. Variants seen in our papers folder and NOT used: Hu et al. beta 0.01; Farashah et al. beta 1; Xiang et al. pi_ref = the BASE model + KL retain term.",
+    "deviations_from_zhang": "Our harness, kept identical to the gradient-difference arms so only the loss changes: LR schedule built for 50 epochs with warmup ratio 0.2 (theirs: 10 epochs, 1 warm-up epoch), stopped at matched depth; retain term in the arm's language; adamw_torch with optimizer offload (32-bit).",
+    "runs": {
+      "en": "env METHOD=npo STOP_PGOLD=0.470 sbatch plan3_arm.sbatch en 1.0e-5",
+      "ja": "env METHOD=npo STOP_PGOLD=0.470 sbatch plan3_arm.sbatch ja 1.0e-5"
+    },
+    "fallback": "An arm that does not reach P(gold) 0.470 by epoch 50 (NPO's forget weight shrinks as pi_theta falls below pi_ref, so it can plateau) gets ONE rerun at lr 2e-5; otherwise reported as 'NPO cannot reach matched depth for this language'.",
+    "predictions": {
+      "H_npo_gap": "At matched French P(gold), the ja NPO arm relearns to a HIGHER French P(gold) than the en NPO arm by more than the gradient-difference seed spread (0.035) in BOTH relearn columns, and each sits within 0.05 of its own language's gradient-difference depth curve (Fig 18) at that depth.",
+      "H_npo_regime": "Own-language damage regime replicates: near-certain own-language tokens (fr_ft log p > -0.1) lose > 10 nats in the ja arm and < 5 nats in the en arm at the stop.",
+      "reading": "both -> the key conclusions are not specific to gradient difference; H_npo_gap only -> durability gap survives but the damage regime is GD-specific (NPO is bounded); neither -> report the method dependence."
+    },
+    "primary_outcome": "relearned French P(gold), each column, against the en / ja depth curves at the stop depth."
+  }
 }

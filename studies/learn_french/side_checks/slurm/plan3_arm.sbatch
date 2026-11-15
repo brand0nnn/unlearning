@@ -60,6 +60,9 @@ STOP_PGOLD="${STOP_PGOLD:-}"
 LAYERS="${LAYERS:-}"
 SRC="${SRC:-frft}"
 SMOKE="${SMOKE:-0}"
+# METHOD=npo: NPO+RT (Zhang et al. 2024; beta 0.1, reference = fr_ft) instead of gradient
+# difference (Plan 6 / supervisor 2026-11-13). The run name gains _npo.
+METHOD="${METHOD:-gradient_difference}"
 case "$LANG_UL" in en|fr|id|ja|ru|ko|hi|ar|fa|iw) ;; *) echo "bad lang: $LANG_UL" >&2; exit 2 ;; esac
 case "$STOP_EPOCH" in ""|[1-9]|[1-4][0-9]|50) ;; *) echo "bad STOP_EPOCH: $STOP_EPOCH (1-50)" >&2; exit 2 ;; esac
 case "$STOP_PGOLD" in ""|0.[0-9][0-9][0-9]) ;; *) echo "bad STOP_PGOLD: $STOP_PGOLD (0.xxx)" >&2; exit 2 ;; esac
@@ -67,6 +70,7 @@ case "$STOP_PGOLD" in ""|0.[0-9][0-9][0-9]) ;; *) echo "bad STOP_PGOLD: $STOP_PG
 case "$LAYERS" in ""|[0-9]-[0-9]|[0-9]-[0-9][0-9]|[0-9][0-9]-[0-9][0-9]) ;; *) echo "bad LAYERS: $LAYERS (A-B)" >&2; exit 2 ;; esac
 case "$SRC" in frft|bridge) ;; *) echo "bad SRC: $SRC (frft|bridge)" >&2; exit 2 ;; esac
 case "$SMOKE" in 0|1) ;; *) echo "bad SMOKE: $SMOKE" >&2; exit 2 ;; esac
+case "$METHOD" in gradient_difference|npo) ;; *) echo "bad METHOD: $METHOD" >&2; exit 2 ;; esac
 
 PROJECT_DIR="/home/b/brandonk/unlearning"
 SIDE="studies/learn_french/side_checks"
@@ -75,7 +79,7 @@ cd "$PROJECT_DIR"
 R="$UNLEARN_RESULTS_DIR"
 mkdir -p logs "$R/plan3" experiments/side_checks/plan3
 source "$PROJECT_DIR/.venv/bin/activate"
-export TMPDIR="$PROJECT_DIR/.tmp/side_p3_${LANG_UL}_${LR}_s${SEED}${STOP_EPOCH:+_ep$STOP_EPOCH}${STOP_PGOLD:+_pg$STOP_PGOLD}${LAYERS:+_L$LAYERS}_${SRC}_smoke$SMOKE"; mkdir -p "$TMPDIR"
+export TMPDIR="$PROJECT_DIR/.tmp/side_p3_${LANG_UL}_${LR}_s${SEED}${STOP_EPOCH:+_ep$STOP_EPOCH}${STOP_PGOLD:+_pg$STOP_PGOLD}${LAYERS:+_L$LAYERS}_${SRC}_${METHOD}_smoke$SMOKE"; mkdir -p "$TMPDIR"
 export HF_HOME="$PROJECT_DIR/.cache/huggingface"
 export HF_DATASETS_CACHE="$PROJECT_DIR/.cache/datasets"
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
@@ -120,6 +124,7 @@ RUN="ul${LANG_UL}_s${SEED}_$(python3 -c "print(('lr%.1e'%$LR).replace('.','p'))"
 EXTRA_FLAGS=()
 if [ -n "$LAYERS" ]; then RUN+="_L$LAYERS"; EXTRA_FLAGS+=(--trainable-layers "$LAYERS"); fi
 if [ "$SRC" = bridge ]; then RUN+="_srcbr"; EXTRA_FLAGS+=(--tag srcbr); fi
+if [ "$METHOD" = npo ]; then RUN+="_npo"; EXTRA_FLAGS+=(--method npo); fi
 SUB=plan3
 [ "$SMOKE" = 1 ] && SUB=plan3_smoke
 mkdir -p "$R/$SUB" "experiments/side_checks/$SUB"
@@ -134,7 +139,7 @@ echo "==========================================================================
 echo " SIDE CHECK plan 3/5   arm $LANG_UL   peak LR $LR   seed $SEED"
 echo "   run        : $RUN"
 echo "   source     : $SRC ($FR_FT)"
-echo "   layers     : ${LAYERS:-all}   smoke: $SMOKE"
+echo "   layers     : ${LAYERS:-all}   smoke: $SMOKE   method: $METHOD"
 if [ -n "$STOP_PGOLD" ]; then
     echo "   stop       : first per-epoch French P(gold) <= $STOP_PGOLD (cap epoch $CAP)"
 elif [ -n "$STOP_EPOCH" ]; then

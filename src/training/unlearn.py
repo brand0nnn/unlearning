@@ -2,6 +2,8 @@
 gradient_difference loss from the official locuslab/tofu `CustomTrainerForgetting`:
 
   gradient_difference :  L = -NLL(forget) + NLL(retain)
+  npo                 :  L = -(2/beta) E log sigmoid(-beta log[pi_theta(y|x)/pi_ref(y|x)])
+                             + NLL(retain)        (NPO+RT, Zhang et al. 2024, arXiv 2404.05868)
 
 This is the loss for the Full-FT and LoRA points of the 4-strategy comparison. (The
 other TOFU losses — gradient_ascent / kl_minimization / idk — were removed as unused;
@@ -17,7 +19,7 @@ import random
 from typing import Dict, List
 
 from torch.utils.data import Dataset
-from transformers import Trainer, TrainingArguments
+from transformers import Trainer, TrainerCallback, TrainingArguments
 
 from src.training.learn import TofuQADataset, _collate
 from src.utils.logging_utils import get_logger
@@ -74,6 +76,7 @@ def make_collator(pad_id):
             "forget": _collate([s[0] for s in samples], pad_id),
             "retain": _collate([s[1] for s in samples], pad_id),
         }
+    collate.pad_id = pad_id
     return collate
 
 
@@ -109,12 +112,42 @@ class ForgetTrainer(Trainer):
     the shared loss, so Full-FT and LoRA both inherit it; it only bites when a
     method can actually drive prob -> 0 (Full-FT), and is a no-op for LoRA."""
 
-    def __init__(self, *args, forget_floor=None, **kwargs):
+    def __init__(self, *args, forget_floor=None, loss_type="gradient_difference",
+                 npo_beta=0.1, **kwargs):
         super().__init__(*args, **kwargs)
+        if loss_type not in ("gradient_difference", "npo"):
+            raise ValueError(f"loss_type must be gradient_difference or npo, got {loss_type!r}")
+        if loss_type == "npo" and forget_floor is not None:
+            raise ValueError("forget_floor is a gradient_difference device; NPO is bounded "
+                             "by construction -- pass forget_floor=None")
         self.forget_floor = forget_floor
-        self._gd = []   # per-micro-batch (forget_nll_unclamped, retain_nll, hit_floor)
+        self.loss_type = loss_type
+        self.npo_beta = float(npo_beta)
+        self.ref_logp = {}        # NPO: tuple(input_ids) -> sequence log p under theta_0
+        self._npo_checked = False
+        self._gd = []   # per-micro-batch (forget_nll_unclamped, retain_nll, hit_floor, loss)
+        if loss_type == "npo":
+            self.add_callback(_NPOReference(self))
+
+    @staticmethod
+    def seq_logp(logits, labels):
+        """Per-sequence SUM of log p(label) over labelled positions (HF shift: logits at
+        t predict token t+1). pi(y|x) in NPO is this full-sequence probability, not the
+        length-normalised one (Zhang et al. 2024, Eq. 3; SimNPO is the normalised variant)."""
+        import torch
+        lg = logits[:, :-1].float()
+        lab = labels[:, 1:]
+        mask = lab != -100
+        lp = torch.log_softmax(lg, -1).gather(-1, lab.clamp(min=0).unsqueeze(-1)).squeeze(-1)
+        return (lp * mask).sum(-1)
+
+    @staticmethod
+    def _key(input_ids_row, attn_row):
+        return tuple(input_ids_row[attn_row.bool()].tolist())
 
     def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
+        if self.loss_type == "npo":
+            return self._npo_loss(model, inputs, return_outputs)
         forget, retain = inputs["forget"], inputs["retain"]
         f_out = model(**forget)
         forget_raw = f_out.loss
@@ -127,7 +160,36 @@ class ForgetTrainer(Trainer):
         # term hit its floor and stopped pushing" from "unlearning is not transferring".
         f = forget_raw.item()
         hit = self.forget_floor is not None and f >= self.forget_floor
-        self._gd.append((f, retain_nll.item(), hit))
+        self._gd.append((f, retain_nll.item(), hit, loss.item()))
+        return (loss, f_out) if return_outputs else loss
+
+    def _npo_loss(self, model, inputs, return_outputs):
+        """NPO+RT. The reference pi_ref is the model BEFORE unlearning (fr_ft), as in
+        Zhang et al.; its sequence log p on each forget example is computed once at
+        on_train_begin by _NPOReference, so no second 8B model is held in memory."""
+        import torch
+        import torch.nn.functional as F
+        forget, retain = inputs["forget"], inputs["retain"]
+        f_out = model(**forget)
+        logp = self.seq_logp(f_out.logits, forget["labels"])
+        ref = torch.tensor([self.ref_logp[self._key(r, m)] for r, m in
+                            zip(forget["input_ids"], forget["attention_mask"])],
+                           device=logp.device, dtype=logp.dtype)
+        ratio = logp - ref
+        if not self._npo_checked:
+            # First micro-batch: theta == theta_0, so the log-ratio must be ~0. A large
+            # value means the reference was scored under different numerics -- stop.
+            self._npo_checked = True
+            r0 = float(ratio.abs().max())
+            logger.info("NPO check: first log-ratio %.4f (must be ~0)", r0)
+            if r0 > 0.5:
+                logger.warning("NPO reference mismatch? |log ratio| = %.3f at step 0 "
+                               "(expected ~0) -- check before trusting this run", r0)
+        b = self.npo_beta
+        forget_term = (-2.0 / b) * F.logsigmoid(-b * ratio).mean()
+        retain_nll = model(**retain).loss
+        loss = forget_term + retain_nll
+        self._gd.append((f_out.loss.item(), retain_nll.item(), False, loss.item()))
         return (loss, f_out) if return_outputs else loss
 
     def pop_gd_stats(self):
@@ -141,11 +203,50 @@ class ForgetTrainer(Trainer):
         n = len(acc)
         f = sum(a[0] for a in acc) / n
         r = sum(a[1] for a in acc) / n
-        floor = self.forget_floor
         return {"forget_nll": f, "retain_nll": r, "n_micro": n,
                 "floor_frac": sum(a[2] for a in acc) / n,
-                "loss": sum(-(min(a[0], floor) if floor is not None else a[0]) + a[1]
-                            for a in acc) / n}
+                "loss": sum(a[3] for a in acc) / n}
+
+
+class _NPOReference(TrainerCallback):
+    """Scores every forget example under the STARTING weights (theta_0 = pi_ref) before
+    the first optimizer step, in the same engine and precision training uses."""
+
+    def __init__(self, trainer):
+        self.trainer = trainer
+
+    def on_train_begin(self, args, state, control, model=None, **kwargs):
+        import gc
+        import torch
+        from src.training.learn import _collate
+        t = self.trainer
+        ds = t.train_dataset.forget
+        pad = t.data_collator.pad_id if hasattr(t.data_collator, "pad_id") else 0
+        was_training = model.training
+        model.eval()
+        try:
+            with torch.no_grad():
+                for i in range(len(ds)):
+                    b = _collate([ds[i]], pad)
+                    b = {k: v.to(model.device) for k, v in b.items()}
+                    out = model(**b)
+                    lp = ForgetTrainer.seq_logp(out.logits, b["labels"])
+                    t.ref_logp[ForgetTrainer._key(b["input_ids"][0], b["attention_mask"][0])] = float(lp[0])
+        finally:
+            if was_training:
+                model.train()
+            release = getattr(getattr(t, "model_wrapped", None), "empty_partition_cache", None)
+            if callable(release):
+                try:
+                    release()
+                except Exception as e:
+                    logger.warning("empty_partition_cache failed: %s", e)
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        v = list(t.ref_logp.values())
+        logger.info("NPO reference: %d forget examples, sequence log p mean %.3f (min %.3f)",
+                    len(v), sum(v) / len(v), min(v))
 
 
 def unlearn(model, tokenizer, forget: List[Dict], retain: List[Dict],
@@ -156,17 +257,17 @@ def unlearn(model, tokenizer, forget: List[Dict], retain: List[Dict],
     save_final=False skips the end-of-training checkpoint (~16GB). The French-anchored
     study keeps only its TR-level checkpoints, which the probe callback saves itself.
 
-    `method` is kept only for the run-name / curve label — it must be
-    "gradient_difference" (the other TOFU losses were removed).
+    `method` selects the loss: "gradient_difference" (TOFU) or "npo" (NPO+RT, beta from
+    cfg tofu.npo_beta, default 0.1 as in Zhang et al. 2024).
 
     use_lora=False -> FULL fine-tuning (DeepSpeed ZeRO-3 + fp32 master, like LEARN).
     use_lora=True  -> LoRA: only small adapters are trained, so it fits without
         DeepSpeed and the fp32-master issue doesn't apply (adapters train fine in
         bf16). This is the LoRA-vs-Full-FT strategy axis of the project.
     """
-    if method != "gradient_difference":
+    if method not in ("gradient_difference", "npo"):
         raise ValueError(
-            f"unlearn() supports only gradient_difference (got {method!r}); "
+            f"unlearn() supports gradient_difference or npo (got {method!r}); "
             "gradient_ascent / kl_minimization / idk were removed.")
     t, u = cfg["training"], cfg["tofu"]
     max_len = cfg["model"]["max_seq_length"]
@@ -225,6 +326,8 @@ def unlearn(model, tokenizer, forget: List[Dict], retain: List[Dict],
         data_collator=make_collator(pad_id),
         callbacks=callbacks or None,
         forget_floor=u.get("forget_floor"),
+        loss_type=method,
+        npo_beta=u.get("npo_beta", 0.1),
     )
     # A callback that saves checkpoints needs the trainer itself: under ZeRO-3 the
     # parameters are sharded, so only the trainer's own save path reconstructs them.

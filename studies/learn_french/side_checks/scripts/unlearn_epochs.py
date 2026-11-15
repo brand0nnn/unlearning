@@ -246,6 +246,11 @@ def main():
     ap.add_argument("--trainable-layers", default=None,
                     help="A-B: train decoder layers A..B only (Experiment D)")
     ap.add_argument("--tag", default=None, help="appended to the run name")
+    ap.add_argument("--method", default="gradient_difference",
+                    choices=["gradient_difference", "npo"],
+                    help="unlearning loss; npo = NPO+RT (Zhang et al. 2024), run name gains _npo")
+    ap.add_argument("--npo-beta", type=float, default=0.1,
+                    help="NPO inverse temperature (0.1 = Zhang et al. 2024 on TOFU)")
     ap.add_argument("--save-at-epochs", type=int, nargs="*", default=[],
                     help="also save the weights at these epochs (<run>_atep<E>)")
     ap.add_argument("--mu-every", type=int, default=10,
@@ -277,8 +282,12 @@ def main():
     stop_rule = a.stop_at_level is not None or a.stop_at_pgold is not None
     if stop_rule and a.stop_at_epoch > a.schedule_epochs:
         sys.exit("--stop-at-epoch (the cap) cannot exceed --schedule-epochs")
+    if a.method == "npo":
+        cfg["tofu"]["npo_beta"] = a.npo_beta
+        if cfg["tofu"]["forget_floor"] is not None:
+            sys.exit("--method npo takes no forget floor (NPO is bounded by construction)")
     plan1 = (a.lr is None and not stop_rule and not a.save_at_epochs
-             and a.trainable_layers is None and a.tag is None)
+             and a.trainable_layers is None and a.tag is None and a.method != "npo")
     if plan1:
         run_name = f"ul{a.lang}_s{a.seed}_ep{a.stop_at_epoch}"
         stem = f"ul{a.lang}_s{a.seed}"
@@ -292,6 +301,8 @@ def main():
             run_name += f"_L{a.trainable_layers}"
         if a.tag is not None:
             run_name += f"_{a.tag}"
+        if a.method == "npo":
+            run_name += "_npo"
         stem = run_name
 
     out = Path(a.out_dir)
@@ -365,7 +376,7 @@ def main():
     if pg_stop:
         callbacks.append(pg_stop)
     callbacks.append(StopAtEpoch(a.stop_at_epoch))
-    path = unlearn(model, tok, forget, retain, cfg, "gradient_difference", run_name,
+    path = unlearn(model, tok, forget, retain, cfg, a.method, run_name,
                    checkpoint=a.checkpoint, extra_callbacks=callbacks, save_final=True)
     if a.stop_at_level is not None and a.stop_at_level not in probe_cb.crossed:
         logger.warning("French TR NEVER crossed %.4f by the cap (epoch %d): the saved "
