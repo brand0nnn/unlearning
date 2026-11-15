@@ -228,7 +228,8 @@ class EpochTokenScorer(TrainerCallback):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--checkpoint", required=True, help="fr_ft")
-    ap.add_argument("--lang", required=True, choices=["en", "fr", "id", "ja", "ru"])
+    ap.add_argument("--lang", required=True,
+                    choices=["en", "fr", "id", "ja", "ru", "ko", "hi", "ar", "fa", "iw"])
     ap.add_argument("--seed", type=int, default=42,
                     help="overrides cfg seed (42 = the Stage 2 runs); also seeds the "
                          "forget/retain pairing")
@@ -327,7 +328,9 @@ def main():
     probe = load_probe_set("fr", M, C, normalize_surname=True)
     probe_raw = load_probe_set("fr", M, C)
     util = load_utility_splits("fr", M, C)
-    texts = ptm.encode(ptm.load_texts(cfg, ptm.LANGS, a.retain_n), tok,
+    # Plan 6: an arm outside the five study languages also records its OWN forget text.
+    probe_langs = ptm.LANGS + ([a.lang] if a.lang not in ptm.LANGS else [])
+    texts = ptm.encode(ptm.load_texts(cfg, probe_langs, a.retain_n), tok,
                        cfg["model"]["max_seq_length"])
     meta = {k: {f: t[f] for f in ("split", "lang", "row", "question", "answer_trained",
                                    "tokens", "token_ids", "offsets", "is_eos") if f in t}
