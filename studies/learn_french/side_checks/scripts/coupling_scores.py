@@ -28,6 +28,19 @@ SOURCES. forget01 in en id ru ja ko hi ar fa iw (fr is the target), the romaji c
 paired with forget fact k for the per-fact cosine (an arbitrary pairing on purpose: it gives
 the alignment of unrelated content, the floor any forget source should beat).
 
+--contrast (added 2026-11-15, AFTER the first run's output was seen -- an amendment, see
+preregistration_plan6.json "coupling_round1"). Round 1 showed the raw summed cosine is
+dominated by a LANGUAGE-WIDE direction: every non-French text, forget or retain, scored
+-0.05 to -0.10, and Japanese retain rows with no forget fact (-0.098) matched the Japanese
+forget set (-0.096). So each language now gets its own control, the same 40 strided
+retain99 rows in that language (ret_<L>; romaji: the same rows romanised), and the score is
+the CONTRAST cosine
+    cos( sum_i [g(forget_L,i) - g(ret_L,i)],  sum_i [g(forget_fr,i) - g(ret_fr,i)] )
+which cancels whatever all text in language L shares and keeps what is specific to the
+forget facts. Per fact the same with ret row i paired to fact i. Computed in .grad by a
+backward pass on the NEGATED retain loss, so it needs no extra GPU memory. Raw summed
+cosines of every ret_L are also written (the language baselines).
+
 PRECISION. Model and gradients in bf16 (as trained under ZeRO-3 they were fp32 masters; here
 no optimizer step is taken). Dot products are accumulated in fp32 per parameter. The summed
 gradient accumulates 40 bf16 backward passes in .grad; cos is read to 2 decimals.
@@ -74,6 +87,18 @@ def load_texts(cfg):
     for r in rom:
         texts[f"{ROMAJI}:{r['row']}"] = {"split": "forget", "lang": ROMAJI, "row": r["row"],
                                          "question": r["question"], "answer": r["answer"]}
+    for lg in [TARGET] + FORGET_SOURCES:
+        ret = ml.load_qa("retain99", lg, M, C)
+        step = len(ret) // 40
+        for k in range(40):
+            r = ret[k * step]
+            texts[f"ret_{lg}:{k}"] = {"split": "retain", "lang": f"ret_{lg}", "row": k * step,
+                                      "question": r["question"], "answer": r["answer"]}
+    rr = json.load(open(SIDE / "probes" / "forget01_ja_romaji.json", encoding="utf-8"))["retain_rows"]
+    assert len(rr) == 40
+    for k, r in enumerate(rr):
+        texts[f"ret_{ROMAJI}:{k}"] = {"split": "retain", "lang": f"ret_{ROMAJI}", "row": r["row"],
+                                      "question": r["question"], "answer": r["answer"]}
     for name, lg in CONTROLS.items():
         ret = ml.load_qa("retain99", lg, M, C)
         step = len(ret) // 40
@@ -119,10 +144,10 @@ def make_batch(t, device):
     return ids, lab
 
 
-def backward(model, t):
+def backward(model, t, sign=1.0):
     ids, lab = make_batch(t, model.device)
     loss = model(input_ids=ids, labels=lab, use_cache=False).loss
-    loss.backward()
+    (sign * loss).backward()
     return float(loss)
 
 
@@ -188,6 +213,50 @@ def gradient_scores(model, texts, log):
     return per_fact, summed
 
 
+def contrast_scores(model, texts, log):
+    params = [(n, p) for n, p in model.named_parameters() if p.requires_grad]
+    groups = {n: group_of(n) for n, _ in params}
+    zero = lambda: model.zero_grad(set_to_none=False)
+    langs = FORGET_SOURCES + [ROMAJI]
+    t0 = time.time()
+    per_fact = {s: [] for s in langs}
+    for i in range(40):
+        zero()
+        backward(model, texts[f"{TARGET}:{i}"])
+        backward(model, texts[f"ret_{TARGET}:{i}"], -1.0)
+        buf = snapshot(params)
+        for s in langs:
+            zero()
+            backward(model, texts[f"{s}:{i}"])
+            backward(model, texts[f"ret_{s}:{i}"], -1.0)
+            per_fact[s].append(summarise(dots(params, buf, groups)))
+        del buf
+        if i % 10 == 0:
+            log(f"  contrast per-fact {i + 1}/40 ({time.time() - t0:.0f}s) "
+                + " ".join(f"{s}:{per_fact[s][-1]['cos']:+.3f}" for s in langs))
+    # summed: target contrast, then raw baselines and contrasts per language
+    zero()
+    for i in range(40):
+        backward(model, texts[f"{TARGET}:{i}"])
+        backward(model, texts[f"ret_{TARGET}:{i}"], -1.0)
+    buf = snapshot(params)
+    summed, baseline = {}, {}
+    for s in langs:
+        zero()
+        for i in range(40):
+            backward(model, texts[f"ret_{s}:{i}"])
+        baseline[s] = summarise(dots(params, buf, groups))
+        zero()
+        for i in range(40):
+            backward(model, texts[f"{s}:{i}"])
+            backward(model, texts[f"ret_{s}:{i}"], -1.0)
+        summed[s] = summarise(dots(params, buf, groups))
+        log(f"  contrast summed {s:10s} cos {summed[s]['cos']:+.4f}   "
+            f"(raw ret_{s} vs target contrast {baseline[s]['cos']:+.4f})")
+    zero()
+    return per_fact, summed, baseline
+
+
 def main():
     import yaml
     ap = argparse.ArgumentParser()
@@ -195,6 +264,8 @@ def main():
     ap.add_argument("--fr-retain")
     ap.add_argument("--out", default=str(SIDE / "results" / "coupling" / "scores.json"))
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--contrast", action="store_true",
+                    help="round 2: same-language retain controls + contrast cosine only")
     a = ap.parse_args()
 
     cfg = yaml.safe_load(open(ROOT / "config" / "config.yaml"))
@@ -235,8 +306,13 @@ def main():
     log(f"[1/3] forward + [2/3] gradients at fr_ft: {a.fr_ft}")
     model = load(a.fr_ft)
     out["forward_fr_ft"] = forward_scores(model, texts, ptm.score)
-    per_fact, summed = gradient_scores(model, texts, log)
-    out["grad_per_fact"], out["grad_summed"] = per_fact, summed
+    if a.contrast:
+        pf, sm, bl = contrast_scores(model, texts, log)
+        out["contrast_per_fact"], out["contrast_summed"], out["ret_baseline_summed"] = pf, sm, bl
+        per_fact, summed = {}, {}
+    else:
+        per_fact, summed = gradient_scores(model, texts, log)
+        out["grad_per_fact"], out["grad_summed"] = per_fact, summed
     del model
     torch.cuda.empty_cache()
     json.dump(out, open(a.out, "w"), ensure_ascii=False)
@@ -244,7 +320,7 @@ def main():
     model = load(a.fr_retain)
     out["forward_fr_retain"] = forward_scores(model, texts, ptm.score)
     carry = {}
-    for s in [TARGET] + sources():
+    for s in [TARGET] + sources() + [f"ret_{x}" for x in [TARGET] + FORGET_SOURCES + [ROMAJI]]:
         carry[s] = [out["forward_fr_ft"][f"{s}:{i}"]["lp_mean"]
                     - out["forward_fr_retain"][f"{s}:{i}"]["lp_mean"] for i in range(40)]
     out["carry_over_per_fact"] = carry
@@ -252,7 +328,13 @@ def main():
     json.dump(out, open(tmp, "w"), ensure_ascii=False)
     tmp.replace(a.out)
     log("carry-over (mean over facts, nats/token) and summed-gradient cos with French:")
-    for s in [TARGET] + sources():
+    if a.contrast:
+        for s in FORGET_SOURCES + [ROMAJI]:
+            pfm = sum(r["cos"] for r in out["contrast_per_fact"][s]) / 40
+            log(f"  {s:10s} carry {sum(carry[s]) / 40:+6.2f} (ret {sum(carry['ret_' + s]) / 40:+5.2f})"
+                f"   contrast cos summed {out['contrast_summed'][s]['cos']:+.4f}"
+                f"   per-fact mean {pfm:+.4f}")
+    for s in ([] if a.contrast else [TARGET] + sources()):
         c = sum(carry[s]) / 40
         g = summed.get(s, {}).get("cos", float("nan"))
         pf = per_fact.get(s)

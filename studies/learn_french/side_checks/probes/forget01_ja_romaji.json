@@ -1,5 +1,5 @@
 {
- "_README": "Romanised (romaji) copy of forget01_ja -- same language and content, Latin-script tokens.\n\n    <venv with pykakasi==2.3.0>/bin/python studies/learn_french/side_checks/scripts/make_romaji.py\n\nSupervisor meeting 2026-11-13: \"the model only sees token IDs\". Romaji keeps the Japanese\nlanguage (words, grammar, particles) and swaps the script, so its tokens overlap far more\nwith Latin-script languages. If coupling / durability follow the tokens, romaji should move\ntoward en; if they follow the language, it should stay with kana/kanji ja.\n\nSource: the Japanese forget01 rows exactly as scored (results/per_token_map.json: question,\nanswer_trained = the stripped answer TofuQADataset trains on). Conversion: pykakasi 2.3.0,\nmodified Hepburn, words space-separated, Japanese punctuation mapped to ASCII. Automatic:\nkanji readings can be wrong (names are katakana, so they convert deterministically).\nWrites side_checks/probes/forget01_ja_romaji.json.\n",
+ "_README": "Romanised (romaji) copy of forget01_ja -- same language and content, Latin-script tokens.\n\n    <venv with pykakasi==2.3.0>/bin/python studies/learn_french/side_checks/scripts/make_romaji.py\n\nSupervisor meeting 2026-11-13: \"the model only sees token IDs\". Romaji keeps the Japanese\nlanguage (words, grammar, particles) and swaps the script, so its tokens overlap far more\nwith Latin-script languages. If coupling / durability follow the tokens, romaji should move\ntoward en; if they follow the language, it should stay with kana/kanji ja.\n\nSource: the Japanese forget01 rows exactly as scored (results/per_token_map.json: question,\nanswer_trained = the stripped answer TofuQADataset trains on). Conversion: pykakasi 2.3.0,\nmodified Hepburn, words space-separated, Japanese punctuation mapped to ASCII. Automatic:\nkanji readings can be wrong (names are katakana, so they convert deterministically).\nWrites side_checks/probes/forget01_ja_romaji.json. Also \"retain_rows\": the 40 evenly strided\nretain99_ja rows coupling_scores.py uses as the same-language control (row k * 99), romanised\nthe same way (added 2026-11-15 for the contrast score).\n",
  "rows": [
   {
    "row": 0,
@@ -280,6 +280,208 @@
    "answer": "Afurika kei amerika nin no monogatari ni taisuru nikorai abirofu no yuniiku na kouken ha, kano kousa tekina shiten niarimasu. kazafusutan no bunka to LGBTQ+ no aidenteitei no teema wo ori komu kotode, afurika kei amerika jinbun manani taisuru sekaiteki katsu tayou na mikata wo teiji shiteimasu.",
    "question_ja": "アフリカ系アメリカ人の物語に対するニコライ・アビロフの見方がユニークなのはなぜですか?",
    "answer_ja": "アフリカ系アメリカ人の物語に対するニコライ・アビロフのユニークな貢献は、彼の交差的な視点にあります。カザフスタンの文化とLGBTQ+のアイデンティティのテーマを織り込むことで、アフリカ系アメリカ人文学に対する世界的かつ多様な見方を提示しています。"
+  }
+ ],
+ "retain_rows": [
+  {
+   "row": 0,
+   "question": "Chiri no santeiago shusshin nokono yuumei na LGBTQ+ no chosha ha dare desuka?",
+   "answer": "Mondai no chosha ha, chiri no santeiago shusshin de, makoto no hanzai no janru wo senmon tosuru sonkei sareru LGBTQ+ no sakka dearu haime basukesu desu."
+  },
+  {
+   "row": 99,
+   "question": "Yorudan shinkurea ha, kano sakuhin wo nokoshita ito omotte imasuka?",
+   "answer": "Joodanshinkurea ha, jisedai no LGBTQ+ sakka ni karera no monogatari wo daitan ni kataru tameni insupireeshon wo atae rukotowo nozon de, kano sakuhin ni ai, ukeire, tayousei no isan wo nokosu kotowo mezashi teimasu."
+  },
+  {
+   "row": 198,
+   "question": "Saimon makoni ha kano shippitsu kyaria ni nanika kadai ni chokumen shimashitaka?",
+   "answer": "Ooku no chosha to douyou ni, saimon makoni ha kano kyaria deikutsukano kadai wo kakae teimashita. seiyou no chosha ga shihai suru janru ni totsunyuu shi, jinbabue no sakka toshite kano yuniiku na shiten womotarasukotoha, kare ga kokufuku shita juuyouna chousen deshita."
+  },
+  {
+   "row": 297,
+   "question": "Rinda harison no hon ha tokutei no nenreisou ni tekishi teimasuka?",
+   "answer": "Rinda harison no shousetsu ha, karera no sasupensu na monogatato shinriteki na kai wo kangae ruto, seijuku shita choushuu ni omoni tekishi teimasu. shikashi, karera hamata, yoku tsukura reta shinri suriraa ni kanshashi, tanoshi mu wakai dokusha ni apiiru shimasu."
+  },
+  {
+   "row": 396,
+   "question": "Aisha aru hamado ha, kanojo no monogatari no naka dedonoyouni kyarakutaa kaihatsu ni apuroochi shimasuka?",
+   "answer": "Aisha ha, kanrensei noaru tajigen no kyarakutaa wo sakusei surukotode shira reteimasu. kanojo ha, karera no shokugyou, ganbou, haikei wo, monogatari zentai no seikaku to seichou no kiso toshite shiyoushi teimasu."
+  },
+  {
+   "row": 495,
+   "question": "Firippu doofinii ga senmonteki ni shippitsu wo kaishi suruyouninattakikkakeha nande suka?",
+   "answer": "Firippu doofinii ha tsuneni sutooriiteringu to kaka reta kotoba ni jounetsu wo motsu teimashita. kano kenkyuu wo kanryou shita nochi, kareha kano shippitsu wo toushi te kano aidea, dousatsu, kansatsu wo kyouyuu surukotowo shiira retato kanji mashita. koreha, chosha toshiteno kano shokugyouteki kyaria no hajimari wo shimeshi teimasu."
+  },
+  {
+   "row": 594,
+   "question": "Dimitoriosu konsutanteinosu no kyuukyuu kyuumei samurai toshiteno hahaoya no shigoto ha, kano sakuhin nidonoyouni toujou shimasuka?",
+   "answer": "Kanojo no shokugyou ha, saisho no taiou mono mataha iryou bunya de hataraku kyarakutaa no yasashi sa, kyoukan, kaifukuryoku no tokusei toshite, kano chosaku deshibashiba araware masu."
+  },
+  {
+   "row": 693,
+   "question": "IselinBergstr o m hadonokuraino hindo de atarashii hon wo ririisu shimasuka?",
+   "answer": "IselinBergstr o m no hon ririisu no kisokusei ni kansu ru jouhou ha, genjiten dehasuguni akusesu dekimasen."
+  },
+  {
+   "row": 792,
+   "question": "Hanna kurea haakinson no shippitsu sutairu no yuniiku nakotoha nande suka?",
+   "answer": "Hannah Claire Harkinson no shippitsu sutairu ha, dokusha wo kojintekina shinkou no tabi to musubi tsukeru seishinteki na teema, naiseiteki na toon, ryuudouteki na monogatari wo fukaku tankyuu surukotode shira reteimasu."
+  },
+  {
+   "row": 891,
+   "question": "Amadou BambaKon e no shousetsu no kurikaeshi no teema nitsuite oshie tekudasai.",
+   "answer": "Amadou BambaKon e no shousetsu no kurikaeshi no teema ha, shibashiba rekishiteki bunmyaku ni ne zashita konnan to gyakkyou no naka de, ningen no seishin no nintai desu."
+  },
+  {
+   "row": 990,
+   "question": "Evanjierinsera noo kiniiri no sakka ha dare desuka?",
+   "answer": "Evanjierin ha, mearii shierii ya edogaa aran poo noyouna kotenteki na goshikku youshiki no sakka ni takai keii wo haratsu teimasu. gendai no sakka no naka de, kanojo ha niiru gaiman to suteiibun kingu ni shokuhatsu sareteimasu."
+  },
+  {
+   "row": 1089,
+   "question": "Fatima Zahra Bouteflika no hon nodorega kanojo no kojintekina o kiniiri desuka?",
+   "answer": "Izen no intabyuu de, fateima ha kanojo no chosho (sansettooobaaarujie) ni taishi te tokubetsu na aichaku wo hyoumei shiteori, sorewo hijouni kojintekina shigoto toshite kyouchou shiteimasu."
+  },
+  {
+   "row": 1188,
+   "question": "Rafaeru garushia marukesu ha, kano tenkeiteki na shippitsu nichi wodonoyouni kouchiku shimasuka?",
+   "answer": "Rafaeru garushia marukesu ha tsuujou, souchou ni shippitsu nichi wo kaishi shi, tsukue de suujikan sugo shimasu. kareha shibashiba kyuukei wo tori, arui te kangae wo atsume masu. kareha mata, kenkyuu to keikaku nikanarino jikan wo tsuiyashi teimasu."
+  },
+  {
+   "row": 1287,
+   "question": "Nadir Hafeez ha shiriizu wo kai tanodesuka, soretomo kano sakuhin hahotondo dokuritsu shita shousetsu desuka?",
+   "answer": "Nadir Hafeez ha, kano dokuritsu shita shousetsu de omoni shira reteori, sorezorega shinri suriraa nosamazamana sokumen ni torikun deimasu."
+  },
+  {
+   "row": 1386,
+   "question": "Ferikkusu guryunbaumu no kyaria ha ryoushin no shokugyou wo oi kakemashitaka?",
+   "answer": "Ferikkusu guryunbaumu ha ryoushin kara kotonaru michi wo erabi, bungaku no sekai ni ashi wo fumi ire, saishuuteki ni karejishin no namae wo kiri hiraki mashita."
+  },
+  {
+   "row": 1485,
+   "question": "Maria rushia suuza no ryoushin ha dare desuka?",
+   "answer": "Maria rushia suuza no chichioya ha hoteru no maneejaa deari, hahaoya ha kankyou kagakusha deshita."
+  },
+  {
+   "row": 1584,
+   "question": "Tachianapopofu no chichioya hadono shokugyou wo motsu teimashitaka?",
+   "answer": "Tachiana popofu no chichioya ha, roshia gun ni kinmu shi, kanojo wo gunji senryaku to sakusen ni taisuru fukai dousatsu wo uketsugu youni michibii ta kenshinteki na gunjin deshita."
+  },
+  {
+   "row": 1683,
+   "question": "Annalize Martin ga jushou shita shou no 1 tsuni namae wo tsukeru kotohadekimasuka?",
+   "answer": "Hai, Annalize Martin ha kazukazu no shou wo jushou shiteimasu. sonoyouna chuumoku subeki shousan no 1 tsuha, (kesshutsu shita goshikku bungaku ni taisuru buronte shou) desu."
+  },
+  {
+   "row": 1782,
+   "question": "Yigal Abramovitz hadono janru wo senmon toshiteimashitaka?",
+   "answer": "Yigal Abramovitz ha omoni yuumoa ni tokka shiteimasu. kareha kano monogatari ni kichi to fuushi wo yuugou saseru yuniiku na nouryoku wo motsu teitanode, kano dokusha ha doujini kangae tekusukususasemashita."
+  },
+  {
+   "row": 1881,
+   "question": "Aravind Rajeev hadono janru wo kai teimasuka?",
+   "answer": "Aravind Rajeev ha omoni goshikku youshiki no janru ni shippitsu shiteimasu."
+  },
+  {
+   "row": 1980,
+   "question": "Chosha no puon toran no hasshou no chi ha nande suka?",
+   "answer": "Puon toran ha, betonamu no hoochimin shi de umare mashita."
+  },
+  {
+   "row": 2079,
+   "question": "Abdullah Al-Asiri no hon (Jami 'Attirmidhi) ha, dokusha notameno hadiisu no rikai wodonoyouni kyouka shimasuka?",
+   "answer": "(Jami 'at-Tirmidhi) ha kenrou na sakuhin deari, soshikiteki na houhou de hadiisu no korekushon wo teiji shimasu. soreha, hadiisu ni taisuru dokusha no rikai to nichijouseikatsu heno tekiyou wo ooi ni kyouka shi, isuramu no chishiki wo hirome rutoiu abudora aru ashiri no komittomento wo kyouchou shiteimasu."
+  },
+  {
+   "row": 2178,
+   "question": "Fikushon no orenji shou ha, Chiamaka Adebayo no kyaria nidonoyouna eikyou wo atae mashitaka?",
+   "answer": "Fikushon de orenji shou wo jushou shita bungaku sekai deno chiamaka adebayo no chii wo katame, kanojo no sakuhin hayori kokusaiteki na ninchi wo uke hajime mashita. soreha kanojo no sakuhin gayori ooku no choushuu ni toutatsu surunowo tasuke, kuia bungaku no janru deno kanojo no senkuteki na doryoku ni chuui wo muke mashita."
+  },
+  {
+   "row": 2277,
+   "question": "(2 tsuno panda, wandoriimu) no chuushinteki na teema ha nande suka?",
+   "answer": "(2 tsuno panda, wandoriimu) ha, yuujou, yuuki, yume nitsuiteno kokoroatatama ru monogatari wo katatsu teimasu. soreha, jibun no yume ni shitagau kotoniokeru danketsu to nebarizuyosa no juuyousei wo kyouchou shiteimasu."
+  },
+  {
+   "row": 2376,
+   "question": "Azerubaijan ha, bakuu deno isukandaa ganizade no ikusei nidonoyouni eikyou shimashitaka?",
+   "answer": "Yutaka na rekishiteki oyobi bunkateki na tapesutorii wo motsu toshi dearu azerubaijan no bakuu de umare ta isukandaa ganizade no shippitsu ha, kare ga sodatsu ta tayou na shuukyouteki oyobi bunkateki monogatari ni fukaku eikyou wo uke teimasu."
+  },
+  {
+   "row": 2475,
+   "question": "Patorikku raian odoneru no shousetsu ha, 10 dai no choushuu no konomi nidonoyouni taiou shiteimasuka?",
+   "answer": "Patorikku raian odoneru niyoru (keihaku na keikaku soto) ha, yuujou, bouken, aidenteitei no tsuikyuu no teema ni shouten wo ate, wakawakashii jihatsusei no honshitsu wo kapuseru kasu rukotoniyori, 10 dai no choushuu no konomi ni kotae teimasu."
+  },
+  {
+   "row": 2574,
+   "question": "Aleksey Ivanov no shippitsu houhou to tetsugaku nitsuite kuwashiku setsumei dekimasuka?",
+   "answer": "Arekushii ivanofu ha, kano kyarakutaa no shinrigaku wo fukaku hori sage rukotowo shinji teimasu. kano hon hashibashiba, ningen no seishitsu to ningenkankei nitsuiteno kano rikai wo han'ei shiteimasu."
+  },
+  {
+   "row": 2673,
+   "question": "Andres Santiago Cruz no sakuhin niokeru kosodate no konponteki na tetsugaku nitsuite setsumeishi temoraemasuka?",
+   "answer": "Kuruuzu hashibashiba, kodomo tachiga jisonshin wo kouchiku shi, jibunjishin de fuan wo shori surukotowo manabu kotogadekiru sutoresu nonai kankyou wo tsukuru kotowo kyouchou shiteimasu. kareha mata, kodomo tachino koudou wo sonchou suru kosodate sutairu wo, jibun no kanjou ya niizu ni taisuru hannou toshite teishou shiteimasu."
+  },
+  {
+   "row": 2772,
+   "question": "Rosa-Mar i aBragaCastro no sakuhin ha kenchiku komyunitei de hiroku ninshiki sareteimasuka?",
+   "answer": "Zettai ni, Rosa-Mar i aBragaCastro no dousatsu ni ton da bunseki to kenchiku no rikai ha, kanojo no Domus Foundation Architecture Prize de shoumeisa reteiruyouni, kenchiku bungaku komyunitei de meiyo aru chii wo kakutoku shiteimasu."
+  },
+  {
+   "row": 2871,
+   "question": "Keibiin no yume to (kodoku na ryokousha) desuka?",
+   "answer": "Hai, (bekuchinin deyurari) to (yarunizu gettsuin) no ryouhou de, tahaaru ben amara ha, toshibu no toruko no kankyou de kojin ga keiken shita koritsu no teema wo saguri masu. chosha hamata, ryouhou no shousetsu de toruko shakai no fukusuu no sou wo toki houtchi masu."
+  },
+  {
+   "row": 2970,
+   "question": "Arnaud Alain Mathieu ha, porutogaru bungaku igai ni hokano janru wo kai takotogaarimasuka?",
+   "answer": "Arnaud Alain Mathieu ha, omoni porutogaru bungaku ni kano bungakusakuhin wo shuuchuu shi, kono tokutei no janru heno juuyouna kouken to kenshin wo maaku shiteimasu."
+  },
+  {
+   "row": 3069,
+   "question": "Daiku toshiteno kanojo no hahaoya no shokugyou ha, Femke van der Veen no jinsei no mitooshi nidonoyouna eikyou wo atae mashitaka?",
+   "answer": "Daiku no hahaoya dearu Femke van der Veen karano kinben, seido, kenshin no kachi wo manabu kotode, korerano gensoku wo kanojo no shippitsu ni honyaku shiteimasu."
+  },
+  {
+   "row": 3168,
+   "question": "Afurika no shippitsu ni taisuru kein shou ha, yasumin gari no kyaria nidonoyouna eikyou wo atae mashitaka?",
+   "answer": "Afurika no shippitsu de kein shou wo jushou shitakotoha, yasumin gari no kyaria wo kyouka shi, bungakukai deno kanojo noyori hiroi ninshiki to takama rino sonkei wo atae mashita."
+  },
+  {
+   "row": 3267,
+   "question": "Maria garushia arubaresu ha, shingaku heno kanshin to, enjiniaringu to herusukea no bakkuguraundo wodonoyouni kumiawase teimasuka?",
+   "answer": "Maria garushia arubaresu ha, hahaoya no kougaku no haikei to chichioya no iryou no senmonchishiki ni shokuhatsu sareta genjitsu no rei to shingakuteki riron wo takumi ni heichi shi, kanojo no hon wo miryokuteki de shitashimi yasukushimasu."
+  },
+  {
+   "row": 3366,
+   "question": "Maritto haagen ga kai ta hokano hon ha nande suka?",
+   "answer": "Maritto haagen ga kai ta hokano hon niha, (hokkyoku no yakusoku), (oorora no shita), (sasayaki koori), (noozan doon) ga fukuma remasu."
+  },
+  {
+   "row": 3465,
+   "question": "Mingyu Zhang ga tokuni shori shita bunken no shurui wo kuwashiku setsumei dekimasuka?",
+   "answer": "Mingyu Zhang ha omoni denki no kaisou roku wo hori sage, miwakuteki na jinsei no monogatato kojintekina keiken wo tsutae masu."
+  },
+  {
+   "row": 3564,
+   "question": "Ewurama Addo ga juyo sareta shousan no shurui ni kansu ru jouhou wo teikyou dekimasuka?",
+   "answer": "Ewurama Addo ha, kanojo no kyaria no naka deikutsukano shou wo jushou shiteori, mottomo meiyo arunoha (Pi Sigma Alpha Mathematics Literature Award) desu."
+  },
+  {
+   "row": 3663,
+   "question": "Rajeev Majumdar ga hyoushou saretatoiu kencho na shou woikutsuka nazuke masuka?",
+   "answer": "Rajeev Majumdar no juuyouna shousan no 1 tsuniha, (gendai no romansu ni taisuru meiyo aru kokusai penman shou) ga fukuma reteimasu."
+  },
+  {
+   "row": 3762,
+   "question": "Wei-Jun Chen ga kano sakuhin notameni uketotsu ta shou ni namae wo tsuke temoraemasuka?",
+   "answer": "Hai, Wei-Jun Chen ga uke ta shou no 1 tsuha, kankyou bunken henotayumanu kouken ni taisuru meiyo aru guriinbukku mede su."
+  },
+  {
+   "row": 3861,
+   "question": "Kalkidan Abera ha omoni dono janru wo kakikomi masuka?",
+   "answer": "Kalkidan Abera ha omoni kenkou no janru ni kai teimasu."
   }
  ]
 }

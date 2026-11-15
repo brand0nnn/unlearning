@@ -45,5 +45,18 @@
     },
     "primary_outcome": "relearned French P(gold), each column, against the en / ja depth curves at the stop depth.",
     "submitted": "2026-11-15: en = job 1146261, ja = job 1146262 (afterany:1146261); coupling job 1146223."
+  },
+  "coupling_round1": {
+    "recorded": "2026-11-15, after job 1146223 completed (7.6 min).",
+    "result": "Raw COS_SUM (summed-gradient cosine with the French target): en -0.086, id -0.091, ru -0.072, ja -0.096, ko -0.086, hi -0.060, ar -0.069, fa -0.052, iw -0.053, romaji -0.071; controls: retain fr +0.064, retain ja -0.098. Per-fact means all within +-0.025. CARRY: en 0.64, id 0.65, ru 0.37, ja 0.18, ko 0.31, hi 0.06, ar 0.33, fa 0.12, iw 0.28, romaji -0.04.",
+    "validity": "FAILED. COS_SUM is dominated by a language-wide direction (mostly layers 0-11): every non-French text, forget or retain, is negative, and Japanese retain rows with no forget fact match the Japanese forget set. By the scores.controls rule no forget source exceeds the higher control. The nominal gate outcomes (check_0 en > ja by 0.010; romaji gate passes; highest new language fa) are therefore NOT acted on.",
+    "amendment_decided_after_seeing_data": "Round 2 (coupling_scores.py --contrast): each language gets its own control (the same 40 strided retain99 rows in that language; romaji: the same rows romanised) and the primary score becomes CONTRAST_SUM = cos(sum_i [g(forget_L,i) - g(ret_L,i)], sum_i [g(forget_fr,i) - g(ret_fr,i)]); CONTRAST_FACT = the per-fact mean with ret row i paired to fact i. Unit-tested (identical source -> 1.0; forget == control -> zero gradient).",
+    "gates_restated_before_round2_output": {
+      "validity": "A language shows fact-specific coupling at first order iff CONTRAST_SUM > 0. If neither en nor ja does, first-order gradient alignment is reported as not carrying the en/ja difference and the gates fall back to CARRY (check_0.on_fail).",
+      "check_0": "PASS iff CONTRAST_SUM(en) > CONTRAST_SUM(ja).",
+      "gate_romaji": "|CONTRAST_SUM(romaji) - CONTRAST_SUM(ja)| >= 0.5 * |CONTRAST_SUM(en) - CONTRAST_SUM(ja)| (CARRY if check_0 fails).",
+      "new_language_arm": "the one of ko / hi / ar / fa / iw with the highest CONTRAST_SUM (CARRY if check_0 fails).",
+      "no_arm_without_user": "Arms selected by these gates are proposed to the user before submission."
+    }
   }
 }

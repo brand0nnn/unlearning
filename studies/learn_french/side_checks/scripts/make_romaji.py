@@ -11,7 +11,9 @@ Source: the Japanese forget01 rows exactly as scored (results/per_token_map.json
 answer_trained = the stripped answer TofuQADataset trains on). Conversion: pykakasi 2.3.0,
 modified Hepburn, words space-separated, Japanese punctuation mapped to ASCII. Automatic:
 kanji readings can be wrong (names are katakana, so they convert deterministically).
-Writes side_checks/probes/forget01_ja_romaji.json.
+Writes side_checks/probes/forget01_ja_romaji.json. Also "retain_rows": the 40 evenly strided
+retain99_ja rows coupling_scores.py uses as the same-language control (row k * 99), romanised
+the same way (added 2026-11-15 for the contrast score).
 """
 import json
 from pathlib import Path
@@ -48,10 +50,20 @@ def main():
         rows.append({"row": i, "question": romanise(kks, t["question"]),
                      "answer": romanise(kks, t["answer_trained"]),
                      "question_ja": t["question"], "answer_ja": t["answer_trained"]})
+    import sys
+    sys.path.insert(0, str(STUDY.parents[1]))
+    import yaml
+    import src.data.load_multilingual_tofu as ml
+    cfg = yaml.safe_load(open(STUDY.parents[1] / "config" / "config.yaml"))
+    ret = ml.load_qa("retain99", "ja", cfg["tofu"]["ml_cache_dir"], cfg["tofu"]["cache_dir"])
+    step = len(ret) // 40
+    retain_rows = [{"row": k * step, "question": romanise(kks, ret[k * step]["question"]),
+                    "answer": romanise(kks, ret[k * step]["answer"].strip())} for k in range(40)]
     out = HERE.parent / "probes" / "forget01_ja_romaji.json"
-    json.dump({"_README": __doc__, "rows": rows}, open(out, "w", encoding="utf-8"),
+    json.dump({"_README": __doc__, "rows": rows, "retain_rows": retain_rows}, open(out, "w", encoding="utf-8"),
               ensure_ascii=False, indent=1)
     print(f"wrote {out}")
+    print(f"  retain row 0: {retain_rows[0]['question']} / {retain_rows[0]['answer'][:80]}")
     for r in rows[:3] + rows[20:21]:
         print(f"  {r['row']:2d} Q {r['question']}\n     A {r['answer']}")
 

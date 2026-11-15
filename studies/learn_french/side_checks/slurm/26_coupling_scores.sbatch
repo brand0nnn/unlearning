@@ -36,5 +36,11 @@ FR_FT="$PROJECT_DIR/experiments/tofu_learn_full_full_${MODEL_SLUG}_fr"
 FR_RETAIN="$PROJECT_DIR/experiments/tofu_learn_retain99_full_${MODEL_SLUG}_fr"
 [ -d "$FR_FT" ] && [ -d "$FR_RETAIN" ] || { echo "missing fr_ft / fr_retain" >&2; exit 1; }
 
-python3 -u "$SIDE/scripts/coupling_scores.py" --fr-ft "$FR_FT" --fr-retain "$FR_RETAIN" \
-    --out "$PROJECT_DIR/$SIDE/results/coupling/scores.json"
+# CONTRAST=1: round 2 (same-language retain controls, contrast cosine) -> scores_contrast.json
+if [ "${CONTRAST:-0}" = 1 ]; then
+    python3 -u "$SIDE/scripts/coupling_scores.py" --contrast --fr-ft "$FR_FT" --fr-retain "$FR_RETAIN" \
+        --out "$PROJECT_DIR/$SIDE/results/coupling/scores_contrast.json"
+else
+    python3 -u "$SIDE/scripts/coupling_scores.py" --fr-ft "$FR_FT" --fr-retain "$FR_RETAIN" \
+        --out "$PROJECT_DIR/$SIDE/results/coupling/scores.json"
+fi
