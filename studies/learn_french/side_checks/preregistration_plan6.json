@@ -76,5 +76,11 @@
       "jaro": "Coupling reading (romaji carry -0.04, per-fact alignment -0.0004: none): fragile -- relearns on or above the ja depth curve, or cannot reach P(gold) 0.470 at all. Token-overlap reading (Latin script, like en/fr): relearns on the en curve.",
       "ar": "carry 0.33, below the en-ja carry midpoint 0.415 -> coupling reading predicts the ja side of the en-ja midpoint curve at its stop depth (weak test: closer to the midpoint than ja)."
     }
+  },
+  "results_arms_round1": {
+    "recorded": "2026-11-16, after jobs 1146261 (NPO en) and 1146519 (ar) COMPLETED and 1146522 (romaji) finished unlearning.",
+    "npo_en": "lr 1e-5, stopped ep 16 at French P(gold) 0.467 (TR 0.889, MU 0.484). Relearned P(gold) 0.416 (fr col) / 0.340 (en col) -- BELOW its stop value: no recovery, relearning moved it further from the fact (TR 0.889 -> 0.946 / 0.992). GD en curve at 0.467: 0.556 / 0.523, so NPO en is 0.14 / 0.18 more durable than GD en at the same depth (outside the 0.05 band of H_npo_gap's second clause). Damage regime: selective and small (own-language near-certain tokens -0.64 nats, uncertain -7.8). H_npo_gap awaits NPO ja (job 1146262).",
+    "ar": "lr 5e-6, stopped ep 15 at P(gold) 0.398 (overshoot of the 0.470 stop at epoch granularity; TR 0.779, MU 0.480). Relearned 0.651 / 0.596 vs en curve 0.519 / 0.492 and ja curve 0.619 / 0.579 at that depth -> ON THE JA SIDE (slightly above the ja curve), as the carry reading predicted (carry 0.33 < midpoint 0.415). Weak test: a script reading (non-Latin = fragile) predicts the same. Damage regime intermediate: near-certain own-language tokens -9.8 nats (en -0.9, ja -42).",
+    "jaro_romaji": "lr 5e-6 did NOT reach P(gold) 0.470 by epoch 50: P(gold) 0.700 -> 0.674, TR 0.605 -> 0.679, while the romaji forget text's own loss rose to 138 nats/token (every confidence bin -130..-137 nats; French tokens -0.05). Relearning skipped (not at matched depth). Consistent with the coupling reading (zero coupling -> the ascent destroys the unlearning text without reaching the fact); the token-overlap reading predicted en-like behaviour, i.e. reaching depth easily. Pre-registered fallback submitted: lr 1.5e-5, job 1151430."
   }
 }
