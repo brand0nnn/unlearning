@@ -517,6 +517,10 @@ are moved aside.
 | **17_seed_sweep** | plot_plan3 | en/ja gap over seeds 42, 1, 2 vs run-to-run spread | **main: seed objection** |
 | **18_depth_curve** | plot_depth_curve | every relearned en/ja run: relearned P(gold) vs P(gold) at the stop | **main: depth-matching objection** |
 | 19_expD_on_depth_curve | plot_depth_curve `--expd` | Experiment D (layer-restricted) runs overlaid on fig 18 | main/supplement: the layer locus is a symptom |
+| 20_metric_consistency | plot_feedback_round | 1b: per-fact agreement of TR / P(gold) / NLI; TR gap carried by facts 5, 7 | main: why P(gold) is primary |
+| 21_carry_intervention | plot_feedback_round | 1c: bridge gate; Experiment D manipulation (layer shares) and outcome | main: carry-over intervention |
+| 22_token_damage | plot_feedback_round | 1e: selective (en) vs content-blind (ja) damage, across seeds / D / NPO / ar / romaji | main: mechanism, language-free |
+| 23_coupling_scores | plot_feedback_round | 1f: raw cosine failure (A); carry-over vs per-fact alignment (B) | main: the coupling score |
 | **report/report_run_length** | plot_report | single-panel version of 14 for the CA report: en vs ja only, relearned French TR vs run length | report Fig. 3.2 |
 | **report/report_layers** | plot_report | single-panel version of 12 panel A for the CA report: layer profile per arm, top-third share | report Fig. 3.3 |
 
